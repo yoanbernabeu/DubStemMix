@@ -130,7 +130,7 @@ Output device and buffer size (128 or 256 for the dance), recordings folder, pre
 git clone https://github.com/yoanbernabeu/DubStemMix.git
 cd DubStemMix
 swift run DubStemMix          # runs the app from the package
-tools/make-app.sh 0.1.1 dist  # builds dist/DubStemMix.app and the zip
+tools/make-app.sh 0.2.0 dist  # builds dist/DubStemMix.app and the zip
 swift test                    # 65 tests, no model or audio device needed
 ```
 
