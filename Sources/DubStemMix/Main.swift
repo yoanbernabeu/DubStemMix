@@ -36,7 +36,8 @@ enum Main {
         } else if let i = args.firstIndex(of: "--split"), i + 1 < args.count {
             let out = args.firstIndex(of: "--out").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
             let provider = args.firstIndex(of: "--provider").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
-            SplitCheck.split(args[i + 1], out: out, provider: provider)
+            let threads = args.firstIndex(of: "--threads").flatMap { $0 + 1 < args.count ? Int(args[$0 + 1]) : nil }
+            SplitCheck.split(args[i + 1], out: out, provider: provider, threads: threads)
         } else if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
             let page: MixController.Page = args.contains("--fx") ? .fx : args.contains("--master") ? .master : args.contains("--inserts") ? .inserts : .mix
             snapshot(to: args[i + 1], page: page, settings: args.contains("--settings"))

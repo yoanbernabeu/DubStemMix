@@ -29,7 +29,7 @@ enum SplitCheck {
         exit(store.isReady ? 0 : 1)
     }
 
-    static func split(_ path: String, out: String?, provider providerName: String?) {
+    static func split(_ path: String, out: String?, provider providerName: String?, threads: Int?) {
         let provider: OnnxStemSeparator.ExecutionProvider = switch providerName {
         case "coreml-cpu": .coreML(computeUnits: "CPUOnly")
         case "coreml-gpu": .coreML(computeUnits: "CPUAndGPU")
@@ -37,7 +37,7 @@ enum SplitCheck {
         case "coreml-all": .coreML(computeUnits: "All")
         default: .cpu
         }
-        print("Execution provider: \(provider)")
+        print("Execution provider: \(provider)" + (threads.map { " · \($0) threads" } ?? " · default threads"))
         setvbuf(stdout, nil, _IOLBF, 0)
         let store = ModelStore(directory: ModelStore.defaultDirectory)
         guard store.isReady else {
@@ -52,7 +52,7 @@ enum SplitCheck {
         let start = Date()
         Task {
             do {
-                let result = try await SeparationJob.run(source: source, outputRoot: root, separator: { OnnxStemSeparator(store: store, provider: provider) }) { progress in
+                let result = try await SeparationJob.run(source: source, outputRoot: root, separator: { OnnxStemSeparator(store: store, provider: provider, threads: threads) }) { progress in
                     print("  \(progress.stem.rawValue) \(progress.chunk)/\(progress.chunkCount) · \(Int(progress.fraction * 100)) % · \(Int(Date().timeIntervalSince(start))) s")
                 }
                 outcome = .success(result)

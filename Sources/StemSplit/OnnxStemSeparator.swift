@@ -13,13 +13,16 @@ public final class OnnxStemSeparator: StemSeparating {
 
     private let store: ModelStore
     private let provider: ExecutionProvider
+    /// Intra-op threads for ONNX Runtime; nil keeps its default (spec § 9: measure before changing).
+    private let threads: Int?
     nonisolated(unsafe) private static let env: ORTEnv = { // one per app (spec § 5.4); ORT guards its own state
         do { return try ORTEnv(loggingLevel: .warning) } catch { fatalError("ONNX Runtime could not start: \(error)") }
     }()
 
-    public init(store: ModelStore, provider: ExecutionProvider = .cpu) {
+    public init(store: ModelStore, provider: ExecutionProvider = .cpu, threads: Int? = nil) {
         self.store = store
         self.provider = provider
+        self.threads = threads
     }
 
     /// Compiled Core ML models are cached next to the ONNX files; a new model revision gets a new folder.
@@ -32,6 +35,7 @@ public final class OnnxStemSeparator: StemSeparating {
         try autoreleasepool {
             let options = try ORTSessionOptions()
             try options.setGraphOptimizationLevel(.all)
+            if let threads { try options.setIntraOpNumThreads(Int32(threads)) }
             if case let .coreML(units) = provider {
                 try FileManager.default.createDirectory(at: coreMLCache, withIntermediateDirectories: true)
                 try options.appendCoreMLExecutionProvider(withOptionsV2: [
