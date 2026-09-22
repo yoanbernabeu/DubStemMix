@@ -216,7 +216,7 @@ private struct StripView: View {
     /// Page FX : le potard pilote un paramètre d'effet, aux couleurs de son bus.
     private func fxCell(_ parameter: FXParameter) -> some View {
         let value = model.mix.fx[parameter] ?? 0
-        let color = Bus(rawValue: parameter.bus.rawValue)!.color
+        let color = parameter.bus.map { Bus(rawValue: $0.rawValue)!.color } ?? Theme.text // master: cream
         return VStack(spacing: 2) {
             Knob(
                 value: Binding(get: { value }, set: { model.mix.setFX(parameter, $0) }),

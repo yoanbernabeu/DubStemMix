@@ -193,7 +193,8 @@ private func energy(_ samples: ArraySlice<Float>) -> Float { samples.reduce(0) {
     #expect(FXParameter.delayReturn.display(1) == "+0 dB")
     #expect(FXParameter.delayReturn.display(0) == "−∞ dB")
     #expect(FXParameter.layout.count == 8 && FXParameter.layout.allSatisfy { $0.count == 3 })
-    #expect(Set(FXParameter.layout.flatMap { $0 }.compactMap { $0 }).count == FXParameter.allCases.count)
+    let onPages = Set((FXParameter.layout + FXParameter.masterLayout).flatMap { $0 }.compactMap { $0 })
+    #expect(onPages.count == FXParameter.allCases.count) // every parameter has a knob on one page
 }
 
 // MARK: - Tempo

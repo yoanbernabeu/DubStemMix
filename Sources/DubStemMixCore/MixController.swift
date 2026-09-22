@@ -25,15 +25,31 @@ public final class MixController {
         public var mute = false
         public var solo = false
         public var throwing = false
+        /// Survives the DROP gesture (PRD § 11.6).
+        public var keep = false
     }
 
     /// Ce que pilotent les 24 potards : les envois (BANK LEFT) ou les paramètres d'effets (BANK RIGHT).
     /// Les faders restent des volumes de tranche sur les deux pages.
-    public enum Page: Sendable { case mix, fx }
+    /// MASTER (PRD § 11.1): BANK RIGHT again from FX; BANK LEFT always returns to MIX.
+    public enum Page: Sendable, CaseIterable {
+        case mix, fx, master
+
+        /// Knob layout of the page (nil for MIX: the knobs are sends).
+        var layout: [[FXParameter?]]? {
+            switch self {
+            case .mix: nil
+            case .fx: FXParameter.layout
+            case .master: FXParameter.masterLayout
+            }
+        }
+    }
 
     public private(set) var strips = [Strip](repeating: Strip(), count: AudioEngine.stripCount)
     public private(set) var master = 0.8
     public private(set) var page = Page.mix
+    /// DROP held: every strip not marked KEEP is cut, without touching mute or solo.
+    public private(set) var dropping = false
     /// Paramètres d'effets, normalisés 0…1.
     public private(set) var fx: [FXParameter: Double] = Dictionary(
         uniqueKeysWithValues: FXParameter.allCases.map { ($0, $0.defaultValue) }
@@ -97,7 +113,7 @@ public final class MixController {
                 if pickUp(&knobs[strip][row], physical: value, current: strips[strip].sends[row]) {
                     applySend(strip: strip, row: row, value)
                 }
-            case .fx:
+            case .fx, .master:
                 switch cell(strip: strip, row: row) {
                 case let .parameter(parameter):
                     if pickUp(&knobs[strip][row], physical: value, current: fx[parameter] ?? 0) {
@@ -126,7 +142,7 @@ public final class MixController {
         case let .button(.bankLeft, _, pressed):
             if pressed { setPage(.mix) }
         case let .button(.bankRight, _, pressed):
-            if pressed { setPage(.fx) }
+            if pressed { setPage(page == .mix ? .fx : .master) }
         case .button(.soloMode, _, _):
             break // SOLO maintenu : la console envoie alors elle-même les notes de solo
         }
@@ -159,12 +175,14 @@ public final class MixController {
     public func knobGhost(strip: Int, row: Int) -> Double? { page == .mix ? ghost(knobs[strip][row]) : nil }
 
     public func fxGhost(_ parameter: FXParameter) -> Double? {
-        guard page == .fx, let (strip, row) = Self.knob(for: parameter) else { return nil }
+        guard let (strip, row) = knob(for: parameter) else { return nil }
         return ghost(knobs[strip][row])
     }
 
-    private static func knob(for parameter: FXParameter) -> (strip: Int, row: Int)? {
-        for (strip, column) in FXParameter.layout.enumerated() {
+    /// The knob driving a parameter on the current page, if the page shows it.
+    private func knob(for parameter: FXParameter) -> (strip: Int, row: Int)? {
+        guard let layout = page.layout else { return nil }
+        for (strip, column) in layout.enumerated() {
             if let row = column.firstIndex(of: parameter) { return (strip, row) }
         }
         return nil
@@ -182,7 +200,7 @@ public final class MixController {
 
     public func setFX(_ parameter: FXParameter, _ value: Double) {
         applyFX(parameter, value)
-        if page == .fx, let (strip, row) = Self.knob(for: parameter) { release(&knobs[strip][row], to: value) }
+        if let (strip, row) = knob(for: parameter) { release(&knobs[strip][row], to: value) }
     }
 
     /// Changement de page : les potards ne sont pas motorisés, chacun devra rattraper
@@ -193,7 +211,7 @@ public final class MixController {
             for row in knobs[strip].indices {
                 let target: Double? = switch newPage {
                 case .mix: strips[strip].sends[row]
-                case .fx: cellValue(strip: strip, row: row)
+                case .fx, .master: cellValue(strip: strip, row: row)
                 }
                 if let target, let physical = knobs[strip][row].value {
                     knobs[strip][row].picked = abs(physical - target) <= Self.pickupWindow
@@ -202,7 +220,7 @@ public final class MixController {
                 }
             }
         }
-        surface?.setBankLeds(left: newPage == .mix, right: newPage == .fx)
+        surface?.setBankLeds(left: newPage != .fx, right: newPage != .mix) // MASTER lights both
     }
 
     public func setFader(strip: Int, _ value: Double) {
@@ -240,9 +258,24 @@ public final class MixController {
         strips[strip].stems = stems
     }
 
+    // MARK: DROP (PRD § 11.6)
+
+    public func setKeep(strip: Int, _ keep: Bool) {
+        strips[strip].keep = keep
+        if dropping { applyAudibility() }
+    }
+
+    /// Held gesture: cuts every strip not marked KEEP; releasing gives the mix back exactly as it was.
+    public func setDrop(_ on: Bool) {
+        guard dropping != on else { return }
+        dropping = on
+        applyAudibility()
+    }
+
     /// Solo « in place » : dès qu'une tranche est en solo, seules les tranches en solo passent.
     public func isAudible(strip: Int) -> Bool {
-        strips.contains(where: \.solo) ? strips[strip].solo : !strips[strip].mute
+        if dropping, !strips[strip].keep { return false }
+        return strips.contains(where: \.solo) ? strips[strip].solo : !strips[strip].mute
     }
 
     /// À la (re)connexion de la console : on rallume les LEDs selon l'état du mix.
@@ -252,7 +285,7 @@ public final class MixController {
             surface?.setSoloLed(strip: i, strip.solo)
             surface?.setRecLed(strip: i, strip.throwing)
         }
-        surface?.setBankLeds(left: page == .mix, right: page == .fx)
+        surface?.setBankLeds(left: page != .fx, right: page != .mix)
     }
 
     // MARK: Application au moteur
@@ -282,7 +315,9 @@ public final class MixController {
         return bus == .delay && index == 5 ? nil : (bus, index)
     }
 
+    /// On the MASTER page, a master-chain parameter; otherwise the FX page's assignment (parameter or macro).
     public func cell(strip: Int, row: Int) -> FXCell? {
+        if page == .master { return FXParameter.masterLayout[strip][row].map(FXCell.parameter) }
         if let (bus, index) = Self.macroSlot(strip: strip, row: row), hostedBuses.contains(bus) { return .macro(bus, index) }
         return FXParameter.layout[strip][row].map(FXCell.parameter)
     }

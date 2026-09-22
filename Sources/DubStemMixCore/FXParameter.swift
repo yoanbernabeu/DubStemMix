@@ -12,6 +12,10 @@ public enum FXParameter: String, CaseIterable, Sendable {
     case phaserRate, phaserDepth, phaserFeedback
     case phaserCenter, phaserStereo
     case delayReturn, reverbReturn, phaserReturn
+    // Master chain (PRD § 11.3), on the MASTER page.
+    case masterHighPass
+    case killBass, killMid, killTop
+    case dubplate, crackle
 
     /// Page FX (BANK RIGHT) : potards des tranches 1 à 8, du haut vers le bas. PRD § 5.3.
     public static let layout: [[FXParameter?]] = [
@@ -25,11 +29,38 @@ public enum FXParameter: String, CaseIterable, Sendable {
         [nil, nil, nil],
     ]
 
-    public var bus: SendBus {
+    /// MASTER page (PRD § 11.2): strips 1 to 8, top to bottom. Strip 4 (delay heads, ping-pong) comes with M7.
+    public static let masterLayout: [[FXParameter?]] = [
+        [.masterHighPass, nil, nil],
+        [.killBass, .killMid, .killTop],
+        [.dubplate, .crackle, nil],
+        [nil, nil, nil],
+        [nil, nil, nil],
+        [nil, nil, nil],
+        [nil, nil, nil],
+        [nil, nil, nil],
+    ]
+
+    /// Steps of the big knob, in Hz; the first one is "off".
+    public static let highPassSteps: [Double] = [20, 70, 100, 150, 200, 300, 500, 800, 1000, 2000, 5000, 10_000]
+
+    /// The send bus this parameter belongs to; nil for the master chain.
+    public var bus: SendBus? {
         switch self {
         case .delayTime, .delayFeedback, .delayWow, .delayLowCut, .delayHighCut, .delayToReverb, .delayReturn: .delay
         case .reverbDecay, .reverbDamping, .reverbPredelay, .reverbLowCut, .reverbTone, .reverbReturn: .reverb
         case .phaserRate, .phaserDepth, .phaserFeedback, .phaserCenter, .phaserStereo, .phaserReturn: .bus3
+        case .masterHighPass, .killBass, .killMid, .killTop, .dubplate, .crackle: nil
+        }
+    }
+
+    /// Master-page group title (PRD § 11.2), for the strip header.
+    public var masterGroup: String? {
+        switch self {
+        case .masterHighPass: "BIG KNOB"
+        case .killBass, .killMid, .killTop: "KILLS"
+        case .dubplate, .crackle: "DUBPLATE"
+        default: nil
         }
     }
 
@@ -53,6 +84,12 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .delayReturn: "DLY RETURN"
         case .reverbReturn: "REV RETURN"
         case .phaserReturn: "PHS RETURN"
+        case .masterHighPass: "BIG KNOB"
+        case .killBass: "BASS"
+        case .killMid: "MID"
+        case .killTop: "TOP"
+        case .dubplate: "DUBPLATE"
+        case .crackle: "CRACKLE"
         }
     }
 
@@ -77,6 +114,9 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .delayReturn, .reverbReturn: 0.9
         // À 0 dB, un envoi à fond creuse des encoches complètes contre le signal direct de la tranche.
         case .phaserReturn: 1
+        // Master chain: neutral until touched.
+        case .masterHighPass, .dubplate, .crackle: 0
+        case .killBass, .killMid, .killTop: 1
         }
     }
 
@@ -99,6 +139,9 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .phaserCenter: exp(200, 2000)
         case .delayWow, .phaserDepth, .phaserStereo: n
         case .delayToReverb, .delayReturn, .reverbReturn, .phaserReturn: n * n // gain, 100 % = unité
+        case .masterHighPass: Self.highPassSteps[min(Self.highPassSteps.count - 1, Int(n * Double(Self.highPassSteps.count)))]
+        case .killBass, .killMid, .killTop: n * n // kill gain, 100 % = unity
+        case .dubplate, .crackle: n
         }
         return Float(value)
     }
@@ -114,8 +157,11 @@ public enum FXParameter: String, CaseIterable, Sendable {
             return String(format: "%.2f Hz", value)
         case .delayFeedback:
             return "\(Int((value * 100).rounded())) %"
-        case .delayToReverb, .delayReturn, .reverbReturn, .phaserReturn:
+        case .delayToReverb, .delayReturn, .reverbReturn, .phaserReturn, .killBass, .killMid, .killTop:
             return value < 0.001 ? "−∞ dB" : String(format: "%+.0f dB", 20 * log10(value)).replacingOccurrences(of: "-", with: "−")
+        case .masterHighPass:
+            if value <= 20 { return "OFF" }
+            return value >= 1000 ? String(format: "%.0f kHz", value / 1000) : "\(Int(value.rounded())) Hz"
         default:
             return "\(Int((min(1, max(0, normalized)) * 100).rounded())) %"
         }
@@ -139,6 +185,12 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .phaserFeedback: (.phaser, DUB_PHASER_FEEDBACK)
         case .phaserCenter: (.phaser, DUB_PHASER_CENTER)
         case .phaserStereo: (.phaser, DUB_PHASER_STEREO)
+        case .masterHighPass: (.master, DUB_MASTER_HIGH_PASS)
+        case .killBass: (.master, DUB_MASTER_BASS)
+        case .killMid: (.master, DUB_MASTER_MID)
+        case .killTop: (.master, DUB_MASTER_TOP)
+        case .dubplate: (.master, DUB_MASTER_DUBPLATE)
+        case .crackle: (.master, DUB_MASTER_CRACKLE)
         case .delayToReverb, .delayReturn, .reverbReturn, .phaserReturn: nil
         }
     }

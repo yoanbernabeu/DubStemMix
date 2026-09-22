@@ -358,3 +358,51 @@ private func hits(_ samples: [Float]) -> [Int: Float] {
     let two = try engine.renderOffline(frames: 9600)
     #expect(abs((two.last ?? 0) - 2 * 0.8 * pathGain) < 0.01)
 }
+
+// MARK: - MASTER page and DROP (PRD § 11)
+
+@MainActor @Test func bankRightCyclesToTheMasterPageAndBankLeftReturnsToMix() {
+    let engine = FakeEngine(), surface = FakeSurface()
+    let mix = MixController(engine: engine, surface: surface)
+    mix.handle(.button(.bankRight, strip: 0, pressed: true))
+    #expect(mix.page == .fx && surface.bankLeds == (false, true))
+    mix.handle(.button(.bankRight, strip: 0, pressed: true))
+    #expect(mix.page == .master && surface.bankLeds == (true, true))
+    mix.handle(.button(.bankRight, strip: 0, pressed: true))
+    #expect(mix.page == .master) // stays on the last page
+    mix.handle(.button(.bankLeft, strip: 0, pressed: true))
+    #expect(mix.page == .mix && surface.bankLeds == (true, false))
+}
+
+@MainActor @Test func masterPageKnobsDriveTheMasterChain() {
+    let engine = FakeEngine()
+    let mix = MixController(engine: engine)
+    #expect(engine.fx[.masterHighPass] == 20 && engine.fx[.killBass] == 1 && engine.fx[.dubplate] == 0) // neutral defaults
+    mix.setPage(.master)
+    mix.handle(.knob(strip: 1, row: 0, value: 0)) // far from the current value (1): not picked up yet
+    #expect(engine.fx[.killBass] == 1)
+    mix.handle(.knob(strip: 1, row: 0, value: 0.99)) // reached it
+    mix.handle(.knob(strip: 1, row: 0, value: 0)) // BASS killed
+    #expect(engine.fx[.killBass] == 0)
+    #expect(mix.fxDisplay(.killBass) == "−∞ dB")
+    mix.setFX(.masterHighPass, 0.5)
+    #expect(engine.fx[.masterHighPass] == 500)
+    #expect(mix.fxDisplay(.masterHighPass) == "500 Hz")
+    #expect(mix.fxDisplay(.masterHighPass) != "OFF")
+    #expect(mix.cell(strip: 0, row: 0) == .parameter(.masterHighPass))
+    #expect(mix.cell(strip: 7, row: 2) == nil)
+}
+
+@MainActor @Test func dropCutsEverythingButKeptStripsAndRestoresTheMix() {
+    let engine = FakeEngine()
+    let mix = MixController(engine: engine)
+    mix.setKeep(strip: 0, true)
+    mix.handle(.button(.mute, strip: 2, pressed: true)) // strip 3 muted before the drop
+    mix.setDrop(true)
+    #expect(engine.faders[0] > 0 && engine.faders[1] == 0 && engine.faders[2] == 0)
+    mix.setKeep(strip: 1, true) // marking during the drop takes effect at once
+    #expect(engine.faders[1] > 0)
+    mix.setDrop(false)
+    #expect(engine.faders[1] > 0 && engine.faders[3] > 0)
+    #expect(engine.faders[2] == 0 && mix.strips[2].mute) // the mute is exactly as it was
+}
