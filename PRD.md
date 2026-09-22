@@ -1,7 +1,7 @@
 # DubStemMix — PRD
 
-> Version 1.0 · 22 septembre 2026 · issu de l'interview de cadrage du 21 septembre 2026
-> Statut : validé — jalons M0 à M4 livrés ; ce document reste la référence produit et se tient à jour à chaque jalon
+> Version 1.1 · 22 septembre 2026 · issu de l'interview de cadrage du 21 septembre 2026 et de l'interview « effets dub » du 22 septembre 2026
+> Statut : validé — jalons M0 à M4 livrés, § 3 du TODO livré ; v2 (§ 11, jalons M6 à M8) cadrée, à construire. Ce document reste la référence produit et se tient à jour à chaque jalon
 
 ## 1. Vision
 
@@ -41,6 +41,7 @@ Ableton Live + MIDImix fait techniquement la même chose, mais demande un DAW pa
 | Tempo | **Détection auto + tap tempo** + correction manuelle |
 | Sortie audio | **Stéréo simple** (pas de cue casque en v1) |
 | Contrôleurs | **MIDImix uniquement en v1**, mapping isolé dans un profil pour en ajouter d'autres |
+| Effets dub v2 (22/09/2026) | **Chaîne master + inserts par tranche**, tout sauf la sirène (§ 11). Réglages sur une **troisième page** de la console (BANK RIGHT), gestes momentanés au **clavier et à l'écran**. Ordre : master (M6) → delay/reverb (M7) → inserts (M8) |
 
 ## 4. Matériel : Akai MIDImix
 
@@ -123,7 +124,7 @@ Quand un bus héberge un plugin AU, ses 6 emplacements de la page FX deviennent 
 Objectif : un son crédible pour le dub sans aucun plugin tiers.
 
 - **Dub Delay (tape echo)** : temps libre (ms) ou calé au tempo (1/16 → 1/2, dont 1/8 pointé et 1/4 pointé), changement de temps avec glissement de hauteur façon bande, feedback jusqu'à l'auto-oscillation contrôlée par saturation, filtres passe-haut/passe-bas dans la boucle, wow/flutter, envoi du delay vers la reverb.
-- **Reverb** : plate de Dattorro (entrée mono, sortie stéréo) — decay, damping, predelay, coupe-bas, tone. Une couleur « ressort » pourra s'y ajouter plus tard.
+- **Reverb** : plate de Dattorro (entrée mono, sortie stéréo) — decay, damping, predelay, coupe-bas, tone. Un second modèle **ressort** arrive en M7 (§ 11.4).
 - **Phaser type Bi-Phase** — le « gros » phaser du reggae 70/80 : deux phaseurs 6 étages en série, résonance poussée (tenue par une saturation), balayage jusqu'à ± 2,5 octaves, LFO déphasé entre gauche et droite. Réglages : rate, depth, resonance, fréquence centrale, largeur stéréo. **Sa sortie est 100 % déphasée** : l'effet vit sur un bus d'envoi, et c'est sa somme avec le signal direct de la tranche qui creuse les encoches (complètes avec l'envoi à fond et le retour à 0 dB, valeur par défaut).
 - **Master** : limiteur de sécurité transparent.
 
@@ -232,7 +233,7 @@ Si les risques 1 à 3 s'avèrent bloquants, plan B déjà identifié : garder l'
 
 VST3 · sortie cue/casque · autres contrôleurs et MIDI learn · enregistrement des gestes (automation) et des retours séparés · marqueurs/sections et boucles de passages · time-stretch / pitch · séparation automatique de stems à partir d'un morceau complet · sirène dub / générateur de sons · interface localisée · iPad.
 
-Pistes notées pour la suite : cue casque, second contrôleur dédié aux effets, enregistrement de la performance, séparation de stems intégrée, sirène dub.
+Pistes notées pour la suite : cue casque, second contrôleur dédié aux effets, enregistrement de la performance, séparation de stems intégrée, sirène dub (écartée de la v2 le 22/09/2026 : c'est un instrument, pas un effet).
 
 ## 9. Jalons
 
@@ -244,9 +245,90 @@ Pistes notées pour la suite : cue casque, second contrôleur dédié aux effets
 | **M3 — Morceaux** | Projets, setlist, BPM auto + tap, enregistrement WAV | Un set de plusieurs morceaux enchaînés et enregistré |
 | **M4 — Audio Units** | Slots AU, fenêtre plugin, macros, état sauvegardé | TAL Reverb 4 / Dub Filter utilisables sur un bus |
 | **M5 — Publication** | README (dont contournement Gatekeeper), onboarding, release GitHub, évaluation du support de macOS 15/14 | Un inconnu installe et joue en moins de 5 minutes |
+| **M6 — Master** | Page MASTER (3e page), chaîne master : big knob, kills, dubplate, pull-up ; geste DROP | Un mix « sound system » jouable : on retire les basses sur le temps, on rembobine, on drop |
+| **M7 — Delay et reverb** | HOLD, têtes Space Echo et ping-pong, throw configurable ; reverb à ressort + CRASH | Le delay se tient en boucle, le ressort claque |
+| **M8 — Inserts** | Slot d'insert par tranche (intégrés + AU), renfort de sub, auto-wah ; flanger à bande sur le bus 3 ; page INSERTS | Sub sur la basse, wah sur le skank, sans plugin tiers |
 
 ## 10. Points ouverts
 
 1. **SOLO + MUTE** : confirmer les notes émises par la console (non testé pendant le M0 — à faire au M1).
 2. **Disposition de la page FX** : à ajuster après les premiers essais en M2.
 Points tranchés depuis la v0.1 : identité visuelle **validée sur maquette SwiftUI** (`swift run`, § 5.11) · LEDs confirmées (MUTE allumée = coupée) · cible macOS 26 · pas de compte Apple Developer · nom « DubStemMix » définitif.
+
+## 11. v2 — Effets et gestes dub (jalons M6 à M8)
+
+Décidé en interview le 22 septembre 2026, à partir des propositions du TODO § 5. Tout est retenu **sauf la sirène** (un instrument, pas un effet). Les effets vivent à deux endroits nouveaux : une **chaîne d'inserts sur le master** et un **slot d'insert par tranche** ; les bus d'envoi existants reçoivent leurs compléments (delay, reverb, bus 3).
+
+### 11.1 Pages de la console
+
+La MIDImix n'a plus de potard libre (page MIX = envois, page FX = 21 paramètres). Deux pages s'ajoutent :
+
+| Page | Accès | LEDs BANK | Potards |
+|---|---|---|---|
+| MIX | BANK LEFT | gauche | envois |
+| FX | BANK RIGHT | droite | effets des bus (inchangé) |
+| **MASTER** (M6) | BANK RIGHT depuis FX | les deux | chaîne master et compléments delay (§ 11.2) |
+| **INSERTS** (M8) | BANK RIGHT depuis MASTER | les deux | l'insert de chaque tranche (§ 11.5) |
+
+**BANK LEFT ramène toujours à MIX** en un appui (en live, le retour au mix ne se cherche pas). BANK RIGHT avance d'une page : FX → MASTER → INSERTS, puis reste sur INSERTS. L'écran affiche la page en gros ; les faders restent des volumes de tranche sur toutes les pages ; le rattrapage des potards s'applique comme sur la page FX.
+
+### 11.2 Page MASTER — disposition (à valider à l'usage, comme la page FX)
+
+| Tranche | Haut | Milieu | Bas |
+|---|---|---|---|
+| 1 — Big knob | **Big knob** (passe-haut à crans) | — | — |
+| 2 — Kills | **BASS** | **MID** | **TOP** |
+| 3 — Dubplate | **Intensité** | Craquements | — |
+| 4 — Delay+ | **Têtes** (motif) | **Ping-pong** (largeur) | — |
+| 5 à 8 | libres | | |
+
+Les cases vides restent vides : on ne remplit pas pour remplir.
+
+### 11.3 Chaîne master (M6)
+
+Dans l'ordre du signal : somme des tranches et des retours → **big knob** → **kills** → **dubplate** → **pull-up** → rattrapage de gain → limiteur → sortie. Chaque étage est neutre par défaut (aucun changement de son tant qu'on n'y touche pas) et se contourne (bypass) individuellement à l'écran.
+
+- **Big knob** (King Tubby, console MCI) : passe-haut **à crans** — 20 Hz (off), 70, 100, 150, 200, 300, 500, 800 Hz, 1, 2, 5, 10 kHz —, pente 12 dB/oct, **sans résonance**, passage d'un cran à l'autre lissé (pas de clic) mais audible comme un palier. Un seul potard.
+- **Kills** (préampli de sound system) : isolateur 3 bandes **BASS / MID / TOP**, coupures 200 Hz et 2,5 kHz (filtres Linkwitz-Riley 24 dB/oct : la somme des trois bandes à fond est transparente). Chaque potard va du kill complet (−∞) à 0 dB, à fond par défaut ; pas de boost.
+- **Dubplate** : le son d'un acétate joué cent fois — saturation de bande douce, bande passante réduite (bas et haut), léger pleurage. **Un potard d'intensité** (0 = contourné) ; un second potard, à part, pour les **craquements** (0 par défaut).
+- **Pull-up / rewind** (geste, § 11.6) : ralentissement de la lecture jusqu'à l'arrêt (bande qui freine, hauteur qui tombe, en ~1 s), **retour au début et relance immédiate**. S'applique au master (varispeed) : les queues d'effets freinent avec le morceau, c'est le son recherché.
+
+### 11.4 Compléments delay et reverb (M7)
+
+- **HOLD / freeze** (geste) : tant qu'on tient, le delay ferme son entrée et réinjecte à 100 % (tenu par la saturation de la boucle) : la boucle tourne pendant qu'on coupe tout le reste. Au relâchement, retour au feedback réglé.
+- **Têtes multiples** (Space Echo) : le potard TÊTES choisit un **motif** de répétitions parmi les combinaisons du RE-201 (tête 1, 2, 3, 1+2, 2+3, 1+3, 1+2+3 ; espacement 1 : 2 : 3 du temps de delay) ; le motif « tête 1 » est le delay actuel. **Ping-pong** : les répétitions alternent gauche / droite, le potard règle la largeur (0 = mono centré, comme aujourd'hui).
+- **Throw configurable** : le dub throw part vers le **delay** (défaut), la **reverb**, ou **les deux**. Menu sur la carte du delay, enregistré dans le projet.
+- **Reverb à ressort** : second modèle dans le menu du slot REVERB (Plate / **Spring**), même potards (decay, damping, predelay, coupe-bas, tone) réinterprétés pour le ressort (dispersion, « boing »). Modèle enregistré dans le projet.
+- **CRASH** (geste) : on frappe le ressort — une impulsion forte dans la ligne du ressort, le coup de tonnerre de Tubby et de Perry. Disponible quand le modèle Spring est sélectionné ; sur Plate, le geste ne fait rien (signalé à l'écran).
+
+### 11.5 Inserts de tranche (M8)
+
+- Chaque tranche a un **slot d'insert** entre sa somme de stems et son fader : vide (défaut), un effet intégré, ou **n'importe quel plugin AU** (compresseur sur la basse…). Même mécanique que les slots de bus : chargement hors processus, état complet et macros enregistrés dans le projet, plugin absent signalé et conservé.
+- Effets intégrés d'insert : **Renfort de sub** (générateur d'octave grave façon dbx « boom box » : quantité, fréquence de coupure) et **Auto-wah** façon Mu-Tron III (filtre à suivi d'enveloppe : sensibilité, plage, résonance, sens haut/bas).
+- **Page INSERTS** : les 3 potards de chaque tranche pilotent son insert (paramètres de l'effet intégré, ou 3 macros pour un plugin). Tranche sans insert : potards inertes.
+- Un plugin d'insert est réglé **au mix voulu** (pas 100 % wet, contrairement aux bus) : il est dans le chemin direct.
+- **Flanger à bande** : alternative au Bi-Phaser dans le menu du slot du bus 3, mêmes potards (rate, depth, feedback, centre, stéréo).
+
+### 11.6 Gestes momentanés
+
+Au **clavier et à l'écran** (bouton maintenu) ; la console garde son mapping d'usine et ses boutons.
+
+| Geste | Touche | Effet tant qu'on tient |
+|---|---|---|
+| **DROP** | D | coupe toutes les tranches sauf celles marquées **KEEP** (case à l'écran, enregistrée dans le projet : basse + batterie, le « riddim ») ; relâcher rend tout |
+| **HOLD** | H | le delay boucle sur lui-même (§ 11.4) |
+| **CRASH** | C | frappe le ressort (§ 11.4) — appui, pas maintien |
+| **Pull-up** | R | rembobine (§ 11.3) — appui, pas maintien |
+
+Les gestes ne touchent pas aux états de MUTE / SOLO : au relâchement de DROP, le mix revient exactement à ce qu'il était.
+
+### 11.7 Ce qui s'enregistre dans le projet
+
+Réglages de la chaîne master et des compléments (nouveaux cas de `FXParameter`, même mécanique que la page FX), modèle de reverb, cible du throw, marques KEEP, et par tranche l'insert (effet intégré + réglages, ou plugin + état + macros).
+
+### 11.8 Architecture
+
+- **Master** : les étages s'insèrent entre le mixeur principal et le rattrapage de gain, chacun entre deux nœuds neutres fixes (même recette que les bus : un changement à chaud ne touche jamais aux mixeurs). Pull-up : `AVAudioUnitVarispeed` sur le master.
+- **Inserts** : `mixeur de tranche → entrée neutre → effet → sortie neutre → éventail (master + bus)`. Les nœuds neutres existent dès le départ pour toutes les tranches ; un insert vide est un simple passage.
+- **Noyaux DSP en C** (`DubDSP`), sans allocation ni verrou : passe-haut à crans, isolateur, dubplate, ressort (+ crash), têtes et ping-pong dans `dub_delay.c`, HOLD dans la boucle du delay, sub, auto-wah, flanger. Chacun testé en rendu hors ligne.
+- **Contrôleur logique** : pages MASTER et INSERTS, disposition en données comme `FXParameter.layout`, rattrapage inchangé.

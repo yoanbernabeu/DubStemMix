@@ -46,42 +46,14 @@
 - [ ] Évaluer le support de **macOS 15 / 14** (seulement si presque aucune adaptation).
 - [ ] Passer le repo en **public**. **[toi]**
 
-## 5. Effets intégrés très typés dub — propositions
+## 5. Effets et gestes dub — tranché le 22/09, voir PRD § 11
 
-Rien n'est décidé ici : ce sont des propositions à trier ensemble. Pour chacune : ce que c'est, la référence, et comment elle tiendrait sur la MIDImix.
+Interview faite : tout est retenu **sauf la sirène**. Les décisions (pages MASTER et INSERTS, chaîne master, inserts de tranche, compléments delay/reverb, gestes, stockage) sont dans le PRD § 11 ; les jalons M6, M7, M8 dans le PRD § 9.
 
-### Les plus « signature »
-
-- [ ] **Reverb à ressort + « crash »** — le ressort qu'on frappe pour déclencher un coup de tonnerre (Fisher Space Expander de King Tubby, Lee Perry au Black Ark). Un second modèle de reverb sur le bus REVERB (choix Plate / Spring dans le menu du slot), et un geste **CRASH** momentané. *Console : un bouton à trouver — par exemple REC ARM de la tranche 8 quand elle est vide.*
-- [ ] **Le « big knob » de King Tubby** — le passe-haut à crans de sa console MCI (70 Hz → 10 kHz par paliers), balayé sur tout le mix ou sur un groupe : LE geste Tubby. Filtre passif, sans résonance, à paliers audibles. *Console : page FX, potard du haut de la tranche 8 (aujourd'hui libre), appliqué au master.*
-- [ ] **Kills de sound system** — coupe-bandes BASS / MID / TOP façon préampli de sound system : on retire les basses, on les relâche sur le temps. Isolateur 3 bandes sur le master. *Console : page FX, les 3 potards de la tranche 8 — en concurrence avec le big knob : à arbitrer, ou l'un sur les potards et l'autre ailleurs.*
-- [ ] **Sirène dub** — l'oscillateur à LFO des sound systems (type NJD), envoyé dans le delay. C'est un instrument plus qu'un effet : hauteur, vitesse, forme du LFO, et un déclenchement momentané. *Console : à définir (un bouton + 2 réglages) ; pourrait vivre dans une troisième page.*
-
-### Autour du delay
-
-- [ ] **Hold / freeze** — l'écho se referme sur lui-même (entrée coupée, réinjection à 100 %) tant qu'on tient le bouton : la boucle tourne pendant qu'on coupe tout le reste.
-- [ ] **Têtes multiples façon Space Echo** — combinaisons de têtes du RE-201 (rythmes d'échos syncopés) au lieu d'une seule répétition, et mode **ping-pong** stéréo.
-- [ ] **Throw configurable** — choisir vers quel bus part le dub throw (delay, reverb, les deux). Déjà évoqué pendant le cadrage.
-
-### Sur le master, pour le caractère
-
-- [ ] **Pull-up / rewind** — l'arrêt de bande et le retour arrière du selector qui « rewind » le morceau : ralentissement de la lecture, retour au début, relance. *Console : un bouton ; touche clavier en attendant.*
-- [ ] **Couleur « dubplate »** — saturation de bande, bande passante réduite, léger pleurage, craquements optionnels : le son d'un acétate joué cent fois. Un seul réglage d'intensité.
-- [ ] **Renfort de sub** — générateur d'octave grave façon dbx « boom box », pour le poids sound system. Plutôt sur une tranche (la basse) que sur le master : demande un insert par tranche, ce que l'architecture n'a pas encore.
-
-### Alternatives pour le bus 3
-
-- [ ] **Flanger à bande** — le flanging des années 70, en alternative au Bi-Phaser dans le menu du slot.
-- [ ] **Auto-wah façon Mu-Tron III** — le filtre à suivi d'enveloppe du skank et du clavinet reggae. Attention : c'est un effet d'insert, il sonne mal en envoi parallèle — même contrainte que le renfort de sub.
-
-### Gestes de mix (pas des effets, mais dans le même esprit)
-
-- [ ] **DROP** — un geste qui coupe tout sauf les tranches choisies (basse + batterie : le « riddim »), puis relâche. Aujourd'hui faisable à la main avec les MUTE ; un bouton dédié le rendrait instantané.
-
-### Question d'architecture que ces propositions soulèvent
-
-- [ ] Plusieurs idées (big knob, kills, dubplate, pull-up) vivent sur le **master**, d'autres (sub, auto-wah) demandent un **insert par tranche**. Aujourd'hui l'app n'a que 3 bus d'envoi. À décider avant d'en construire une : une petite **chaîne master** d'abord (le plus simple et le plus rentable), les inserts par tranche ensuite.
-- [ ] La MIDImix n'a presque plus de contrôles libres : tranche 8 de la page FX (3 potards), et c'est tout. Une **troisième page** (BANK RIGHT une seconde fois ?) ou un second contrôleur devient nécessaire au-delà de deux ou trois ajouts.
+- [ ] **M6 — Master** : page MASTER, big knob, kills, dubplate, pull-up, DROP + marques KEEP.
+- [ ] **M7 — Delay et reverb** : HOLD, têtes Space Echo + ping-pong, throw configurable, reverb à ressort + CRASH.
+- [ ] **M8 — Inserts** : slot d'insert par tranche (intégrés + AU), sub, auto-wah, page INSERTS, flanger à bande sur le bus 3.
+- [ ] **[toi]** Valider la disposition de la page MASTER (PRD § 11.2) et les touches des gestes (§ 11.6) à l'usage.
 
 ## 6. Idées pour plus tard (hors v1, notées dans le PRD)
 
