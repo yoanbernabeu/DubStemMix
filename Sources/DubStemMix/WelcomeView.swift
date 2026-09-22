@@ -24,7 +24,7 @@ struct WelcomeView: View {
                  "Space plays. BANK RIGHT cycles the knob pages MIX → FX → MASTER → INSERTS, BANK LEFT comes back to MIX. REC ARM held is the dub throw. Keys: D drop, H hold, C crash, R rewind, ⌘R record, ⌘, settings.")
 
             HStack {
-                Button { NSWorkspace.shared.open(URL(string: "https://github.com/yoanbernabeu/dubstemmix")!) } label: {
+                Button { NSWorkspace.shared.open(URL(string: "https://github.com/yoanbernabeu/DubStemMix")!) } label: {
                     Text("README on GitHub").font(Fonts.mono(10.5)).foregroundStyle(Theme.textDim)
                 }
                 .buttonStyle(.plain)

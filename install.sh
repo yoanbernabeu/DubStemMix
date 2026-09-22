@@ -1,7 +1,7 @@
 #!/bin/sh
 # Installs or updates DubStemMix from the latest GitHub release, in one line:
 #
-#   curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/dubstemmix/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/DubStemMix/main/install.sh | sh
 #
 # What it does: downloads DubStemMix-<version>.zip from the latest release, replaces
 # /Applications/DubStemMix.app (or ~/Applications if /Applications is not writable), removes the
@@ -9,7 +9,7 @@
 # Developer account), and opens it. Set DUBSTEMMIX_VERSION=v0.1.0 to pin a version.
 set -eu
 
-REPO="yoanbernabeu/dubstemmix"
+REPO="yoanbernabeu/DubStemMix"
 API="https://api.github.com/repos/$REPO/releases"
 if [ -n "${DUBSTEMMIX_VERSION:-}" ]; then
     RELEASE_URL="$API/tags/$DUBSTEMMIX_VERSION"

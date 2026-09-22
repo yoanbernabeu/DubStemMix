@@ -11,10 +11,10 @@ Free and open source (MIT). macOS 15 or later (built and tested on macOS 26), Ap
 One line, from the latest release. It installs (or updates) `DubStemMix.app` in `/Applications`, clears the Gatekeeper quarantine flag and opens the app:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/dubstemmix/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/DubStemMix/main/install.sh | sh
 ```
 
-Or by hand: download `DubStemMix-<version>.zip` from the [releases](https://github.com/yoanbernabeu/dubstemmix/releases), unzip, move `DubStemMix.app` to `/Applications`.
+Or by hand: download `DubStemMix-<version>.zip` from the [releases](https://github.com/yoanbernabeu/DubStemMix/releases), unzip, move `DubStemMix.app` to `/Applications`.
 
 **Gatekeeper.** The app is signed ad hoc, not notarized (there is no Apple Developer account behind it). On first launch macOS may say the app "cannot be opened". Two ways through:
 
@@ -91,7 +91,7 @@ Output device and buffer size (128 or 256 for live), recordings folder, pre/post
 ## Build from source
 
 ```sh
-git clone https://github.com/yoanbernabeu/dubstemmix.git
+git clone https://github.com/yoanbernabeu/DubStemMix.git
 cd dubstemmix
 swift run DubStemMix          # runs the app from the package
 tools/make-app.sh 0.1.0 dist  # builds dist/DubStemMix.app and the zip

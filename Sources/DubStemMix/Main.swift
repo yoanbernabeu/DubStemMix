@@ -112,7 +112,7 @@ struct DubStemMixApp: App {
             }
             CommandGroup(replacing: .help) {
                 Button("Welcome to DubStemMix") { model?.showWelcome = true }
-                Button("DubStemMix on GitHub") { NSWorkspace.shared.open(URL(string: "https://github.com/yoanbernabeu/dubstemmix")!) }
+                Button("DubStemMix on GitHub") { NSWorkspace.shared.open(URL(string: "https://github.com/yoanbernabeu/DubStemMix")!) }
             }
         }
     }
