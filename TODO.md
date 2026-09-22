@@ -1,6 +1,6 @@
 # DubStemMix — ce qui reste à faire
 
-> État au 22 septembre 2026. Jalons M0 à M3 validés, M4 livré (en attente d'essai), dette PRD (§ 2) résorbée sauf tests de charge, robustesse (§ 3) validée, M6 validé, M7 validé, M8 validé, M9 (séparation de stems) livré, en attente d'essai. La référence produit reste `PRD.md`.
+> État au 22 septembre 2026. Jalons M0 à M3 validés, M4 livré (en attente d'essai), dette PRD (§ 2) résorbée sauf tests de charge, robustesse (§ 3) validée, M6 validé, M7 validé, M8 validé, M9 livré (en attente d'essai), M5 publié : v0.1.0 sur GitHub, dépôt public. La référence produit reste `PRD.md`.
 > Légende : **[toi]** = demande un essai ou une décision de ta part.
 
 ## 1. À essayer ou à confirmer
@@ -40,11 +40,11 @@
 
 - [x] Vraie **app `.app`** — fait le 22/09 : `tools/make-app.sh <version> dist` (release, signature ad hoc, Info.plist avec types .dubstem/.dubset, zip 9,4 Mo). Icône : `Design/AppIcon.icns` (source `tools/make-icon.swift`).
 - [x] **README** et **LICENSE** MIT — faits le 22/09, plus `install.sh` (une ligne : télécharge la dernière release, installe ou met à jour dans /Applications, retire la quarantaine, ouvre l'app).
-- [x] **Accueil au premier lancement** — fait le 22/09 (quatre étapes, Aide ▸ Welcome pour le revoir). **[toi]** relire le texte à l'écran.
-- [ ] **Release GitHub** : workflows écrits (`release.yml` construit et attache le zip à une release ou un tag `v*` sur un runner macos-26 ; `ci.yml` teste chaque push). Reste : pousser `main`, créer le tag `v0.1.0`, vérifier que la pipeline passe sur le runner (impossible à vérifier en local). Homebrew : pas maintenant.
+- [x] **Accueil au premier lancement** — fait le 22/09 (quatre étapes, Aide ▸ Welcome pour le revoir). **[toi]** relire le texte à l'écran, corrections bienvenues.
+- [x] **Release GitHub** — faite le 22/09 : v0.1.0 construite par `release.yml` sur le runner `macos-26` (tests verts, zip de 9,8 Mo attaché), `ci.yml` vert. One-liner `install.sh` testé sur le Mac de Yoan : installation dans /Applications, quarantaine retirée, signature ad hoc, app ouverte. Dépôt renommé `yoanbernabeu/DubStemMix`. Homebrew : pas maintenant.
 - [x] Nettoyage — fait le 22/09 : noms de stems neutres dans les tests, cible `M0Spike` supprimée.
 - [x] **macOS 15 / 14** évalué le 22/09 : macOS 15 compile et passe les tests sans adaptation → cible minimale fixée à 15 (non testée sur une vraie machine 15) ; macOS 14 exclu (`Atomic` et `Mutex` du module Synchronization exigent 15).
-- [ ] Passer le repo en **public**. **[toi]**
+- [x] Repo passé en **public** le 22/09, après la pipeline verte.
 
 ## 5. Effets et gestes dub — tranché le 22/09, voir PRD § 11
 
