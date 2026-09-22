@@ -1,6 +1,6 @@
 # DubStemMix — ce qui reste à faire
 
-> État au 22 septembre 2026. Jalons M0 à M3 validés, M4 livré (en attente d'essai), dette PRD (§ 2) résorbée sauf tests de charge, robustesse (§ 3) validée, M6 validé, M7 validé, M8 validé. La référence produit reste `PRD.md`.
+> État au 22 septembre 2026. Jalons M0 à M3 validés, M4 livré (en attente d'essai), dette PRD (§ 2) résorbée sauf tests de charge, robustesse (§ 3) validée, M6 validé, M7 validé, M8 validé, M9 (séparation de stems) livré, en attente d'essai. La référence produit reste `PRD.md`.
 > Légende : **[toi]** = demande un essai ou une décision de ta part.
 
 ## 1. À essayer ou à confirmer
@@ -57,10 +57,12 @@ Interview faite : tout est retenu **sauf la sirène**. Les décisions (pages MAS
 
 ## 5 bis. M9 — Séparation de stems (PRD § 12, cadré le 22/09)
 
-- [ ] Cible `StemSplit` : décodage, overlap-add, ONNX Runtime, magasin de modèles (téléchargement, reprise, SHA-256), job annulable.
-- [ ] CLI `--split <fichier>` et `--download-models` pour vérifier avec les vrais modèles.
-- [ ] App : zone « SPLIT A SONG », menu Fichier, écran de consentement, progression, Réglages (modèles, dossier des stems), NOTICE.
-- [ ] **[toi]** Écouter le résultat sur un vrai morceau, juger le temps de calcul sur ton M3 Pro.
+- [x] Cible `StemSplit` — fait le 22/09 : décodage, overlap-add, ONNX Runtime, magasin de modèles (téléchargement, reprise, SHA-256), job annulable ; 8 tests unitaires sans modèle.
+- [x] CLI `--split <fichier>` et `--download-models` — fait le 22/09. Mesure sur le mix complet d'Akae Beka (4 min 55, 48 kHz) sur le M3 Pro : **344 s** (RTF 1,17), pic mémoire 5,2 Go, Σ stems vs mix **24,7 dB** (la spec attend ≥ 25, mesuré 28,6 sur un autre morceau avec le POC).
+- [x] App — fait le 22/09 : zone « SPLIT A SONG », menu Fichier, écran de consentement, progression avec temps restant et annulation, Réglages (modèles, dossier des stems), NOTICE.
+- [ ] **[toi]** Écouter les 4 stems produits (`~/Music/DubStemMix/Stems/Akae Beka…/`) et juger si 24,7 dB de reconstruction s'entend ; juger 6 minutes de calcul pour un morceau de 5.
+- [ ] Reconstruction sous la cible sur ce morceau : vérifier sur un second morceau (un MP3 du commerce) avant de conclure à un écart d'implémentation. Sans le POC, pas de test de parité.
+- [ ] Pistes de vitesse (spec § 9) : `setIntraOpNumThreads`, à mesurer avant de changer.
 
 ## 6. Idées pour plus tard (hors v1, notées dans le PRD)
 
