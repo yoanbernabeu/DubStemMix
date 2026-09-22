@@ -1,7 +1,7 @@
 # DubStemMix — PRD
 
-> Version 0.1 · 21 septembre 2026 · issu de l'interview de cadrage
-> Statut : brouillon à valider
+> Version 1.0 · 22 septembre 2026 · issu de l'interview de cadrage du 21 septembre 2026
+> Statut : validé — jalons M0 à M4 livrés ; ce document reste la référence produit et se tient à jour à chaque jalon
 
 ## 1. Vision
 

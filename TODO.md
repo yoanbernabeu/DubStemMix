@@ -1,6 +1,6 @@
 # DubStemMix — ce qui reste à faire
 
-> État au 22 septembre 2026. Jalons M0 à M3 validés, M4 livré (en attente d'essai). La référence produit reste `PRD.md`.
+> État au 22 septembre 2026. Jalons M0 à M3 validés, M4 livré (en attente d'essai), dette PRD (§ 2) résorbée sauf tests de charge et reverb à ressort. La référence produit reste `PRD.md`.
 > Légende : **[toi]** = demande un essai ou une décision de ta part.
 
 ## 1. À essayer ou à confirmer
@@ -9,16 +9,19 @@
 - [ ] **[toi]** Confirmer le geste **SOLO maintenu + MUTE** sur la console (l'app attend les notes 2, 5, 8…, jamais capturées). S'il ne marche pas : relever les vraies notes avec `tools/midi-monitor.swift`.
 - [ ] **[toi]** Juger sur un vrai set si le **chargement du morceau suivant** est assez rapide sans préchargement.
 - [ ] **[toi]** Juger si la **coupure des MUTE** (rampe d'environ 25 ms imposée par le mixeur d'Apple) est assez franche pour des cuts dub secs.
+- [ ] **[toi]** Essayer la **fenêtre Réglages** (⌘,) avec une vraie carte son : changement de carte pendant la lecture, taille de buffer (128 ou 256 pour le live), dossier d'enregistrement, envois PRE sur le delay (le geste dub classique : fader fermé, l'écho continue).
+- [ ] **[toi]** Regarder la ligne **DSP** de la barre d'état sur un vrai set (charge et décrochages) ; si elle reste basse avec 16 stems + 3 effets, le test de charge du § 2 est fait.
+- [ ] **[toi]** Provoquer l'avertissement **« console not on factory mapping »** (par exemple en envoyant un CC depuis un autre contrôleur nommé « MIDI Mix », ou en reconfigurant un potard avec l'éditeur Akai) pour valider le message.
 
 ## 2. Promis dans le PRD, pas encore fait
 
-- [ ] **Envois pré/post réglables par bus** (PRD § 3) : aujourd'hui tout est post-fader, l'étiquette « POST » est décorative.
-- [ ] **Écran de réglages** (PRD § 5.12) : carte son et taille de buffer, dossier d'enregistrement (fixé à `~/Music/DubStemMix`), pré/post par bus.
-- [ ] **Indicateur de charge CPU et de décrochages** (PRD § 5.10), et nom de la carte son dans la barre d'état (on n'affiche que la fréquence).
-- [ ] **Console reconfigurée** (PRD § 4) : message clair si le mapping reçu n'est pas celui d'usine, avec la marche à suivre pour la remise à zéro.
-- [ ] **Tests de charge** (PRD § 6) : 16 stems + 3 effets sans décrochage ; 2 h de lecture continue sans dérive ni fuite mémoire ; temps de démarrage et de chargement.
+- [x] **Envois pré/post réglables par bus** (PRD § 3) — fait le 22/09 : réglage dans la fenêtre Réglages, étiquette PRE/POST vivante sur le rack.
+- [x] **Écran de réglages** (PRD § 5.12) — fait le 22/09 : ⌘, → carte son, taille de buffer, dossier d'enregistrement, pré/post par bus, rescan des plugins AU. Préférences propres au Mac (pas au projet).
+- [x] **Indicateur de charge DSP et de décrochages** (PRD § 5.10) et nom de la carte son — fait le 22/09 (ligne DSP et ligne AUDIO de la barre d'état ; `--check-audio` pour vérifier sans interface).
+- [x] **Console reconfigurée** (PRD § 4) — fait le 22/09 : encart dans la barre latérale avec le message reçu et la remise à zéro via l'éditeur Akai.
+- [ ] **Tests de charge** (PRD § 6) : 16 stems + 3 effets sans décrochage ; 2 h de lecture continue sans dérive ni fuite mémoire ; temps de démarrage et de chargement. La ligne DSP donne maintenant la mesure.
 - [ ] **Couleur « ressort » pour la reverb** (PRD § 5.4) — voir § 5 ci-dessous.
-- [ ] Mettre à jour l'en-tête du PRD (encore « version 0.1, brouillon à valider »).
+- [x] Mettre à jour l'en-tête du PRD — fait le 22/09 (version 1.0, statut validé).
 
 ## 3. Robustesse et dette technique
 
