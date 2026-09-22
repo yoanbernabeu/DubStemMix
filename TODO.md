@@ -55,6 +55,13 @@ Interview faite : tout est retenu **sauf la sirène**. Les décisions (pages MAS
 - [x] **M8 — Inserts** — livré et validé le 22/09 : slot d'insert par tranche (Sub, Auto-wah avec mode down, ou n'importe quel AU avec 3 macros), page INSERTS (BANK RIGHT trois fois), flanger à bande dans le menu du slot du bus 3. Les prises pré-fader et le throw passent désormais après l'insert. Charge DSP à vide : 25 % (19 % avant les nœuds d'insert).
 - [ ] **[toi]** Valider la disposition de la page MASTER (PRD § 11.2) et les touches des gestes (§ 11.6) à l'usage.
 
+## 5 bis. M9 — Séparation de stems (PRD § 12, cadré le 22/09)
+
+- [ ] Cible `StemSplit` : décodage, overlap-add, ONNX Runtime, magasin de modèles (téléchargement, reprise, SHA-256), job annulable.
+- [ ] CLI `--split <fichier>` et `--download-models` pour vérifier avec les vrais modèles.
+- [ ] App : zone « SPLIT A SONG », menu Fichier, écran de consentement, progression, Réglages (modèles, dossier des stems), NOTICE.
+- [ ] **[toi]** Écouter le résultat sur un vrai morceau, juger le temps de calcul sur ton M3 Pro.
+
 ## 6. Idées pour plus tard (hors v1, notées dans le PRD)
 
 - [ ] Sortie **cue / casque** pour pré-écouter une tranche.
@@ -62,5 +69,4 @@ Interview faite : tout est retenu **sauf la sirène**. Les décisions (pages MAS
 - [ ] Enregistrement de la **performance** (gestes) pour rejouer, corriger ou ré-exporter un mix ; **export hors ligne** (le moteur sait déjà rendre hors ligne, c'est ce qu'utilisent les tests).
 - [ ] Enregistrement des **retours d'effets séparés** pour retravailler dans un DAW.
 - [ ] **Marqueurs / sections** et boucles de passages.
-- [ ] **Séparation de stems intégrée** à partir d'un morceau complet.
 - [ ] Interface localisée (français), time-stretch / pitch, version iPad.

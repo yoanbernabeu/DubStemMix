@@ -1,7 +1,7 @@
 # DubStemMix — PRD
 
-> Version 1.1 · 22 septembre 2026 · issu de l'interview de cadrage du 21 septembre 2026 et de l'interview « effets dub » du 22 septembre 2026
-> Statut : validé — jalons M0 à M4 livrés, § 3 du TODO livré ; v2 (§ 11, jalons M6 à M8) cadrée, à construire. Ce document reste la référence produit et se tient à jour à chaque jalon
+> Version 1.2 · 22 septembre 2026 · issu de l'interview de cadrage du 21 septembre 2026 et de l'interview « effets dub » du 22 septembre 2026
+> Statut : validé — jalons M0 à M4 livrés, § 3 du TODO livré ; v2 (§ 11, jalons M6 à M8) livrée et validée ; séparation de stems (§ 12, jalon M9) cadrée le 22 septembre 2026. Ce document reste la référence produit et se tient à jour à chaque jalon
 
 ## 1. Vision
 
@@ -231,7 +231,7 @@ Si les risques 1 à 3 s'avèrent bloquants, plan B déjà identifié : garder l'
 
 ## 8. Hors périmètre v1
 
-VST3 · sortie cue/casque · autres contrôleurs et MIDI learn · enregistrement des gestes (automation) et des retours séparés · marqueurs/sections et boucles de passages · time-stretch / pitch · séparation automatique de stems à partir d'un morceau complet · sirène dub / générateur de sons · interface localisée · iPad.
+VST3 · sortie cue/casque · autres contrôleurs et MIDI learn · enregistrement des gestes (automation) et des retours séparés · marqueurs/sections et boucles de passages · time-stretch / pitch · sirène dub / générateur de sons · interface localisée · iPad.
 
 Pistes notées pour la suite : cue casque, second contrôleur dédié aux effets, enregistrement de la performance, séparation de stems intégrée, sirène dub (écartée de la v2 le 22/09/2026 : c'est un instrument, pas un effet).
 
@@ -248,6 +248,7 @@ Pistes notées pour la suite : cue casque, second contrôleur dédié aux effets
 | **M6 — Master** | Page MASTER (3e page), chaîne master : big knob, kills, dubplate, pull-up ; geste DROP | Un mix « sound system » jouable : on retire les basses sur le temps, on rembobine, on drop |
 | **M7 — Delay et reverb** | HOLD, têtes Space Echo et ping-pong, throw configurable ; reverb à ressort + CRASH | Le delay se tient en boucle, le ressort claque |
 | **M8 — Inserts** | Slot d'insert par tranche (intégrés + AU), renfort de sub, auto-wah ; flanger à bande sur le bus 3 ; page INSERTS | Sub sur la basse, wah sur le skank, sans plugin tiers |
+| **M9 — Séparation** | Un morceau complet déposé → 4 stems (htdemucs_ft via ONNX Runtime) sur les tranches 1 à 4 ; modèles téléchargés au premier usage, jamais embarqués | Un MP3 glissé donne un dub mixable en quelques minutes, sans rien installer |
 
 ## 10. Points ouverts
 
@@ -332,3 +333,36 @@ Réglages de la chaîne master et des compléments (nouveaux cas de `FXParameter
 - **Inserts** (construit en M8) : `somme des stems → entrée neutre → effet → sortie neutre → mixeur « pré » (prises pré-fader et throw) → mixeur fader (master + envois post)`. Les nœuds neutres existent dès le départ pour toutes les tranches ; un insert vide est un simple passage. Conséquence : les envois pré-fader et le dub throw sont pris **après** l'insert (un sub ajouté sur la basse part aussi dans le delay).
 - **Noyaux DSP en C** (`DubDSP`), sans allocation ni verrou : passe-haut à crans, isolateur, dubplate, ressort (+ crash), têtes et ping-pong dans `dub_delay.c`, HOLD dans la boucle du delay, sub, auto-wah, flanger. Chacun testé en rendu hors ligne.
 - **Contrôleur logique** : pages MASTER et INSERTS, disposition en données comme `FXParameter.layout`, rattrapage inchangé.
+
+## 12. Séparation de stems (jalon M9)
+
+Cadré le 22 septembre 2026 à partir de la spec « Séparation de stems avec htdemucs_ft » (POC validé sur un morceau réel). Cette spec fait foi pour le moteur (modèle, format, runtime, pipeline, mémoire, licences) ; ce chapitre fixe ce qui est propre à DubStemMix.
+
+### 12.1 Geste
+
+- Une **zone de dépôt dédiée** dans la barre latérale (« SPLIT A SONG ») et un menu Fichier « Split a Song… ». Un fichier audio déposé ailleurs reste un stem ordinaire qui va dans la réserve : l'app ne devine rien.
+- Résultat : **nouvelle session** (confirmation si la session courante n'est pas enregistrée), les 4 stems posés **dans l'ordre batterie, basse, instruments, voix sur les tranches 1 à 4**, l'original dans la réserve pour l'écoute A/B, tempo détecté, titre = nom du morceau.
+- Lecture en cours au moment du dépôt : un dialogue prévient (« plusieurs minutes de calcul intensif, risque de décrochage ») et laisse choisir. À l'arrêt, aucun dialogue.
+
+### 12.2 Modèles
+
+- `htdemucs_ft` en ONNX (dépôt `StemSplitio/htdemucs-ft-onnx`, révision épinglée), 4 réseaux fp16, ~663 Mo, exécutés sur CPU par ONNX Runtime (paquet SwiftPM Microsoft).
+- **Jamais dans le dépôt, la release ni le bundle.** Au premier usage, un écran explicite propose le téléchargement, indique la taille et le statut de licence des poids ; rien n'est téléchargé sans accord. Reprise après coupure, vérification taille + SHA-256, fichier invalide retéléchargé.
+- Emplacement : `~/Library/Application Support/DubStemMix/Models/htdemucs_ft/<révision>/`. Les Réglages montrent l'état des modèles (absents, partiels, prêts), permettent de les télécharger ou de les supprimer.
+- Un fichier `NOTICE` dans le dépôt liste le modèle, sa provenance et le statut de licence des poids (non explicite chez Meta, MUSDB18-HQ « educational purposes only »), sans prétendre les relicencier ; l'écran de téléchargement et les Réglages l'affichent.
+
+### 12.3 Stems produits
+
+- Écrits dans **`~/Music/DubStemMix/Stems/<titre> [empreinte]/`** (dossier durable, réglable), en WAV Float32 44,1 kHz : `drums.wav`, `bass.wav`, `instruments.wav`, `vocals.wav`, plus un manifeste (empreinte du fichier source, identifiant du modèle). Un morceau déjà séparé avec le même modèle se rouvre **sans recalcul**.
+- Pas de cache purgeable : un projet `.dubstem` référence ces fichiers.
+
+### 12.4 Pendant le calcul
+
+- Job en tâche de fond (priorité utilitaire, jamais sur le thread principal), **un seul à la fois**, annulable en moins de 3 s.
+- Progression dans la barre latérale : stem en cours (« vocals… »), pourcentage, estimation du temps restant ; notification système à la fin si l'app n'est pas au premier plan. L'interface reste réactive.
+- Ordre d'exécution imposé par la mémoire : un réseau à la fois sur tout le morceau (pic ~8 Go), stem écrit sur disque dès que son réseau a fini.
+
+### 12.5 Vérification
+
+- Unitaire, sans modèle : fenêtre et poids de l'overlap-add, nombre de blocs, décodage (mono 22,05 kHz, stéréo 48 kHz), affectation des lignes du bag avec un faux séparateur, annulation.
+- Avec les vrais modèles (hors CI) : `--split <fichier>` en ligne de commande rapporte Σ stems vs mix (≥ 25 dB attendu) et l'énergie par stem ; mix synthétique voix + basse + batterie → `instruments` < −40 dB. Le POC n'étant pas disponible, pas de test de parité à −60 dB.
