@@ -15,6 +15,8 @@ final class AppModel {
     var title = ""
     var waveform: [Float] = []
     var midiConnected = false
+    /// First message received that the factory mapping does not know (the console was reconfigured).
+    var midiWarning: String?
     /// Output device name, then its sample rate and buffer size, as shown in the status bar.
     var audioDevice = ""
     var audioFormat = ""
@@ -86,7 +88,11 @@ final class AppModel {
         midi.onEvent = { [weak self] in self?.mix.handle($0) }
         midi.onConnectionChange = { [weak self] connected in
             self?.midiConnected = connected
+            self?.midiWarning = nil // a console plugged back in gets a fresh chance
             if connected { self?.mix.refreshSurface() }
+        }
+        midi.onUnmappedMessage = { [weak self] description in
+            if self?.midiWarning == nil { self?.midiWarning = description }
         }
         midi.start()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in

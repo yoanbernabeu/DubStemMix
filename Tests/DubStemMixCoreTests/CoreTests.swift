@@ -43,6 +43,20 @@ import Testing
     #expect(decode(0xB0, 99, 5) == "nil")
 }
 
+@Test func messagesOutsideTheFactoryMappingAreDescribed() {
+    #expect(MidiMix.unmappedDescription(status: 0xB1, data1: 99) == "CC 99 on channel 2")
+    #expect(MidiMix.unmappedDescription(status: 0x90, data1: 40) == "note 40 on channel 1")
+    #expect(MidiMix.unmappedDescription(status: 0xF8, data1: 0) == nil) // MIDI clock: not a mapping issue
+    // Everything the factory mapping sends decodes, so it never triggers the warning.
+    for cc: UInt8 in [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+                      46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62] {
+        #expect(MidiMix.decode(status: 0xB0, data1: cc, data2: 64) != nil, "CC \(cc)")
+    }
+    for note: UInt8 in 1...27 {
+        #expect(MidiMix.decode(status: 0x90, data1: note, data2: 127) != nil, "note \(note)")
+    }
+}
+
 // MARK: - Logique de mix
 
 @MainActor

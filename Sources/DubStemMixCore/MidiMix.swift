@@ -27,6 +27,9 @@ public enum SurfaceEvent: Sendable {
 public final class MidiMix: ControlSurface {
     public var onEvent: ((SurfaceEvent) -> Void)?
     public var onConnectionChange: ((Bool) -> Void)?
+    /// A control change or note the factory mapping does not know: the console has probably been
+    /// reconfigured with the Akai editor (PRD § 4). The string describes the message, e.g. "CC 70 on channel 2".
+    public var onUnmappedMessage: ((String) -> Void)?
     public private(set) var isConnected = false
 
     private var client = MIDIClientRef()
@@ -39,9 +42,10 @@ public final class MidiMix: ControlSurface {
 
     public func start() {
         MIDIClientCreateWithBlock("DubStemMix" as CFString, &client, Self.notifyBlock { [weak self] in self?.rescan() })
-        MIDIInputPortCreateWithBlock(client, "in" as CFString, &inPort, Self.readBlock { [weak self] event in
-            self?.onEvent?(event)
-        })
+        MIDIInputPortCreateWithBlock(client, "in" as CFString, &inPort, Self.readBlock(
+            deliver: { [weak self] event in self?.onEvent?(event) },
+            unmapped: { [weak self] description in self?.onUnmappedMessage?(description) }
+        ))
         MIDIOutputPortCreate(client, "out" as CFString, &outPort)
         rescan()
     }
@@ -83,9 +87,13 @@ public final class MidiMix: ControlSurface {
         }
     }
 
-    private nonisolated static func readBlock(_ deliver: @escaping @MainActor (SurfaceEvent) -> Void) -> MIDIReadBlock {
+    private nonisolated static func readBlock(
+        deliver: @escaping @MainActor (SurfaceEvent) -> Void,
+        unmapped: @escaping @MainActor (String) -> Void
+    ) -> MIDIReadBlock {
         { packetList, _ in
             var events: [SurfaceEvent] = []
+            var unknown: [String] = []
             for packet in packetList.unsafeSequence() {
                 let length = Int(packet.pointee.length)
                 let bytes = withUnsafeBytes(of: packet.pointee.data) { Array($0.prefix(length)) }
@@ -93,12 +101,17 @@ public final class MidiMix: ControlSurface {
                 while i + 2 < bytes.count {
                     if let event = decode(status: bytes[i], data1: bytes[i + 1], data2: bytes[i + 2]) {
                         events.append(event)
+                    } else if let description = unmappedDescription(status: bytes[i], data1: bytes[i + 1]) {
+                        unknown.append(description)
                     }
                     i += 3
                 }
             }
-            guard !events.isEmpty else { return }
-            DispatchQueue.main.async { MainActor.assumeIsolated { events.forEach(deliver) } }
+            guard !events.isEmpty || !unknown.isEmpty else { return }
+            DispatchQueue.main.async { MainActor.assumeIsolated {
+                events.forEach(deliver)
+                unknown.forEach(unmapped)
+            } }
         }
     }
 
@@ -139,6 +152,16 @@ public final class MidiMix: ControlSurface {
             }
         default:
             return nil
+        }
+    }
+
+    /// Describes a control change or note that `decode` rejected; nil for anything else (clock, sysex…).
+    nonisolated static func unmappedDescription(status: UInt8, data1: UInt8) -> String? {
+        let channel = Int(status & 0x0F) + 1
+        switch status & 0xF0 {
+        case 0xB0: return "CC \(data1) on channel \(channel)"
+        case 0x90, 0x80: return "note \(data1) on channel \(channel)"
+        default: return nil
         }
     }
 

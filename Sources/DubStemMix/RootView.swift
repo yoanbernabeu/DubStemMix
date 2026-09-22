@@ -510,11 +510,16 @@ private struct Sidebar: View {
 
             Spacer()
 
+            if let warning = model.midiWarning {
+                MappingWarning(message: warning)
+                    .padding(.bottom, 12)
+            }
+
             VStack(alignment: .leading, spacing: 7) {
                 StatusLine(
-                    color: model.midiConnected ? Theme.reverb : Theme.rec,
+                    color: model.midiWarning != nil ? Theme.delay : (model.midiConnected ? Theme.reverb : Theme.rec),
                     title: "MIDIMIX",
-                    detail: model.midiConnected ? "connected" : "not found"
+                    detail: model.midiWarning != nil ? "custom mapping?" : (model.midiConnected ? "connected" : "not found")
                 )
                 StatusLine(color: Theme.reverb, title: "AUDIO", detail: model.audioDevice, sub: model.audioFormat)
                 StatusLine(
@@ -687,6 +692,28 @@ private struct Hint: View {
             Text(key).font(Fonts.mono(9.5, weight: 700)).foregroundStyle(Theme.text)
             Text(text).font(Fonts.mono(9.5)).foregroundStyle(Theme.textDim)
         }
+    }
+}
+
+/// The console sent something the factory mapping does not know (PRD § 4): how to put it back.
+private struct MappingWarning: View {
+    var message: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("CONSOLE NOT ON FACTORY MAPPING")
+                .font(Fonts.mono(9.5, weight: 700))
+                .foregroundStyle(Theme.delay)
+            Text("Received \(message), which the MIDImix does not send out of the box. Knobs, faders or buttons may not respond.")
+                .font(Fonts.mono(9.5))
+                .foregroundStyle(Theme.textDim)
+            Text("Fix: open the Akai MIDImix Editor, File ▸ New (factory mapping), then Send to Hardware. Then unplug and replug the console.")
+                .font(Fonts.mono(9.5))
+                .foregroundStyle(Theme.text)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(10)
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.delay, lineWidth: 1.5))
     }
 }
 
