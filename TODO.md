@@ -25,16 +25,16 @@
 
 ## 3. Robustesse et dette technique
 
-- [ ] **Plugin qui plante** : les plugins tournent dans un processus séparé, mais l'app ne détecte pas encore le plantage pour revenir à l'effet intégré et prévenir.
-- [ ] **Plugin sans fenêtre propre** : proposer l'interface générique d'Apple au lieu d'un simple message.
+- [x] **Plugin qui plante** — fait le 22/09 : sondage une fois par seconde (la notification système ne vient pas pour les AU v2 hors processus), retour à l'effet intégré, avertissement, slot conservé dans le projet. Vérifié par `--check-plugin-crash`.
+- [x] **Plugin sans fenêtre propre** — fait le 22/09 : vue générique Apple dans une fenêtre à défilement (cas jamais rencontré sur macOS 26, tous les plugins répondent).
 - [ ] **Événements MIDI sur le thread principal** : surveiller la latence quand l'écran est très sollicité ; si besoin, appliquer les niveaux hors du thread principal.
 - [ ] **Vu-mètres** : AVAudioEngine livre les mesures par paquets (~100 ms) ; à fluidifier si c'est gênant.
 - [ ] **Micro-coupure** quand on pose ou retire un stem pendant la lecture, et **arrêt bref du moteur** quand on change d'effet sur un bus (limite d'AVAudioEngine, voir PRD § 7).
-- [ ] **Latence des plugins non compensée** (acceptable sur des bus 100 % wet) : à documenter dans le README.
-- [ ] **Renommer une tranche** à la main (le nom est aujourd'hui déduit du fichier).
-- [ ] **Setlist** : réordonner par glisser-déposer, renommer la setlist.
-- [ ] Changement de carte son **avec des plugins chargés** : à tester.
-- [ ] Vérifier le comportement avec des stems de **fréquences d'échantillonnage différentes** (prévu, jamais essayé sur de vrais fichiers).
+- [ ] **Latence des plugins non compensée** (acceptable sur des bus 100 % wet) : à documenter dans le README (→ M5).
+- [x] **Renommer une tranche** — fait le 22/09 : double-clic ou clic droit sur la plaque de nom, enregistré dans le projet.
+- [x] **Setlist** — fait le 22/09 : glisser-déposer d'une ligne sur une autre, double-clic sur le titre pour renommer.
+- [x] Changement de carte son **avec des plugins chargés** — vérifié le 22/09 par `--check-audio` (Dub Filter hors processus conservé et vivant après deux bascules).
+- [x] Stems de **fréquences d'échantillonnage différentes** — testé le 22/09 (44,1 + 48 kHz alignés au sample près, à l'étalement du convertisseur près) ; un retard de 22 ms du départ hors ligne corrigé au passage. **[toi]** à confirmer à l'oreille sur de vrais fichiers mélangés.
 
 ## 4. M5 — Publication
 
