@@ -1,0 +1,51 @@
+# DubStemMix
+
+> Free, open-source (MIT) dub mixing console for macOS, built for the Akai MIDImix. Put the stems of a tune on the eight faders and cut your own dub live, the way it was done at King Tubby's: pull the vocal, throw the snare into the echo, drop everything but bass and drums, let the spring crash. No DAW, no session to prepare, nothing to map.
+
+Made by YoanDev (https://yoandev.co). Source, releases and issues: https://github.com/yoanbernabeu/DubStemMix
+
+## Facts
+
+- Platform: macOS 15 or later, Apple Silicon only (built and tested on macOS 26). Not tested on Intel.
+- Price: free. License: MIT. Signed ad hoc, not notarized (Open Anyway once, or use the install script).
+- Controller: Akai MIDImix on its factory mapping. Optional: everything also works with mouse and keyboard. Other controllers with the same geometry can be added as a data profile (`ControllerProfile`).
+- Install, one line: `curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/DubStemMix/main/install.sh | sh` (installs or updates DubStemMix.app in /Applications, clears the Gatekeeper quarantine flag, opens the app). Or download the zip from the releases page.
+- Input: any audio stems (WAV, AIFF, FLAC, MP3, M4A, CAF), any sample rate. Several stems can share a strip.
+- Stem separation built in: drop a full song, get drums, bass, instruments and vocals on strips 1 to 4 (htdemucs_ft through ONNX Runtime, on the CPU, about 1.2x the song length on an M3 Pro, up to 9 GB of memory). The 663 MB model is downloaded from Hugging Face on first use, after asking, never bundled.
+- Output: 24-bit WAV recording of the master (after the limiter). Projects (.dubstem) and setlists (.dubset).
+
+## The board
+
+Eight strips mirrored on screen. Per strip: three knobs, MUTE, REC ARM, a fader. BANK LEFT / BANK RIGHT switch what the knobs do; faders stay strip volumes.
+
+- MIX page: knobs are sends to DELAY, REVERB, BUS 3.
+- FX page: knobs drive the built-in effects (delay time, feedback, wow, filters, reverb decay, damping, tone, phaser rate, depth) and the three returns.
+- MASTER page: the big knob, the kills, the dubplate colour, delay heads and ping-pong.
+- INSERTS page: each strip's insert (sub-octave, auto-wah, or a plugin's macros).
+- MUTE cuts a strip; SOLO held + MUTE solos in place. REC ARM held is the dub throw: the strip goes at full into the delay and/or reverb, pre-fader and pre-mute.
+- Effects sit on shared buses: cutting a strip never kills an echo or reverb tail already on its way. Sends are post-fader by default, switchable to pre-fader per bus.
+
+## Gestures (keyboard or master column buttons)
+
+D (hold) drop: everything cut but the strips marked KEEP. H (hold) hold: the delay closes on itself, feedback at unity. C crash: hit the spring reverb. R pull-up: tape brake on the master, back to the top, play. T tap tempo. N / P next and previous tune of the setlist. Cmd+R record the master.
+
+## The sound (all built in, no plugin needed)
+
+- Dub delay: tape echo, every pass through filters and saturation, feedback up to self-oscillation, wow and flutter, time in ms or tempo-locked (1/16 to 1/2, dotted), Space Echo head patterns (1, 2, 3, 1+2, 2+3, 1+3, 1+2+3), ping-pong.
+- Reverb: Dattorro plate, or a dispersive spring (with the CRASH gesture).
+- Bus 3: Bi-Phase style phaser (two six-stage phasers in series) or a tape flanger; both output only the shifted signal.
+- Master chain: King Tubby's stepped high-pass (20 Hz to 10 kHz in twelve steps), sound-system isolator kills (BASS / MID / TOP, kill only), dubplate colour (bandwidth loss, tape saturation, wobble, crackle), pull-up.
+- Strip inserts: sub-octave generator (dbx boom box idea), Mu-Tron III style auto-wah.
+- Any Audio Unit effect can replace a built-in effect on a bus or sit in an insert; plugins load out of process, a crash falls back to the built-in effect.
+
+## Known limits
+
+Plugin latency is not compensated. Changing a bus effect stops the engine for a fraction of a second. MUTE takes about 25 ms to close. Only the MIDImix is supported in this version.
+
+## Links
+
+- Landing page: https://yoanbernabeu.github.io/DubStemMix/
+- README (full documentation): https://github.com/yoanbernabeu/DubStemMix#readme
+- Releases: https://github.com/yoanbernabeu/DubStemMix/releases
+- Product reference (PRD, in French): https://github.com/yoanbernabeu/DubStemMix/blob/main/PRD.md
+- License: https://github.com/yoanbernabeu/DubStemMix/blob/main/LICENSE

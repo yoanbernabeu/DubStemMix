@@ -1,0 +1,118 @@
+---
+import "../styles/global.css";
+import { site } from "../site";
+import { getImage } from "astro:assets";
+import mix from "../assets/screenshots/mix.png";
+
+interface Props { title?: string; description?: string }
+const { title = site.title, description = site.description } = Astro.props;
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const absolute = (path: string) => new URL(`${base}${path}`, Astro.site).href;
+const canonical = absolute("/");
+const ogImage = absolute("/og.png");
+const screenshot = await getImage({ src: mix, format: "png", width: 1440 });
+
+// Structured data: the app itself, for search engines and answer engines.
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${canonical}#app`,
+      name: site.name,
+      alternateName: "Dub Stem Mix",
+      url: canonical,
+      description: site.description,
+      applicationCategory: "MultimediaApplication",
+      applicationSubCategory: "Audio mixing",
+      operatingSystem: "macOS 15 or later (Apple Silicon)",
+      softwareVersion: site.version,
+      downloadUrl: site.latest,
+      installUrl: site.latest,
+      softwareRequirements: "Apple Silicon Mac. Akai MIDImix controller optional: everything works with mouse and keyboard.",
+      license: `${site.repo}/blob/main/LICENSE`,
+      isAccessibleForFree: true,
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      image: absolute("/og.png"),
+      screenshot: absolute(screenshot.src),
+      featureList: [
+        "Eight stems on the eight faders of an Akai MIDImix, mirrored on screen",
+        "Sends to a tape dub delay, a plate or spring reverb and a phaser or flanger, on shared buses",
+        "Dub throws: send a strip at full into the delay or the reverb while a button is held",
+        "Master chain: King Tubby style stepped high-pass, sound-system kills, dubplate colour, pull-up",
+        "Gestures: drop, hold, crash, pull-up, tap tempo",
+        "Stem separation of a full song into drums, bass, instruments and vocals (htdemucs_ft)",
+        "Audio Unit plugins on buses and inserts, loaded out of process",
+        "Projects, setlists and 24-bit master recording",
+      ],
+      keywords: site.keywords.join(", "),
+      author: { "@id": `${canonical}#author` },
+      sameAs: [site.repo],
+      codeRepository: site.repo,
+    },
+    {
+      "@type": "Person",
+      "@id": `${canonical}#author`,
+      name: site.author.name,
+      url: site.author.url,
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${canonical}#website`,
+      url: canonical,
+      name: site.name,
+      description: site.description,
+      inLanguage: "en",
+      publisher: { "@id": `${canonical}#author` },
+    },
+  ],
+};
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="keywords" content={site.keywords.join(", ")} />
+    <meta name="author" content={site.author.name} />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#14110f" />
+    <meta name="application-name" content={site.name} />
+    <meta name="apple-mobile-web-app-title" content={site.name} />
+    <link rel="canonical" href={canonical} />
+    <link rel="sitemap" type="application/xml" href={`${base}/sitemap-index.xml`} />
+    <link rel="icon" type="image/png" sizes="64x64" href={`${base}/favicon.png`} />
+    <link rel="icon" type="image/png" sizes="512x512" href={`${base}/icon-512.png`} />
+    <link rel="apple-touch-icon" sizes="180x180" href={`${base}/apple-touch-icon.png`} />
+
+    <!-- Open Graph: Facebook, WhatsApp, LinkedIn, Slack, Discord, iMessage… -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:secure_url" content={ogImage} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="DubStemMix: Take the stems. Cut your own dub. A live dub mixing console for the Akai MIDImix." />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content="DubStemMix: Take the stems. Cut your own dub. A live dub mixing console for the Akai MIDImix." />
+
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  </head>
+  <body class="min-h-dvh bg-bg text-cream">
+    <slot />
+  </body>
+</html>

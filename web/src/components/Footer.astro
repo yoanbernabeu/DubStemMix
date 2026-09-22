@@ -1,0 +1,23 @@
+---
+import Led from "./Led.astro";
+import { site } from "../site";
+---
+<footer class="border-t border-border">
+  <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+    <p class="max-w-3xl text-lg leading-relaxed text-cream/90">
+      Made for the sound system, in the spirit of King Tubby, Lee “Scratch” Perry, Scientist and everyone who ever
+      versioned a riddim on a four-track with a spring and a tape echo.
+    </p>
+    <div class="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
+      <a href={site.repo} rel="noopener" class="label text-[11px] text-dim hover:text-cream">GitHub</a>
+      <a href={site.releases} rel="noopener" class="label text-[11px] text-dim hover:text-cream">Releases</a>
+      <a href={`${site.repo}/blob/main/LICENSE`} rel="noopener" class="label text-[11px] text-dim hover:text-cream">MIT license</a>
+      <a href={`${site.repo}/blob/main/NOTICE`} rel="noopener" class="label text-[11px] text-dim hover:text-cream">Third-party notices</a>
+      <a href={`${site.repo}/issues`} rel="noopener" class="label text-[11px] text-dim hover:text-cream">Issues</a>
+      <span class="mono ml-auto flex items-center gap-2 text-[11px] text-dim"><Led color="reverb" /> v{site.version} · free and open source</span>
+    </div>
+    <p class="mono mt-6 text-[11px] text-dim">
+      Made by <a href={site.author.url} rel="noopener" class="text-cream underline decoration-border underline-offset-4 hover:decoration-cream">{site.author.name}</a>.
+    </p>
+  </div>
+</footer>

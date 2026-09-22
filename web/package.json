@@ -1,0 +1,17 @@
+{
+  "name": "dubstemmix-web",
+  "private": true,
+  "type": "module",
+  "description": "Landing page for DubStemMix, published on GitHub Pages",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.7.4",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.3.3",
+    "tailwindcss": "^4.3.3"
+  }
+}

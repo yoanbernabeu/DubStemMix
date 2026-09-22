@@ -1,0 +1,15 @@
+---
+// A page section with the console's header line: a number in mono, a label, a rule.
+interface Props { id: string; index: string; title: string; kicker?: string; class?: string }
+const { id, index, title, kicker, class: className = "" } = Astro.props;
+---
+<section id={id} class:list={["scroll-mt-20 border-t border-border", className]}>
+  <div class="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
+    <header class="mb-10 flex flex-wrap items-end gap-x-6 gap-y-3 sm:mb-14">
+      <span class="mono text-xs text-dim">{index}</span>
+      <h2 class="label-wide text-2xl text-cream sm:text-3xl">{title}</h2>
+      {kicker && <p class="mono w-full text-xs text-dim sm:w-auto sm:pb-1">{kicker}</p>}
+    </header>
+    <slot />
+  </div>
+</section>

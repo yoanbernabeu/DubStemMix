@@ -1,0 +1,37 @@
+---
+import Section from "./Section.astro";
+const faq = [
+  ["Only the Akai MIDImix?", "Today, yes: it is the console this was built and tested with. But the mix logic never sees the MIDImix. It receives abstract events (knob on strip 3, row 2; MUTE on strip 5; BANK RIGHT) and sends abstract LED states back. The MIDImix itself is a profile, plain data. A controller with the same geometry (8 strips with 3 knobs, a fader and MUTE / SOLO / REC ARM buttons, two bank buttons, a master fader) needs only a profile: the Novation Launch Control XL is the obvious candidate. Pull requests welcome."],
+  ["No controller at all?", "Everything works with the mouse and the keyboard: knobs, faders, MUTE (⌥-click for solo), THROW, pages, gestures. The console adds the hands."],
+  ["Intel Macs?", "The releases are built for Apple Silicon and nothing has been tested on Intel. Building from source may work; no promise."],
+  ["Why does macOS complain at first launch?", "The app is signed ad hoc, not notarized: no Apple Developer account. Open Anyway once, or use the install script, which clears the quarantine flag."],
+  ["Which stems can I load?", "Any audio files (WAV, AIFF, FLAC, MP3, M4A, CAF), any sample rate, any length; several stems can share a strip. Stems exported from a DAW, bought as multitracks, or split by the app itself."],
+  ["Latency?", "Set the buffer to 128 or 256 samples in Settings. Built-in effects add no latency; a plugin's latency is not compensated."],
+  ["Projects and setlists?", "⌘S writes a .dubstem project: stems, effects, plugins and their state, inserts, KEEP marks, tempo. Fader and knob positions are not restored: the console is the truth. A .dubset setlist lists the tunes of the set; N / P load the next or previous one while the tails of the previous tune keep going."],
+  ["Where does the separation model live?", "~/Library/Application Support/DubStemMix/Models, 663 MB. Settings ▸ Stem separation ▸ Delete. It is never bundled with the app."],
+];
+// FAQPage structured data, from the same list, so the page and the markup never drift.
+const faqLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faq.map(([q, a]) => ({
+    "@type": "Question",
+    name: q,
+    acceptedAnswer: { "@type": "Answer", text: a },
+  })),
+};
+---
+<script is:inline type="application/ld+json" set:html={JSON.stringify(faqLd)} />
+<Section id="faq" index="06" title="FAQ">
+  <div class="mx-auto max-w-3xl divide-y divide-border border-y border-border">
+    {faq.map(([q, a]) => (
+      <details class="group py-4">
+        <summary class="label flex cursor-pointer list-none items-center justify-between gap-4 text-sm text-cream [&::-webkit-details-marker]:hidden">
+          {q}
+          <span class="mono text-dim transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+        </summary>
+        <p class="mt-3 max-w-2xl text-sm leading-relaxed text-dim">{a}</p>
+      </details>
+    ))}
+  </div>
+</Section>

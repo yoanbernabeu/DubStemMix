@@ -1,0 +1,21 @@
+---
+// A knob as the app draws it: a full arc in the bus colour, a cream pointer, no shading.
+interface Props {
+  value?: number; // 0 to 1
+  color?: "delay" | "reverb" | "bus3" | "cream";
+  size?: number;
+  class?: string;
+}
+const { value = 0.66, color = "delay", size = 64, class: className = "" } = Astro.props;
+const colors = { delay: "var(--color-delay)", reverb: "var(--color-reverb)", bus3: "var(--color-bus3)", cream: "var(--color-cream)" };
+const angle = 135 + value * 270;
+const rad = (angle * Math.PI) / 180;
+const x2 = 32 + 17 * Math.cos(rad);
+const y2 = 32 + 17 * Math.sin(rad);
+---
+<svg viewBox="0 0 64 64" width={size} height={size} class={className} aria-hidden="true">
+  <path d="M13.62 50.38 A26 26 0 1 1 50.38 50.38" fill="none" stroke="var(--color-border)" stroke-width="4" stroke-linecap="round" pathLength="1" />
+  <path d="M13.62 50.38 A26 26 0 1 1 50.38 50.38" fill="none" stroke={colors[color]} stroke-width="4" stroke-linecap="round" pathLength="1" stroke-dasharray={`${value} 1`} class="knob-arc" />
+  <circle cx="32" cy="32" r="19" fill="var(--color-surface)" stroke="var(--color-border)" stroke-width="1.5" />
+  <line x1="32" y1="32" x2={x2} y2={y2} stroke="var(--color-cream)" stroke-width="3" stroke-linecap="round" />
+</svg>

@@ -1,0 +1,31 @@
+---
+import { Image } from "astro:assets";
+import icon from "../assets/icon.png";
+import Led from "./Led.astro";
+import { site } from "../site";
+const links = [
+  ["#install", "Install"],
+  ["#board", "The board"],
+  ["#gestures", "Gestures"],
+  ["#sound", "The sound"],
+  ["#split", "Split"],
+  ["#faq", "FAQ"],
+];
+---
+<nav class="sticky top-0 z-20 border-b border-border bg-bg/95 backdrop-blur-sm">
+  <div class="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 sm:px-6">
+    <a href="#top" class="flex items-center gap-3">
+      <Image src={icon} alt="" width={28} height={28} class="rounded-md" />
+      <span class="label-wide text-sm">DubStemMix</span>
+    </a>
+    <ul class="ml-6 hidden items-center gap-5 md:flex">
+      {links.map(([href, label]) => (
+        <li><a href={href} class="label text-[11px] text-dim transition-colors hover:text-cream">{label}</a></li>
+      ))}
+    </ul>
+    <div class="ml-auto flex items-center gap-4">
+      <span class="mono hidden items-center gap-2 text-[11px] text-dim sm:flex"><Led color="reverb" /> v{site.version}</span>
+      <a href={site.repo} class="label rounded border-[1.5px] border-border px-3 py-1.5 text-[11px] transition-colors hover:border-cream" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>

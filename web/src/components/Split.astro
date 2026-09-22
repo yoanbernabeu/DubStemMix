@@ -1,0 +1,43 @@
+---
+import { Image } from "astro:assets";
+import Section from "./Section.astro";
+import Led from "./Led.astro";
+import settings from "../assets/screenshots/settings.png";
+const strips = [
+  ["01", "DRUMS", "delay"],
+  ["02", "BASS", "reverb"],
+  ["03", "INSTR", "bus3"],
+  ["04", "VOCALS", "cream"],
+] as const;
+---
+<Section id="split" index="05" title="Split a song" kicker="no stems? drop the full tune">
+  <div class="grid gap-10 lg:grid-cols-[3fr_2fr] lg:gap-16">
+    <div>
+      <p class="max-w-3xl text-lg leading-relaxed text-cream/90">
+        Drop a full song (WAV, MP3, AIFF, FLAC, M4A…) in <strong>SPLIT A SONG</strong>. Drums, bass, instruments and vocals land
+        on strips 1 to 4, the original goes to the pool for A/B listening. A tune already split reopens without recomputing.
+      </p>
+      <ul class="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {strips.map(([n, name, color]) => (
+          <li class="rounded border-[1.5px] border-border bg-surface p-4">
+            <p class="mono text-[11px] text-dim">strip {n}</p>
+            <p class="label-wide mt-2 text-lg">{name}</p>
+            <div class="mt-4 flex items-center gap-2">
+              <Led color={color} />
+              <span class="h-1 grow bg-border"><span class="block h-full bg-cream" style="width:78%"></span></span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p class="mt-8 text-sm leading-relaxed text-dim">
+        The separation runs on the CPU with <span class="text-cream">htdemucs_ft</span> through ONNX Runtime: roughly 1.2× the song's
+        length on an M3 Pro, up to 9 GB of memory. The four model files (663 MB) are not in the app: they are downloaded from
+        Hugging Face on first use, after asking you, and can be deleted from Settings at any time.
+      </p>
+    </div>
+    <figure class="lg:justify-self-end">
+      <Image src={settings} alt="DubStemMix settings: output device, buffer size, recordings folder, pre/post-fader per bus, stem separation engine" width={360} format="webp" loading="lazy" class="border border-border" />
+      <figcaption class="mono mt-3 text-[11px] text-dim">Settings (⌘,): device, buffer, folders, pre/post per bus, separation engine.</figcaption>
+    </figure>
+  </div>
+</Section>

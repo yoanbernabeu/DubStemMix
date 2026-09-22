@@ -1,0 +1,57 @@
+---
+import { Image } from "astro:assets";
+import mix from "../assets/screenshots/mix.png";
+import Led from "./Led.astro";
+import { site } from "../site";
+// Tape repeats: each one later and quieter, like the delay's feedback.
+const echoes = [0.62, 0.4, 0.25, 0.14, 0.07];
+---
+<header id="top" class="relative overflow-hidden">
+  <div class="mx-auto max-w-6xl px-4 pt-16 pb-10 sm:px-6 sm:pt-24 sm:pb-14">
+    <p class="mono animate-rise text-xs text-dim" style="animation-delay:.05s">
+      {site.requirements}
+    </p>
+    <h1 class="display mt-6 text-[clamp(2.75rem,9vw,7.5rem)]">
+      <span class="block animate-rise" style="animation-delay:.15s">Take the stems.</span>
+      <span class="block animate-rise" style="animation-delay:.3s">Cut your own</span>
+      <span class="flex items-baseline gap-x-[0.3em] overflow-hidden whitespace-nowrap text-delay">
+        <span class="animate-rise" style="animation-delay:.45s">dub.</span>
+        {echoes.map((o, i) => (
+          <span
+            class="animate-echo"
+            aria-hidden="true"
+            style={`--echo-opacity:${o};animation-delay:${0.8 + i * 0.38}s;font-size:${(0.7 - i * 0.12).toFixed(2)}em`}
+          >dub.</span>
+        ))}
+      </span>
+    </h1>
+    <div class="mt-10 grid gap-8 md:grid-cols-[1fr_auto] md:items-end">
+      <p class="animate-rise max-w-2xl text-lg leading-relaxed text-cream/90 sm:text-xl" style="animation-delay:.55s">
+        Eight stems on eight faders, the way it was done at King Tubby's: pull the vocal, throw the snare into the echo,
+        drop everything but bass and drums, let the spring crash. <strong>No DAW, no session to prepare, nothing to map.</strong>{" "}
+        Plug the Akai MIDImix, drop a folder of stems, play.
+      </p>
+      <div class="animate-rise flex flex-wrap gap-3" style="animation-delay:.65s">
+        <a href="#install" class="label-wide inline-flex h-12 items-center rounded bg-cream px-6 text-sm text-bg transition-colors hover:bg-delay">Install</a>
+        <a href={site.repo} rel="noopener" class="label-wide inline-flex h-12 items-center rounded border-[1.5px] border-border px-6 text-sm transition-colors hover:border-cream">Source</a>
+      </div>
+    </div>
+  </div>
+
+  <figure class="animate-rise mx-auto max-w-6xl px-4 pb-16 sm:px-6 sm:pb-24" style="animation-delay:.8s">
+    <div class="flex items-center gap-3 border-x border-t border-border bg-surface px-4 py-2">
+      {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <Led color="delay" on={n !== 4 && n !== 7} />)}
+      <span class="mono ml-2 text-[11px] text-dim">MIX · eight strips · sends to DELAY, REVERB, BUS 3</span>
+      <span class="mono ml-auto hidden items-center gap-2 text-[11px] text-dim sm:flex"><Led color="reverb" blink /> MIDImix connected</span>
+    </div>
+    <Image
+      src={mix}
+      alt="DubStemMix, MIX page: eight strips with sends to delay, reverb and phaser, master column on the right"
+      widths={[720, 1100, 1440]}
+      sizes="(min-width: 1152px) 1100px, 100vw"
+      format="webp"
+      loading="eager"
+      class="w-full border border-border"
+    />
+  </figure>
+</header>

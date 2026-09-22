@@ -1,0 +1,7 @@
+---
+// The console's LED: lit in the bus colour, or off (border colour). Purely decorative.
+interface Props { on?: boolean; color?: "delay" | "reverb" | "bus3" | "cream" | "rec"; blink?: boolean; class?: string }
+const { on = true, color = "cream", blink = false, class: className = "" } = Astro.props;
+const bg = on ? `var(--color-${color})` : "var(--color-border)";
+---
+<span class:list={["inline-block size-2 rounded-full", blink && "animate-led", className]} style={`background-color:${bg}`} aria-hidden="true"></span>

@@ -1,0 +1,33 @@
+---
+import Section from "./Section.astro";
+const gestures = [
+  { keys: ["D"], hold: true, name: "Drop", text: "Everything cut but the strips marked KEEP. Mark bass and drums, hold D, you are on the riddim." },
+  { keys: ["H"], hold: true, name: "Hold", text: "The delay closes on itself, input shut, feedback at unity. Cut all the rest, the echo keeps turning." },
+  { keys: ["C"], hold: false, name: "Crash", text: "Hit the spring. Perry's thunder, Tubby's spring shot (select Built-in · Spring on the REVERB card)." },
+  { keys: ["R"], hold: false, name: "Pull-up", text: "The selector's rewind. Tape brake on the whole master, back to the top, play." },
+  { keys: ["T"], hold: false, name: "Tap tempo", text: "Tap the tempo; the delay time can lock to it, 1/16 to 1/2, dotted included." },
+  { keys: ["N", "P"], hold: false, name: "Next · previous", text: "Load the next or previous tune of the setlist, stopped at the top, while the effect tails keep going." },
+  { keys: ["⌘", "R"], hold: false, name: "Record", text: "Record the master, after the limiter, as 24-bit WAV. Your version, ready to cut." },
+];
+---
+<Section id="gestures" index="03" title="Gestures" kicker="keyboard, or the buttons in the master column">
+  <p class="max-w-3xl text-lg leading-relaxed text-cream/90">
+    They never touch your mutes: release, and the mix is exactly as it was.
+  </p>
+  <ul class="mt-10 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+    {gestures.map((g) => (
+      <li class="grid grid-cols-[auto_1fr] gap-4">
+        <div class="flex items-start gap-1.5">
+          {g.keys.map((k) => <kbd class="keycap">{k}</kbd>)}
+        </div>
+        <div>
+          <h3 class="label text-sm">
+            {g.name}
+            {g.hold && <span class="mono ml-2 text-[10px] font-normal text-delay normal-case tracking-normal">hold</span>}
+          </h3>
+          <p class="mt-1.5 text-sm leading-relaxed text-dim">{g.text}</p>
+        </div>
+      </li>
+    ))}
+  </ul>
+</Section>

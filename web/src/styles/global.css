@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+/* The two typefaces embedded in the app, self-hosted here (OFL, licences next to the files). */
+@font-face {
+  font-family: "Archivo";
+  src: url("../assets/fonts/Archivo-Variable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../assets/fonts/JetBrainsMono-Variable.ttf") format("truetype");
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+/* Same tokens as Theme.swift: one colour per bus, functional colour coding, no decorative gradient. */
+@theme {
+  --color-*: initial;
+  --color-bg: #14110f;
+  --color-surface: #1e1a17;
+  --color-border: #2e2823;
+  --color-cream: #ede3cf;
+  --color-dim: #9a8f7e;
+  --color-delay: #d9a441;
+  --color-reverb: #7e9b5a;
+  --color-bus3: #c2553a;
+  --color-rec: #e5412d;
+  --color-black: #000;
+  --color-white: #fff;
+
+  --font-label: "Archivo", "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --animate-echo: echo 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-rise: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-led: led 1.6s steps(1, end) infinite;
+
+  @keyframes echo {
+    from { opacity: 0; transform: translateX(-0.4em); }
+    to { opacity: var(--echo-opacity, 1); transform: none; }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes led {
+    0%, 55% { background-color: var(--color-delay); }
+    56%, 100% { background-color: var(--color-border); }
+  }
+}
+
+@layer base {
+  html {
+    background-color: var(--color-bg);
+    color: var(--color-cream);
+    scroll-behavior: smooth;
+    scroll-padding-top: 4.5rem;
+  }
+  body {
+    font-family: var(--font-label);
+    font-variation-settings: "wght" 450, "wdth" 100;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background-color: var(--color-cream);
+    color: var(--color-bg);
+  }
+  strong { font-variation-settings: "wght" 720, "wdth" 100; }
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after { animation: none !important; transition: none !important; }
+    html { scroll-behavior: auto; }
+  }
+}
+
+@utility label {
+  /* The console's label style: heavy, slightly wide, capitals. */
+  font-family: var(--font-label);
+  font-variation-settings: "wght" 800, "wdth" 112;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+@utility label-wide {
+  font-family: var(--font-label);
+  font-variation-settings: "wght" 850, "wdth" 118;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+@utility display {
+  font-family: var(--font-label);
+  font-variation-settings: "wght" 780, "wdth" 108;
+  letter-spacing: -0.02em;
+  line-height: 0.95;
+}
+@utility mono {
+  font-family: var(--font-mono);
+  font-variation-settings: "wght" 500;
+  font-variant-numeric: tabular-nums;
+}
+@utility dashed {
+  /* The "ghost" mark of the app: a dashed cream outline until the physical control catches up. */
+  border: 1.5px dashed var(--color-border);
+}
+@utility keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding-inline: 0.6rem;
+  border: 1.5px solid var(--color-cream);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-variation-settings: "wght" 700;
+  font-size: 0.85rem;
+  color: var(--color-cream);
+}

@@ -1,0 +1,7 @@
+# DubStemMix landing page. Everything is public; crawl and quote freely.
+# A plain-text summary for language models lives at /DubStemMix/llms.txt
+
+User-agent: *
+Allow: /
+
+Sitemap: https://yoanbernabeu.github.io/DubStemMix/sitemap-index.xml

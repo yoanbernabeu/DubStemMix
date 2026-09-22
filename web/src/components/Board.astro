@@ -1,0 +1,100 @@
+---
+import { Image } from "astro:assets";
+import Section from "./Section.astro";
+import Led from "./Led.astro";
+import mix from "../assets/screenshots/mix.png";
+import fx from "../assets/screenshots/fx.png";
+import master from "../assets/screenshots/master.png";
+import inserts from "../assets/screenshots/inserts.png";
+
+// The four pages, in the order BANK RIGHT walks them. BANK LEFT always comes back to MIX.
+const pages = [
+  { id: "mix", label: "MIX", reach: "BANK LEFT", knobs: "sends to DELAY, REVERB, BUS 3", image: mix, alt: "MIX page: eight strips with sends to delay, reverb and phaser" },
+  { id: "fx", label: "FX", reach: "BANK RIGHT", knobs: "delay time, feedback, wow, filters, reverb decay, damping, tone, phaser rate, depth… and the three returns", image: fx, alt: "FX page: the knobs drive the tape delay, the reverb and the phaser" },
+  { id: "master", label: "MASTER", reach: "BANK RIGHT again", knobs: "the big knob, the kills, the dubplate colour, delay heads and ping-pong", image: master, alt: "MASTER page: big knob, kills, dubplate, delay heads" },
+  { id: "inserts", label: "INSERTS", reach: "BANK RIGHT again", knobs: "each strip's insert: sub, auto-wah, or a plugin's macros", image: inserts, alt: "INSERTS page: sub on the bass, auto-wah on the skank" },
+];
+const notes = [
+  ["MUTE", "cuts a strip; the LED shows the state. SOLO held + MUTE solos it, in place: the echo and reverb returns keep playing while everything else is gone."],
+  ["REC ARM held", "is the dub throw: the strip goes at full into the delay (or the reverb, or both), taken before the fader and the mute. Throw a cut vocal, hear only its echo."],
+  ["Shared buses", "like the sends of a real board: cutting a strip never kills an echo or a reverb tail already on its way. That is the whole point."],
+  ["Pre or post", "sends are post-fader by default; Settings switch any bus to pre-fader for the classic move: fader down, echo still running."],
+];
+---
+<Section id="board" index="02" title="The board" kicker="eight strips, mirrored on screen: what you touch is where you look">
+  <p class="max-w-3xl text-lg leading-relaxed text-cream/90">
+    Per strip: three knobs, MUTE, REC ARM, a fader. <strong>BANK LEFT / BANK RIGHT</strong> change what the knobs do;
+    the faders stay strip volumes on every page. Try the bank buttons below.
+  </p>
+
+  <div id="pages" class="mt-10 rounded border-[1.5px] border-border bg-surface">
+    <div class="flex flex-wrap items-center gap-2 border-b border-border p-3 sm:gap-3">
+      <button type="button" data-bank="left" class="label rounded border-[1.5px] border-border px-3 py-2 text-[11px] transition-colors hover:border-cream">◀ Bank left</button>
+      <button type="button" data-bank="right" class="label rounded border-[1.5px] border-border px-3 py-2 text-[11px] transition-colors hover:border-cream">Bank right ▶</button>
+      <div role="tablist" aria-label="Console pages" class="ml-0 flex flex-wrap gap-2 sm:ml-4">
+        {pages.map((p, i) => (
+          <button
+            type="button"
+            role="tab"
+            id={`tab-${p.id}`}
+            aria-controls={`panel-${p.id}`}
+            aria-selected={i === 0 ? "true" : "false"}
+            tabindex={i === 0 ? 0 : -1}
+            data-page={i}
+            class="label flex items-center gap-2 rounded px-3 py-2 text-[11px] text-dim transition-colors hover:text-cream aria-selected:bg-cream aria-selected:text-bg"
+          >
+            <span class="led inline-block size-2 rounded-full bg-border" aria-hidden="true"></span>{p.label}
+          </button>
+        ))}
+      </div>
+    </div>
+
+    {pages.map((p, i) => (
+      <div role="tabpanel" id={`panel-${p.id}`} aria-labelledby={`tab-${p.id}`} data-page={i} hidden={i !== 0}>
+        <div class="grid gap-x-8 gap-y-1 px-4 py-3 sm:grid-cols-[auto_1fr]">
+          <p class="mono text-[11px] text-dim">Reach it: <span class="text-cream">{p.reach}</span></p>
+          <p class="mono text-[11px] text-dim">The knobs are: <span class="text-cream">{p.knobs}</span></p>
+        </div>
+        <Image src={p.image} alt={`DubStemMix, ${p.alt}`} widths={[720, 1100, 1440]} sizes="(min-width: 1152px) 1100px, 100vw" format="webp" loading={i === 0 ? "eager" : "lazy"} class="w-full border-t border-border" />
+      </div>
+    ))}
+  </div>
+
+  <ul class="mt-10 grid gap-6 sm:grid-cols-2">
+    {notes.map(([title, text]) => (
+      <li class="flex gap-4">
+        <Led color="delay" class="mt-2 shrink-0" />
+        <p class="text-sm leading-relaxed text-dim"><strong class="label text-cream">{title}</strong> {text}</p>
+      </li>
+    ))}
+  </ul>
+</Section>
+
+<script>
+  // BANK LEFT always comes back to MIX; BANK RIGHT walks FX, MASTER, INSERTS, exactly like the console.
+  const root = document.getElementById("pages");
+  if (root) {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const panels = [...root.querySelectorAll<HTMLElement>('[role="tabpanel"]')];
+    let current = 0;
+    const show = (index: number) => {
+      current = Math.max(0, Math.min(tabs.length - 1, index));
+      tabs.forEach((tab, i) => {
+        const on = i === current;
+        tab.setAttribute("aria-selected", on ? "true" : "false");
+        tab.tabIndex = on ? 0 : -1;
+        tab.querySelector<HTMLElement>(".led")!.style.backgroundColor = on ? "var(--color-delay)" : "var(--color-border)";
+      });
+      panels.forEach((panel, i) => (panel.hidden = i !== current));
+    };
+    tabs.forEach((tab, i) => tab.addEventListener("click", () => show(i)));
+    root.querySelector('[data-bank="left"]')?.addEventListener("click", () => show(0));
+    root.querySelector('[data-bank="right"]')?.addEventListener("click", () => show(current + 1));
+    root.querySelector('[role="tablist"]')?.addEventListener("keydown", (event) => {
+      const e = event as KeyboardEvent;
+      if (e.key === "ArrowRight") { show(current + 1); tabs[current].focus(); }
+      if (e.key === "ArrowLeft") { show(current - 1); tabs[current].focus(); }
+    });
+    show(0);
+  }
+</script>

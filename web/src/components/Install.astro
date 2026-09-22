@@ -1,0 +1,75 @@
+---
+import Section from "./Section.astro";
+import Led from "./Led.astro";
+import { site } from "../site";
+const steps = [
+  ["Plug in the MIDImix", "On its factory mapping. The status line at the bottom left says “connected”, and warns you if the console sends something the factory mapping does not know."],
+  ["Press SEND ALL", "The app now knows where every knob and fader sits. After a page change, a knob acts once it reaches the value it now drives, shown as a cream ghost mark until then. No jumps, no surprises mid-tune."],
+  ["Drop a folder of stems", "Anywhere in the window, then drag each stem onto the strip you want. Nothing is placed for you: you decide what goes where, as you would patch a board."],
+  ["Play", "Space plays and pauses, Return goes back to the top, L loops the tune. No stems? Drop a full song in SPLIT A SONG."],
+];
+---
+<Section id="install" index="01" title="Install" kicker="one line, from the latest release">
+  <div class="grid gap-10 lg:grid-cols-[3fr_2fr] lg:gap-16">
+    <div>
+      <div class="rounded border-[1.5px] border-border bg-surface">
+        <div class="flex items-center gap-3 border-b border-border px-4 py-2">
+          <Led color="reverb" />
+          <span class="mono text-[11px] text-dim">terminal · installs or updates DubStemMix.app in /Applications, clears the quarantine flag, opens the app</span>
+        </div>
+        <div class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+          <code id="install-cmd" class="mono grow text-sm leading-relaxed break-all text-cream sm:text-[15px]">{site.installCommand}</code>
+          <button
+            id="copy-install"
+            type="button"
+            class="label shrink-0 rounded border-[1.5px] border-cream px-4 py-2 text-[11px] text-cream transition-colors hover:bg-cream hover:text-bg data-[copied]:bg-delay data-[copied]:border-delay data-[copied]:text-bg"
+            data-command={site.installCommand}
+          >Copy</button>
+        </div>
+      </div>
+      <p class="mt-5 text-sm leading-relaxed text-dim">
+        Or by hand: download <span class="mono text-cream">DubStemMix-{site.version}.zip</span> from the{" "}
+        <a href={site.releases} class="text-cream underline decoration-border underline-offset-4 hover:decoration-cream" rel="noopener">releases</a>,
+        unzip, move <span class="mono text-cream">DubStemMix.app</span> to <span class="mono text-cream">/Applications</span>.
+      </p>
+      <div class="dashed mt-8 rounded p-5">
+        <p class="label mb-2 text-[11px] text-delay">Gatekeeper</p>
+        <p class="text-sm leading-relaxed text-cream/85">
+          The app is signed ad hoc, not notarized: no Apple Developer account behind it, just a selector with a Mac. On first launch
+          macOS may say the app “cannot be opened”. System Settings ▸ Privacy &amp; Security ▸ <strong>Open Anyway</strong>, once.
+          The install script already clears the flag for you.
+        </p>
+      </div>
+    </div>
+
+    <ol class="grid gap-6">
+      <li class="label text-[11px] text-dim">The first riddim</li>
+      {steps.map(([title, text], i) => (
+        <li class="grid grid-cols-[2.5rem_1fr] gap-4">
+          <span class="mono pt-1 text-sm text-delay">0{i + 1}</span>
+          <div>
+            <h3 class="label text-sm">{title}</h3>
+            <p class="mt-1.5 text-sm leading-relaxed text-dim">{text}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </div>
+</Section>
+
+<script>
+  const button = document.getElementById("copy-install") as HTMLButtonElement | null;
+  button?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(button.dataset.command ?? "");
+      button.dataset.copied = "";
+      button.textContent = "Copied";
+      setTimeout(() => {
+        delete button.dataset.copied;
+        button.textContent = "Copy";
+      }, 1600);
+    } catch {
+      // Clipboard blocked: the command is selectable right next to the button.
+    }
+  });
+</script>
