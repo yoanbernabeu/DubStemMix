@@ -17,7 +17,7 @@ else
     RELEASE_URL="$API/latest"
 fi
 
-echo "DubStemMix — looking up the release…"
+echo "DubStemMix — looking up the release..."
 ASSET_URL="$(curl -fsSL "$RELEASE_URL" | grep -o '"browser_download_url": *"[^"]*DubStemMix-[^"]*\.zip"' | head -1 | sed 's/.*"\(https[^"]*\)"/\1/')"
 if [ -z "$ASSET_URL" ]; then
     echo "No DubStemMix zip found in the release ($RELEASE_URL)." >&2
@@ -33,7 +33,7 @@ fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-echo "Downloading DubStemMix $VERSION…"
+echo "Downloading DubStemMix ${VERSION}..."
 curl -fL --progress-bar "$ASSET_URL" -o "$TMP/DubStemMix.zip"
 ditto -x -k "$TMP/DubStemMix.zip" "$TMP/unzipped"
 
@@ -43,16 +43,16 @@ if [ ! -d "$TMP/unzipped/DubStemMix.app" ]; then
 fi
 
 if pgrep -x DubStemMix >/dev/null 2>&1; then
-    echo "Quitting the running DubStemMix…"
+    echo "Quitting the running DubStemMix..."
     osascript -e 'tell application "DubStemMix" to quit' >/dev/null 2>&1 || true
     sleep 1
 fi
 
-rm -rf "$DEST/DubStemMix.app"
-ditto "$TMP/unzipped/DubStemMix.app" "$DEST/DubStemMix.app"
+rm -rf "${DEST}/DubStemMix.app"
+ditto "$TMP/unzipped/DubStemMix.app" "${DEST}/DubStemMix.app"
 # Gatekeeper: the app is not notarized. Removing the quarantine flag is what "Open anyway" would do.
-xattr -dr com.apple.quarantine "$DEST/DubStemMix.app" 2>/dev/null || true
+xattr -dr com.apple.quarantine "${DEST}/DubStemMix.app" 2>/dev/null || true
 
-echo "Installed DubStemMix $VERSION in $DEST."
+echo "Installed DubStemMix ${VERSION} in $DEST."
 echo "The stem separation model (663 MB) is downloaded on first use, after asking you."
-open "$DEST/DubStemMix.app"
+open "${DEST}/DubStemMix.app"
