@@ -6,6 +6,7 @@ import SwiftUI
 //   swift run DubStemMix --detect-tempo "<dossier>" [texte à exclure]   estime le BPM d'un dossier de stems
 //   swift run DubStemMix --check-plugins                 charge chaque plugin AU tiers installé, sans son, et rapporte
 //   swift run DubStemMix --check-documents               auto-contrôle projets + setlist, sans interface ni son
+//   swift run DubStemMix --check-audio                   carte son, buffer, charge DSP et décrochages sur le vrai moteur
 //   swift run DubStemMix --snapshot out.png [--fx]       rend l'interface (données de démo) dans un PNG
 
 @main
@@ -23,6 +24,8 @@ enum Main {
             PluginCheck.run()
         } else if args.contains("--check-documents") {
             DocumentsCheck.run()
+        } else if args.contains("--check-audio") {
+            AudioCheck.run()
         } else if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
             snapshot(to: args[i + 1], fxPage: args.contains("--fx"))
         } else {

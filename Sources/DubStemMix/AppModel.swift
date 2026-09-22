@@ -15,7 +15,13 @@ final class AppModel {
     var title = ""
     var waveform: [Float] = []
     var midiConnected = false
-    var audioOutput = ""
+    /// Output device name, then its sample rate and buffer size, as shown in the status bar.
+    var audioDevice = ""
+    var audioFormat = ""
+    /// Worst audio-thread load over the last moments (1 = no headroom left), and dropouts since launch.
+    var dspLoad: Float = 0
+    var dropouts = 0
+    @ObservationIgnored private var audioStatusCountdown = 0
     var errorMessage: String?
     var pool: [PoolItem] = []
     // Documents : projet (.dubstem) et setlist (.dubset). Voir AppModel+Documents.swift.
@@ -70,7 +76,7 @@ final class AppModel {
             if demoData { loadPreviewData() }
             return
         }
-        audioOutput = engine.outputDescription
+        refreshAudioStatus()
         midi.onEvent = { [weak self] in self?.mix.handle($0) }
         midi.onConnectionChange = { [weak self] connected in
             self?.midiConnected = connected
@@ -95,6 +101,13 @@ final class AppModel {
         duration = engine.duration
         for index in levels.indices {
             levels[index] = max(engine.meters.take(index), levels[index] * 0.85)
+        }
+        dspLoad = max(engine.load.takePeak(), dspLoad * 0.9)
+        dropouts = engine.load.overloadCount
+        audioStatusCountdown -= 1
+        if audioStatusCountdown <= 0 { // once a second: the device may have changed under us
+            audioStatusCountdown = 30
+            refreshAudioStatus()
         }
         followPlugins()
         autosaveIfNeeded()
@@ -293,6 +306,9 @@ final class AppModel {
 
     private func loadPreviewData() {
         title = "MIDNIGHT VERSION"
+        audioDevice = "MacBook Pro Speakers"
+        audioFormat = "48 kHz · buffer 128"
+        dspLoad = 0.23
         let demo: [(String, [String], [Double], Double, Float)] = [
             ("DRUMS", ["kick.wav", "snare.wav", "hats.wav"], [0, 0.18, 0], 0.80, 0.82),
             ("BASS", ["bass.wav"], [0, 0, 0], 0.84, 0.74),

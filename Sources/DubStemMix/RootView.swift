@@ -516,7 +516,13 @@ private struct Sidebar: View {
                     title: "MIDIMIX",
                     detail: model.midiConnected ? "connected" : "not found"
                 )
-                StatusLine(color: Theme.reverb, title: "AUDIO", detail: model.audioOutput)
+                StatusLine(color: Theme.reverb, title: "AUDIO", detail: model.audioDevice, sub: model.audioFormat)
+                StatusLine(
+                    color: model.dropouts > 0 ? Theme.rec : (model.dspLoad > 0.7 ? Theme.delay : Theme.reverb),
+                    title: "DSP",
+                    detail: "\(Int((model.dspLoad * 100).rounded()))% · \(model.dropouts) dropout\(model.dropouts == 1 ? "" : "s")"
+                )
+                .help("Worst audio-thread load over the last moments, and dropouts reported by the audio device since launch")
             }
         }
         .padding(18)
@@ -688,12 +694,17 @@ private struct StatusLine: View {
     var color: Color
     var title: String
     var detail: String
+    /// Optional second line, under the detail.
+    var sub: String? = nil
 
     var body: some View {
-        HStack(spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
             Circle().fill(color).frame(width: 7, height: 7)
             Text(title).font(Fonts.mono(9.5, weight: 700)).foregroundStyle(Theme.text)
-            Text(detail).font(Fonts.mono(9.5)).foregroundStyle(Theme.textDim).lineLimit(1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(detail).font(Fonts.mono(9.5)).foregroundStyle(Theme.textDim).lineLimit(1).truncationMode(.middle)
+                if let sub { Text(sub).font(Fonts.mono(9.5)).foregroundStyle(Theme.textDim).lineLimit(1) }
+            }
         }
     }
 }
