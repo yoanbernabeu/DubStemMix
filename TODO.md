@@ -62,7 +62,8 @@ Interview faite : tout est retenu **sauf la sirène**. Les décisions (pages MAS
 - [x] App — fait le 22/09 : zone « SPLIT A SONG », menu Fichier, écran de consentement, progression avec temps restant et annulation, Réglages (modèles, dossier des stems), NOTICE.
 - [ ] **[toi]** Écouter les 4 stems produits (`~/Music/DubStemMix/Stems/Akae Beka…/`) et juger si 24,7 dB de reconstruction s'entend ; juger 6 minutes de calcul pour un morceau de 5.
 - [ ] Reconstruction sous la cible sur ce morceau : vérifier sur un second morceau (un MP3 du commerce) avant de conclure à un écart d'implémentation. Sans le POC, pas de test de parité.
-- [ ] Pistes de vitesse (spec § 9) : `setIntraOpNumThreads`, à mesurer avant de changer.
+- [x] **Core ML mesuré le 22/09** sur un extrait d'une minute (M3 Pro, ONNX Runtime 1.24.2) : **non viable pour l'instant**. CPU : 67 s, 26,0 dB, 9,3 Go de pic. Core ML + Neural Engine : avec formes statiques, 1 nœud sur 1 453 pris en charge ; sans, 1 414 sur 1 453 mais plantage dans le runtime Core ML d'Apple (`BNNSGraphContextExecute`, SIGTRAP) avant le premier bloc. Core ML + GPU : plus de 30 minutes sans terminer. « All » n'est pas une valeur acceptée. L'option `--provider coreml-…` reste dans la CLI pour réessayer avec une version ultérieure d'ONNX Runtime ou de macOS ; le produit reste sur CPU.
+- [ ] Pistes de vitesse restantes (spec § 9) : `setIntraOpNumThreads` (mesurer 3, 5, 11 threads sur l'extrait d'une minute), mode rapide htdemucs_6s.
 
 ## 6. Idées pour plus tard (hors v1, notées dans le PRD)
 

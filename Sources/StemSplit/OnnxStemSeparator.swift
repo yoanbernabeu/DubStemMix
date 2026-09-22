@@ -4,14 +4,26 @@ import OnnxRuntimeBindings
 /// htdemucs_ft through ONNX Runtime on the CPU (spec § 5.3, § 5.4): one session at a time, the whole song
 /// per network, every run inside an autorelease pool.
 public final class OnnxStemSeparator: StemSeparating {
+    /// Where the networks run (spec § 9). CPU is the only configuration validated for the product; Core ML
+    /// hands the graph to macOS, which spreads it over CPU, GPU and Neural Engine as asked.
+    public enum ExecutionProvider: Sendable, Equatable {
+        case cpu
+        case coreML(computeUnits: String) // "CPUOnly", "CPUAndGPU", "CPUAndNeuralEngine", "All"
+    }
+
     private let store: ModelStore
+    private let provider: ExecutionProvider
     nonisolated(unsafe) private static let env: ORTEnv = { // one per app (spec § 5.4); ORT guards its own state
         do { return try ORTEnv(loggingLevel: .warning) } catch { fatalError("ONNX Runtime could not start: \(error)") }
     }()
 
-    public init(store: ModelStore) {
+    public init(store: ModelStore, provider: ExecutionProvider = .cpu) {
         self.store = store
+        self.provider = provider
     }
+
+    /// Compiled Core ML models are cached next to the ONNX files; a new model revision gets a new folder.
+    private var coreMLCache: URL { store.directory.appending(path: "coreml-cache") }
 
     public func separate(_ stem: Stem, mix: StereoBuffer, progress: (Int, Int) -> Void) throws -> StereoBuffer {
         let n = OverlapAdd.chunkLength
@@ -20,6 +32,15 @@ public final class OnnxStemSeparator: StemSeparating {
         try autoreleasepool {
             let options = try ORTSessionOptions()
             try options.setGraphOptimizationLevel(.all)
+            if case let .coreML(units) = provider {
+                try FileManager.default.createDirectory(at: coreMLCache, withIntermediateDirectories: true)
+                try options.appendCoreMLExecutionProvider(withOptionsV2: [
+                    "MLComputeUnits": units,
+                    "ModelFormat": "MLProgram",
+                    "ModelCacheDirectory": coreMLCache.path,
+                    "RequireStaticInputShapes": "1",
+                ])
+            }
             let session = try ORTSession(env: Self.env, modelPath: store.url(for: stem).path, sessionOptions: options)
             let input = NSMutableData(length: 2 * n * MemoryLayout<Float>.size)!
             for chunk in 0..<count {

@@ -3,7 +3,8 @@ import StemSplit
 
 /// Command-line checks for the stem separation (PRD § 12.5), with the real models:
 ///   --download-models          downloads the four networks (663 MB) into the app's model folder
-///   --split <file> [--out dir] separates a song and reports per-stem energy and Σ stems vs mix
+///   --split <file> [--out dir] [--provider cpu|coreml-cpu|coreml-gpu|coreml-ane|coreml-all]
+///                              separates a song and reports per-stem energy and Σ stems vs mix
 @MainActor
 enum SplitCheck {
     static func downloadModels() {
@@ -28,7 +29,15 @@ enum SplitCheck {
         exit(store.isReady ? 0 : 1)
     }
 
-    static func split(_ path: String, out: String?) {
+    static func split(_ path: String, out: String?, provider providerName: String?) {
+        let provider: OnnxStemSeparator.ExecutionProvider = switch providerName {
+        case "coreml-cpu": .coreML(computeUnits: "CPUOnly")
+        case "coreml-gpu": .coreML(computeUnits: "CPUAndGPU")
+        case "coreml-ane": .coreML(computeUnits: "CPUAndNeuralEngine")
+        case "coreml-all": .coreML(computeUnits: "All")
+        default: .cpu
+        }
+        print("Execution provider: \(provider)")
         setvbuf(stdout, nil, _IOLBF, 0)
         let store = ModelStore(directory: ModelStore.defaultDirectory)
         guard store.isReady else {
@@ -43,7 +52,7 @@ enum SplitCheck {
         let start = Date()
         Task {
             do {
-                let result = try await SeparationJob.run(source: source, outputRoot: root, separator: { OnnxStemSeparator(store: store) }) { progress in
+                let result = try await SeparationJob.run(source: source, outputRoot: root, separator: { OnnxStemSeparator(store: store, provider: provider) }) { progress in
                     print("  \(progress.stem.rawValue) \(progress.chunk)/\(progress.chunkCount) · \(Int(progress.fraction * 100)) % · \(Int(Date().timeIntervalSince(start))) s")
                 }
                 outcome = .success(result)
