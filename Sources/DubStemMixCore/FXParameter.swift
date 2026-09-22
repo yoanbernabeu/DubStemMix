@@ -16,6 +16,8 @@ public enum FXParameter: String, CaseIterable, Sendable {
     case masterHighPass
     case killBass, killMid, killTop
     case dubplate, crackle
+    // Delay additions (PRD § 11.4), on the MASTER page too.
+    case delayHeads, delayPingPong
 
     /// Page FX (BANK RIGHT) : potards des tranches 1 à 8, du haut vers le bas. PRD § 5.3.
     public static let layout: [[FXParameter?]] = [
@@ -34,12 +36,15 @@ public enum FXParameter: String, CaseIterable, Sendable {
         [.masterHighPass, nil, nil],
         [.killBass, .killMid, .killTop],
         [.dubplate, .crackle, nil],
-        [nil, nil, nil],
+        [.delayHeads, .delayPingPong, nil],
         [nil, nil, nil],
         [nil, nil, nil],
         [nil, nil, nil],
         [nil, nil, nil],
     ]
+
+    /// Space Echo head patterns, in the kernel's order.
+    public static let headPatterns = ["1", "2", "3", "1+2", "2+3", "1+3", "1+2+3"]
 
     /// Steps of the big knob, in Hz; the first one is "off".
     public static let highPassSteps: [Double] = [20, 70, 100, 150, 200, 300, 500, 800, 1000, 2000, 5000, 10_000]
@@ -47,7 +52,8 @@ public enum FXParameter: String, CaseIterable, Sendable {
     /// The send bus this parameter belongs to; nil for the master chain.
     public var bus: SendBus? {
         switch self {
-        case .delayTime, .delayFeedback, .delayWow, .delayLowCut, .delayHighCut, .delayToReverb, .delayReturn: .delay
+        case .delayTime, .delayFeedback, .delayWow, .delayLowCut, .delayHighCut, .delayToReverb, .delayReturn,
+             .delayHeads, .delayPingPong: .delay
         case .reverbDecay, .reverbDamping, .reverbPredelay, .reverbLowCut, .reverbTone, .reverbReturn: .reverb
         case .phaserRate, .phaserDepth, .phaserFeedback, .phaserCenter, .phaserStereo, .phaserReturn: .bus3
         case .masterHighPass, .killBass, .killMid, .killTop, .dubplate, .crackle: nil
@@ -60,6 +66,7 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .masterHighPass: "BIG KNOB"
         case .killBass, .killMid, .killTop: "KILLS"
         case .dubplate, .crackle: "DUBPLATE"
+        case .delayHeads, .delayPingPong: "DELAY+"
         default: nil
         }
     }
@@ -90,6 +97,8 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .killTop: "TOP"
         case .dubplate: "DUBPLATE"
         case .crackle: "CRACKLE"
+        case .delayHeads: "HEADS"
+        case .delayPingPong: "PING-PONG"
         }
     }
 
@@ -115,7 +124,7 @@ public enum FXParameter: String, CaseIterable, Sendable {
         // À 0 dB, un envoi à fond creuse des encoches complètes contre le signal direct de la tranche.
         case .phaserReturn: 1
         // Master chain: neutral until touched.
-        case .masterHighPass, .dubplate, .crackle: 0
+        case .masterHighPass, .dubplate, .crackle, .delayHeads, .delayPingPong: 0
         case .killBass, .killMid, .killTop: 1
         }
     }
@@ -141,7 +150,8 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .delayToReverb, .delayReturn, .reverbReturn, .phaserReturn: n * n // gain, 100 % = unité
         case .masterHighPass: Self.highPassSteps[min(Self.highPassSteps.count - 1, Int(n * Double(Self.highPassSteps.count)))]
         case .killBass, .killMid, .killTop: n * n // kill gain, 100 % = unity
-        case .dubplate, .crackle: n
+        case .dubplate, .crackle, .delayPingPong: n
+        case .delayHeads: Double(min(Self.headPatterns.count - 1, Int(n * Double(Self.headPatterns.count))))
         }
         return Float(value)
     }
@@ -162,6 +172,8 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .masterHighPass:
             if value <= 20 { return "OFF" }
             return value >= 1000 ? String(format: "%.0f kHz", value / 1000) : "\(Int(value.rounded())) Hz"
+        case .delayHeads:
+            return Self.headPatterns[Int(value)]
         default:
             return "\(Int((min(1, max(0, normalized)) * 100).rounded())) %"
         }
@@ -191,6 +203,8 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .killTop: (.master, DUB_MASTER_TOP)
         case .dubplate: (.master, DUB_MASTER_DUBPLATE)
         case .crackle: (.master, DUB_MASTER_CRACKLE)
+        case .delayHeads: (.delay, DUB_DELAY_HEADS)
+        case .delayPingPong: (.delay, DUB_DELAY_PINGPONG)
         case .delayToReverb, .delayReturn, .reverbReturn, .phaserReturn: nil
         }
     }

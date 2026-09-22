@@ -406,3 +406,49 @@ private func hits(_ samples: [Float]) -> [Int: Float] {
     #expect(engine.faders[1] > 0 && engine.faders[3] > 0)
     #expect(engine.faders[2] == 0 && mix.strips[2].mute) // the mute is exactly as it was
 }
+
+// MARK: - Throw target and reverb model (PRD § 11.4)
+
+@MainActor @Test func throwFollowsItsTarget() throws {
+    let engine = try AudioEngine(offline: true)
+    try engine.addStem(url: makeStem(frames: 96_000) { _ in 0.8 }, name: "dc", strip: 0)
+    engine.setMasterGain(1)
+    engine.setFaderGain(strip: 0, 0)
+    try warmUp(engine)
+    engine.play()
+    engine.setThrow(strip: 0, true)
+    let viaDelay = try engine.renderOffline(frames: 9600)
+    #expect(abs((viaDelay.last ?? 0) - 0.8 * pathGain) < 0.005)
+
+    engine.setThrowTarget(.reverb)
+    let viaReverb = try engine.renderOffline(frames: 9600)
+    #expect(abs((viaReverb.last ?? 0) - 0.8 * pathGain) < 0.005) // same level, other bus (dry returns offline)
+
+    engine.setThrowTarget(.both)
+    let viaBoth = try engine.renderOffline(frames: 9600)
+    #expect(abs((viaBoth.last ?? 0) - 2 * 0.8 * pathGain) < 0.01)
+
+    engine.setThrow(strip: 0, false)
+    let released = try engine.renderOffline(frames: 9600)
+    #expect(abs(released.last ?? 1) < 0.001)
+}
+
+@MainActor @Test func reverbModelSwapsTheBuiltInEffectAndCrashOnlyHitsTheSpring() throws {
+    let engine = try AudioEngine(offline: true, effects: true)
+    try engine.addStem(url: makeStem(frames: 96_000) { $0 < 100 ? 0.5 : 0 }, name: "click", strip: 0)
+    engine.setFaderGain(strip: 0, 0)
+    engine.setSendGain(.reverb, strip: 0, 1)
+    engine.setMasterGain(1)
+    try warmUp(engine)
+    engine.play()
+    engine.setReverbModel(.spring)
+    #expect(engine.reverbModel == .spring)
+    _ = try engine.renderOffline(frames: 48_000) // the click's tail through the spring
+    let quiet = try engine.renderOffline(frames: 9600).map(abs).max() ?? 0
+    engine.crash()
+    let crashed = try engine.renderOffline(frames: 9600).map(abs).max() ?? 0
+    #expect(crashed > 5 * quiet && crashed < 4, "\(quiet) → \(crashed)")
+    engine.setReverbModel(.plate)
+    #expect(engine.reverbModel == .plate)
+    _ = try engine.renderOffline(frames: 4800)
+}

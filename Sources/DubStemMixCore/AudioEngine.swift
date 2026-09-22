@@ -1,5 +1,35 @@
 import AVFoundation
+import DubDSP
 import Synchronization
+
+/// Built-in reverb on the REVERB bus (PRD § 11.4). Raw values are stored in projects.
+public enum ReverbModel: String, CaseIterable, Sendable {
+    case plate, spring
+
+    public var label: String { self == .plate ? "Plate" : "Spring" }
+    var kind: BuiltInEffect.Kind { self == .plate ? .plate : .spring }
+}
+
+/// Where the dub throw goes (PRD § 11.4). Raw values are stored in projects.
+public enum ThrowTarget: String, CaseIterable, Sendable {
+    case delay, reverb, both
+
+    public var label: String {
+        switch self {
+        case .delay: "Delay"
+        case .reverb: "Reverb"
+        case .both: "Delay + reverb"
+        }
+    }
+
+    func includes(_ bus: SendBus) -> Bool {
+        switch self {
+        case .delay: bus == .delay
+        case .reverb: bus == .reverb
+        case .both: bus == .delay || bus == .reverb
+        }
+    }
+}
 
 public enum SendBus: Int, CaseIterable, Sendable {
     case delay, reverb, bus3
@@ -85,6 +115,10 @@ public final class AudioEngine: MixEngineControl {
     private var overloadListener: AudioDevices.OverloadListener?
     /// Per bus: the send is taken before the fader and mute (otherwise after, as on a console).
     public private(set) var preFader = [Bool](repeating: false, count: SendBus.allCases.count)
+    public private(set) var reverbModel = ReverbModel.plate
+    public private(set) var throwTarget = ThrowTarget.delay
+    /// Last value applied per parameter, so a kernel created later (the spring) starts from the current knobs.
+    private var lastFX: [FXParameter: Float] = [:]
     public private(set) var stems: [Stem] = []
     public private(set) var isPlaying = false
     public var loop = true {
@@ -398,7 +432,7 @@ public final class AudioEngine: MixEngineControl {
 
     public func setThrow(strip: Int, _ on: Bool) {
         throwing[strip] = on
-        applySend(.delay, strip: strip)
+        for bus in [SendBus.delay, .reverb] { applySend(bus, strip: strip) } // whichever the throw targets
     }
 
     /// Send taken before the fader and mute (pre) or after (post), for the whole bus.
@@ -441,8 +475,10 @@ public final class AudioEngine: MixEngineControl {
     }
 
     public func setFX(_ parameter: FXParameter, _ value: Float) {
+        lastFX[parameter] = value
         if let (kind, index) = parameter.kernelParameter {
             effects[kind]?.set(index, value)
+            if kind == .plate { effects[.spring]?.set(index, value) } // the spring shares the plate's knobs
             return
         }
         let reverbInput = busInputs[SendBus.reverb.rawValue]
@@ -460,9 +496,51 @@ public final class AudioEngine: MixEngineControl {
         }
     }
 
+    // MARK: Delay and reverb gestures (PRD § 11.4)
+
+    /// HOLD: the delay loop closes on itself while held.
+    public func setHold(_ on: Bool) {
+        effects[.delay]?.set(DUB_DELAY_HOLD, on ? 1 : 0)
+    }
+
+    /// CRASH: hits the spring. Does nothing on the plate (the caller tells the user).
+    public func crash() {
+        guard reverbModel == .spring else { return }
+        effects[.spring]?.set(DUB_SPRING_CRASH, 1)
+    }
+
+    /// Plate or spring on the REVERB bus. With a plugin on the bus, the choice waits for the built-in effect.
+    public func setReverbModel(_ model: ReverbModel) {
+        guard model != reverbModel, effectNodes[SendBus.reverb.rawValue] != nil else { return }
+        reverbModel = model
+        if effects[.spring] == nil {
+            let spring = BuiltInEffect(.spring)
+            effects[.spring] = spring
+            // Same knobs as the plate: start from its current settings.
+            for parameter in FXParameter.allCases {
+                if let (kind, index) = parameter.kernelParameter, kind == .plate { spring.set(index, lastFX[parameter] ?? parameter.value(parameter.defaultValue)) }
+            }
+        }
+        guard plugins[.reverb] == nil, let node = effects[model.kind]?.node else { return }
+        swapEffectNode(node, on: .reverb)
+    }
+
+    public func setThrowTarget(_ target: ThrowTarget) {
+        throwTarget = target
+        for strip in 0..<Self.stripCount {
+            applySend(.delay, strip: strip)
+            applySend(.reverb, strip: strip)
+        }
+    }
+
     // MARK: Slots d'effets (effet intégré ou plugin Audio Unit)
 
     private static let builtInKinds: [BuiltInEffect.Kind] = [.delay, .plate, .phaser]
+
+    /// The built-in effect a bus falls back to (the reverb bus follows the chosen model).
+    private func builtInKind(for bus: SendBus) -> BuiltInEffect.Kind {
+        bus == .reverb ? reverbModel.kind : Self.builtInKinds[bus.rawValue]
+    }
 
     /// Charge un plugin AU sur un bus, à la place de l'effet intégré (ou du plugin précédent). À chaud.
     @discardableResult
@@ -478,7 +556,7 @@ public final class AudioEngine: MixEngineControl {
 
     /// Revient à l'effet intégré du bus.
     public func unloadPlugin(on bus: SendBus) {
-        guard plugins[bus] != nil, let builtIn = effects[Self.builtInKinds[bus.rawValue]] else { return }
+        guard plugins[bus] != nil, let builtIn = effects[builtInKind(for: bus)] else { return }
         swapEffectNode(builtIn.node, on: bus)
         plugins[bus] = nil
         macroTargets[bus] = nil
@@ -525,7 +603,7 @@ public final class AudioEngine: MixEngineControl {
     /// (worth a send at full). The strip headroom is compensated so the level matches a post-fader send.
     private func applyPreTake(_ stem: Stem, _ bus: SendBus) {
         var volume: Float = preFader[bus.rawValue] ? sendGains[stem.strip][bus.rawValue] * Self.headroom : 0
-        if bus == .delay, throwing[stem.strip] { volume = Self.headroom }
+        if throwing[stem.strip], throwTarget.includes(bus) { volume = Self.headroom }
         stem.player.destination(forMixer: busInputs[bus.rawValue], bus: stem.preBuses[bus.rawValue])?.volume = volume
     }
 
