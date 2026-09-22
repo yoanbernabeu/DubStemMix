@@ -1,6 +1,6 @@
 # DubStemMix — ce qui reste à faire
 
-> État au 22 septembre 2026. Jalons M0 à M3 validés, M4 livré (en attente d'essai), dette PRD (§ 2) résorbée sauf tests de charge, robustesse (§ 3) validée, M6 validé, M7 validé, M8 livré (en attente d'essai). La référence produit reste `PRD.md`.
+> État au 22 septembre 2026. Jalons M0 à M3 validés, M4 livré (en attente d'essai), dette PRD (§ 2) résorbée sauf tests de charge, robustesse (§ 3) validée, M6 validé, M7 validé, M8 validé. La référence produit reste `PRD.md`.
 > Légende : **[toi]** = demande un essai ou une décision de ta part.
 
 ## 1. À essayer ou à confirmer
@@ -52,7 +52,7 @@ Interview faite : tout est retenu **sauf la sirène**. Les décisions (pages MAS
 
 - [x] **M6 — Master** — livré et validé le 22/09 : page MASTER (BANK RIGHT deux fois, BANK LEFT = retour MIX), big knob à crans, kills BASS/MID/TOP, dubplate + craquements, pull-up (R), DROP (D maintenu) avec marques KEEP enregistrées dans le projet.
 - [x] **M7 — Delay et reverb** — livré et validé le 22/09 : HOLD (H maintenu), têtes Space Echo et ping-pong (tranche 4 de la page MASTER), cible du throw (menu du slot delay), reverb à ressort (menu du slot reverb) + CRASH (C).
-- [x] **M8 — Inserts** — livré le 22/09 : slot d'insert par tranche (Sub, Auto-wah avec mode down, ou n'importe quel AU avec 3 macros), page INSERTS (BANK RIGHT trois fois), flanger à bande dans le menu du slot du bus 3. Les prises pré-fader et le throw passent désormais après l'insert. **[toi]** à valider à l'oreille : le poids du sub sur la basse, le « quack » du wah sur le skank, le flanger, et la charge DSP (à vide 25 % au lieu de 19 % avec les nœuds d'insert).
+- [x] **M8 — Inserts** — livré et validé le 22/09 : slot d'insert par tranche (Sub, Auto-wah avec mode down, ou n'importe quel AU avec 3 macros), page INSERTS (BANK RIGHT trois fois), flanger à bande dans le menu du slot du bus 3. Les prises pré-fader et le throw passent désormais après l'insert. Charge DSP à vide : 25 % (19 % avant les nœuds d'insert).
 - [ ] **[toi]** Valider la disposition de la page MASTER (PRD § 11.2) et les touches des gestes (§ 11.6) à l'usage.
 
 ## 6. Idées pour plus tard (hors v1, notées dans le PRD)
