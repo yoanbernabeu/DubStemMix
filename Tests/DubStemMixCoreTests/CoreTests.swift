@@ -163,9 +163,9 @@ final class FakeSurface: ControlSurface {
 /// Gain d'un stem à travers le moteur hors ligne : 6 dB de marge sur la tranche et sur le master.
 private let pathGain: Float = 0.25
 
-private func makeStem(frames: Int, fill: (Int) -> Float) throws -> URL {
+private func makeStem(frames: Int, sampleRate: Double = 48_000, fill: (Int) -> Float) throws -> URL {
     let url = FileManager.default.temporaryDirectory.appending(path: "dsm-\(UUID().uuidString).wav")
-    let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)!
+    let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
     let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames))!
     buffer.frameLength = AVAudioFrameCount(frames)
     for channel in 0..<2 {
@@ -199,6 +199,29 @@ private func hits(_ samples: [Float]) -> [Int: Float] {
     let found = hits(try engine.renderOffline(frames: 9600))
     #expect(found.keys.sorted() == [AudioEngine.offlineStartDelay + 100], "\(found)")
     #expect(abs((found.values.first ?? 0) - 2 * pathGain) < 0.001, "\(found)")
+}
+
+/// A 44.1 kHz stem next to a 48 kHz one: the engine converts on the fly, both stay in time and in tune
+/// with each other (the converter spreads an impulse over a few samples and may shift it slightly).
+@MainActor @Test func stemsOfDifferentSampleRatesStayAligned() throws {
+    let engine = try AudioEngine(offline: true)
+    try engine.addStem(url: makeStem(frames: 9600) { $0 == 4800 ? 1 : 0 }, name: "48k", strip: 0)
+    try engine.addStem(url: makeStem(frames: 8820, sampleRate: 44_100) { $0 == 4410 ? 1 : 0 }, name: "44k", strip: 1)
+    for strip in 0..<2 { engine.setFaderGain(strip: strip, 1) }
+    engine.setMasterGain(1)
+    engine.loop = false
+    try warmUp(engine)
+    engine.play()
+    let samples = try engine.renderOffline(frames: 12_000)
+    let expected = AudioEngine.offlineStartDelay + 4800
+    // The 48 kHz impulse lands exactly; the converted one must add its energy within a few samples of it.
+    #expect(abs(samples[expected] - pathGain) < 0.3, "\(samples[expected])")
+    let window = samples[(expected - 64)...(expected + 64)]
+    let energy = window.reduce(0) { $0 + abs($1) }
+    #expect(energy > 1.5 * pathGain && energy < 4 * pathGain, "energy \(energy)")
+    let outside = samples[..<(expected - 64)] + samples[(expected + 65)...]
+    #expect(outside.allSatisfy { abs($0) < 0.02 }, "stray signal outside the impulse window")
+    #expect(abs(engine.duration - 0.2) < 0.001)
 }
 
 @MainActor @Test func loopKeepsStemsOfDifferentLengthsAligned() throws {

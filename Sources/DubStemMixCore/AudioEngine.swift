@@ -507,11 +507,13 @@ public final class AudioEngine: MixEngineControl {
         if offline {
             // Comme en temps réel, le départ est programmé dans le futur : un lecteur démarré « tout de suite »
             // peut perdre son premier tampon.
-            let start = AVAudioTime(
-                sampleTime: engine.manualRenderingSampleTime + AVAudioFramePosition(Self.offlineStartDelay),
-                atRate: format.sampleRate
-            )
-            for stem in stems { stem.player.play(at: start) }
+            // A player reads the sample time in its own rate, whatever the AVAudioTime says: the start is
+            // converted for a stem whose file is not at the engine's rate.
+            let startSeconds = Double(engine.manualRenderingSampleTime + AVAudioFramePosition(Self.offlineStartDelay)) / format.sampleRate
+            for stem in stems {
+                let rate = stem.file.processingFormat.sampleRate
+                stem.player.play(at: AVAudioTime(sampleTime: AVAudioFramePosition((startSeconds * rate).rounded()), atRate: rate))
+            }
         } else {
             // Même instant hôte pour tous les lecteurs → départ calé à l'échantillon.
             // La marge laisse aussi le temps à la lecture anticipée des fichiers d'arriver.
