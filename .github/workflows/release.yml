@@ -1,15 +1,13 @@
 # Builds DubStemMix.app and attaches the zip to the GitHub release that triggered the run.
 #
-# Create a release (or push a tag v*) → this workflow builds on a macOS 26 runner with the Xcode that
-# ships Swift 6.2, runs the tests, packages the app with tools/make-app.sh and uploads
-# DubStemMix-<version>.zip to the release. No model file is ever built in or uploaded (see NOTICE).
+# Publish a release (tag v<version>) → this workflow builds on a macOS runner with the newest Xcode
+# available (Swift 6.2 needs Xcode 26), runs the tests, packages the app with tools/make-app.sh and
+# uploads DubStemMix-<version>.zip to the release. No model file is ever built in or uploaded (see NOTICE).
 name: Release
 
 on:
   release:
     types: [published]
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -23,9 +21,10 @@ jobs:
         with:
           fetch-depth: 0 # the build number is the commit count
 
-      - name: Select Xcode
+      - name: Select the newest Xcode
         run: |
-          sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)/Contents/Developer"
+          ls -d /Applications/Xcode*.app
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)/Contents/Developer"
           xcodebuild -version
           swift --version
 
@@ -48,7 +47,7 @@ jobs:
           ls -la dist
 
       - name: Attach the zip to the release
-        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
