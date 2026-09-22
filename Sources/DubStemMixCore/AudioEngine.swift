@@ -78,10 +78,14 @@ public protocol MixEngineControl: AnyObject {
 
 /// Graphe validé au jalon M0 :
 ///
-///   lecteur ─┬─▶ mixeur de tranche (fader/mute) ─┬─▶ master ─▶ chaîne master ─▶ varispeed ─▶ gain ─▶ limiteur ─▶ sortie
-///            │                                   └─▶ 3 bus d'envoi (post-fader) ─▶ effet ─▶ retour ─▶ master
-///            └─▶ 3 send buses (taken before fader and mute: pre-fader sends, dub throw)
+///   lecteur ─▶ somme de tranche ─▶ insert ─▶ prise pré ─┬─▶ fader/mute ─┬─▶ master ─▶ chaîne master ─▶ varispeed ─▶ gain ─▶ limiteur ─▶ sortie
+///                                                       │               └─▶ 3 bus d'envoi (post-fader) ─▶ effet ─▶ retour ─▶ master
+///                                                       └─▶ 3 send buses (before fader and mute: pre-fader sends, dub throw)
 ///                                                                       retour delay ─▶ bus reverb (DLY→REV)
+///
+/// Per strip (PRD § 11.5): the stems sum in a mixer, go through the insert (between two fixed neutral nodes,
+/// so swapping it never touches a mixer), then a unity "pre" mixer takes the pre-fader sends and the throw,
+/// and the fader mixer applies fader and mute and feeds the master and the post-fader sends.
 ///
 /// AVAudioMixerNode lisse lui-même les changements de volume (~25 ms) mais plafonne à 1,0 :
 /// tranches et master travaillent donc 6 dB sous l'unité, rattrapés par l'étage de gain final.
@@ -103,9 +107,8 @@ public final class AudioEngine: MixEngineControl {
 
         let file: AVAudioFile
         let player = AVAudioPlayerNode()
-        /// Input buses used on the strip mixer and, for the pre-fader take, on each send bus.
+        /// Input bus used on the strip's sum mixer.
         var inputBus = 0
-        var preBuses = [Int](repeating: 0, count: SendBus.allCases.count)
     }
 
     public let meters = MeterStore(count: stripCount + 1)
@@ -116,6 +119,7 @@ public final class AudioEngine: MixEngineControl {
     /// Per bus: the send is taken before the fader and mute (otherwise after, as on a console).
     public private(set) var preFader = [Bool](repeating: false, count: SendBus.allCases.count)
     public private(set) var reverbModel = ReverbModel.plate
+    public private(set) var bus3Model = Bus3Model.phaser
     public private(set) var throwTarget = ThrowTarget.delay
     /// Last value applied per parameter, so a kernel created later (the spring) starts from the current knobs.
     private var lastFX: [FXParameter: Float] = [:]
@@ -128,7 +132,19 @@ public final class AudioEngine: MixEngineControl {
     let engine = AVAudioEngine()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)!
     private let offline: Bool
+    /// Per strip: sum of its stems → insert (between `insertInlets` and `insertOutlets`) → `preMixers` → `faderMixers`.
     private let stripMixers: [AVAudioMixerNode]
+    private let insertInlets: [AVAudioUnitEQ] = (0..<AudioEngine.stripCount).map { _ in AudioEngine.neutralNode() }
+    private let insertOutlets: [AVAudioUnitEQ] = (0..<AudioEngine.stripCount).map { _ in AudioEngine.neutralNode() }
+    private let preMixers: [AVAudioMixerNode]
+    private let faderMixers: [AVAudioMixerNode]
+    /// The node currently in each strip's insert (nil = straight through).
+    private var insertNodes: [AVAudioNode?] = Array(repeating: nil, count: AudioEngine.stripCount)
+    public private(set) var inserts: [InsertKind?] = Array(repeating: nil, count: AudioEngine.stripCount)
+    private var insertEffects: [Int: BuiltInEffect] = [:]
+    public private(set) var insertPlugins: [Int: HostedPlugin] = [:]
+    public private(set) var insertMacroTargets: [Int: [PluginParameter?]] = [:]
+    public static let insertMacroCount = 3
     private let busInputs: [AVAudioMixerNode]
     private let returnMixers: [AVAudioMixerNode]
     private var effects: [BuiltInEffect.Kind: BuiltInEffect] = [:]
@@ -164,6 +180,8 @@ public final class AudioEngine: MixEngineControl {
     public init(offline: Bool = false, effects: Bool? = nil) throws {
         self.offline = offline
         stripMixers = (0..<Self.stripCount).map { _ in AVAudioMixerNode() }
+        preMixers = (0..<Self.stripCount).map { _ in AVAudioMixerNode() }
+        faderMixers = (0..<Self.stripCount).map { _ in AVAudioMixerNode() }
         busInputs = SendBus.allCases.map { _ in AVAudioMixerNode() }
         returnMixers = SendBus.allCases.map { _ in AVAudioMixerNode() }
         if offline {
@@ -190,18 +208,24 @@ public final class AudioEngine: MixEngineControl {
     /// Entrée du bus reverb réservée au renvoi du delay (les tranches occupent 0…7).
     private var delayToReverbBus: Int { Self.stripCount }
 
-    /// First input of a send bus available for pre-fader takes.
-    private func preBusBase(_ bus: SendBus) -> Int { bus == .reverb ? delayToReverbBus + 1 : Self.stripCount }
+    /// Input of a send bus taking strip `strip` before its fader (post-fader sends use inputs 0…7).
+    private func preBus(_ bus: SendBus, strip: Int) -> Int { (bus == .reverb ? delayToReverbBus + 1 : Self.stripCount) + strip }
 
     private func buildGraph(withEffects: Bool) {
         let main = engine.mainMixerNode
-        for node in stripMixers + busInputs + returnMixers { engine.attach(node) }
+        for node in stripMixers + preMixers + faderMixers + busInputs + returnMixers { engine.attach(node) }
+        for node in insertInlets + insertOutlets { engine.attach(node) }
 
-        for (i, strip) in stripMixers.enumerated() {
-            let points = [AVAudioConnectionPoint(node: main, bus: i)]
-                + busInputs.map { AVAudioConnectionPoint(node: $0, bus: i) }
-            engine.connect(strip, to: points, fromBus: 0, format: format)
-            strip.outputVolume = Self.headroom
+        for i in 0..<Self.stripCount {
+            engine.connect(stripMixers[i], to: insertInlets[i], format: format)
+            engine.connect(insertInlets[i], to: insertOutlets[i], format: format) // no insert yet: straight through
+            engine.connect(insertOutlets[i], to: preMixers[i], format: format)
+            let preTakes = SendBus.allCases.map { AVAudioConnectionPoint(node: busInputs[$0.rawValue], bus: preBus($0, strip: i)) }
+            engine.connect(preMixers[i], to: [AVAudioConnectionPoint(node: faderMixers[i], bus: 0)] + preTakes, fromBus: 0, format: format)
+            let postSends = busInputs.map { AVAudioConnectionPoint(node: $0, bus: i) }
+            engine.connect(faderMixers[i], to: [AVAudioConnectionPoint(node: main, bus: i)] + postSends, fromBus: 0, format: format)
+            faderMixers[i].outputVolume = Self.headroom
+            for bus in SendBus.allCases { applySend(bus, strip: i) } // new connections open at full volume
         }
 
         // Bus d'envoi ─▶ effet intégré ─▶ mixeur de retour ─▶ master.
@@ -272,7 +296,7 @@ public final class AudioEngine: MixEngineControl {
     /// Temps réel uniquement : en rendu manuel hors ligne, un tap rend le rendu instable (blocs vides) —
     /// l'enregistreur y est alimenté directement par `renderOffline`.
     private func installTaps() {
-        for (i, strip) in stripMixers.enumerated() {
+        for (i, strip) in faderMixers.enumerated() {
             strip.installTap(onBus: 0, bufferSize: 1024, format: nil,
                              block: Self.tap(meters, index: i, scale: 1 / Self.headroom, recorder: nil))
         }
@@ -392,21 +416,9 @@ public final class AudioEngine: MixEngineControl {
     /// Les bus sont attribués ici : `nextAvailableInputBus` ignore les connexions en éventail
     /// et propose des bus déjà pris. `stem` ne doit pas figurer dans `stems` pendant l'appel.
     private func connect(_ stem: inout Stem) {
-        let strip = stem.strip
-        let usedInputs = Set(stems.filter { $0.strip == strip }.map(\.inputBus))
+        let usedInputs = Set(stems.filter { $0.strip == stem.strip }.map(\.inputBus))
         stem.inputBus = (0...).first { !usedInputs.contains($0) }!
-        for bus in SendBus.allCases {
-            let used = Set(stems.map { $0.preBuses[bus.rawValue] })
-            stem.preBuses[bus.rawValue] = (preBusBase(bus)...).first { !used.contains($0) }!
-        }
-        let preTakes = SendBus.allCases.map { AVAudioConnectionPoint(node: busInputs[$0.rawValue], bus: stem.preBuses[$0.rawValue]) }
-        engine.connect(stem.player, to: [AVAudioConnectionPoint(node: stripMixers[strip], bus: stem.inputBus)] + preTakes,
-                       fromBus: 0, format: stem.file.processingFormat)
-        // A new connection opens at full volume: apply the intended levels right away.
-        for bus in SendBus.allCases {
-            applySend(bus, strip: strip)
-            applyPreTake(stem, bus)
-        }
+        engine.connect(stem.player, to: stripMixers[stem.strip], fromBus: 0, toBus: stem.inputBus, format: stem.file.processingFormat)
     }
 
     /// Toute modification du graphe se fait lecteurs arrêtés, puis la lecture reprend au même endroit.
@@ -422,7 +434,7 @@ public final class AudioEngine: MixEngineControl {
     // MARK: Niveaux (MixEngineControl)
 
     public func setFaderGain(strip: Int, _ gain: Float) {
-        stripMixers[strip].outputVolume = min(1, gain * Self.headroom)
+        faderMixers[strip].outputVolume = min(1, gain * Self.headroom)
     }
 
     public func setSendGain(_ bus: SendBus, strip: Int, _ gain: Float) {
@@ -479,6 +491,7 @@ public final class AudioEngine: MixEngineControl {
         if let (kind, index) = parameter.kernelParameter {
             effects[kind]?.set(index, value)
             if kind == .plate { effects[.spring]?.set(index, value) } // the spring shares the plate's knobs
+            if kind == .phaser { effects[.flanger]?.set(index, value) } // so does the flanger with the phaser's
             return
         }
         let reverbInput = busInputs[SendBus.reverb.rawValue]
@@ -533,13 +546,105 @@ public final class AudioEngine: MixEngineControl {
         }
     }
 
+    /// Bi-Phaser or tape flanger on BUS 3. With a plugin on the bus, the choice waits for the built-in effect.
+    public func setBus3Model(_ model: Bus3Model) {
+        guard model != bus3Model, effectNodes[SendBus.bus3.rawValue] != nil else { return }
+        bus3Model = model
+        if effects[.flanger] == nil {
+            let flanger = BuiltInEffect(.flanger)
+            effects[.flanger] = flanger
+            for parameter in FXParameter.allCases {
+                if let (kind, index) = parameter.kernelParameter, kind == .phaser { flanger.set(index, lastFX[parameter] ?? parameter.value(parameter.defaultValue)) }
+            }
+        }
+        guard plugins[.bus3] == nil, let node = effects[model.kind]?.node else { return }
+        swapEffectNode(node, on: .bus3)
+    }
+
+    // MARK: Strip inserts (PRD § 11.5)
+
+    /// A built-in insert on a strip (nil = straight through). Replaces a plugin insert if any.
+    public func setInsert(strip: Int, _ kind: InsertKind?) {
+        guard !stripInsertUnavailable else { return }
+        if let kind {
+            let effect = BuiltInEffect(kind.effectKind)
+            insertEffects[strip] = effect
+            swapInsertNode(effect.node, strip: strip)
+        } else {
+            insertEffects[strip] = nil
+            swapInsertNode(nil, strip: strip)
+        }
+        inserts[strip] = kind
+        insertPlugins[strip] = nil
+        insertMacroTargets[strip] = nil
+    }
+
+    /// Insert parameter, normalized 0…1 (see `InsertKind.parameters`).
+    public func setInsertParameter(strip: Int, index: Int, _ normalized: Double) {
+        guard let kind = inserts[strip], kind.parameters.indices.contains(index) else { return }
+        let parameter = kind.parameters[index]
+        insertEffects[strip]?.set(parameter.kernelIndex, parameter.value(normalized))
+    }
+
+    /// An Audio Unit in a strip's insert. Set its mix as wanted: it sits in the direct path.
+    @discardableResult
+    public func loadInsertPlugin(_ info: PluginInfo, strip: Int, state: Data? = nil) async throws -> HostedPlugin {
+        guard !stripInsertUnavailable else { throw PluginError.noEffectChain }
+        let plugin = try await HostedPlugin.load(info, format: format)
+        if let state { plugin.restore(state) }
+        swapInsertNode(plugin.unit, strip: strip)
+        inserts[strip] = nil
+        insertEffects[strip] = nil
+        insertPlugins[strip] = plugin
+        insertMacroTargets[strip] = Array(repeating: nil, count: Self.insertMacroCount)
+        return plugin
+    }
+
+    public func setInsertMacroTarget(_ parameter: PluginParameter?, strip: Int, index: Int) {
+        guard insertMacroTargets[strip]?.indices.contains(index) == true else { return }
+        insertMacroTargets[strip]?[index] = parameter
+    }
+
+    public func setInsertMacro(strip: Int, index: Int, _ normalized: Double) {
+        guard let target = insertMacroTargets[strip]?[index], let plugin = insertPlugins[strip] else { return }
+        plugin.setNormalizedValue(target.address, normalized)
+    }
+
+    /// Engines built without effects (some tests) have no insert chain to swap.
+    private var stripInsertUnavailable: Bool { effects.isEmpty }
+
+    private func swapInsertNode(_ node: AVAudioNode?, strip: Int) {
+        let inlet = insertInlets[strip], outlet = insertOutlets[strip]
+        restructure {
+            engine.stop()
+            engine.disconnectNodeOutput(inlet)
+            if let old = insertNodes[strip] {
+                engine.disconnectNodeOutput(old)
+                engine.detach(old)
+            }
+            if let node {
+                engine.attach(node)
+                engine.connect(inlet, to: node, format: format)
+                engine.connect(node, to: outlet, format: format)
+            } else {
+                engine.connect(inlet, to: outlet, format: format)
+            }
+            insertNodes[strip] = node
+            try? engine.start()
+        }
+    }
+
     // MARK: Slots d'effets (effet intégré ou plugin Audio Unit)
 
     private static let builtInKinds: [BuiltInEffect.Kind] = [.delay, .plate, .phaser]
 
-    /// The built-in effect a bus falls back to (the reverb bus follows the chosen model).
+    /// The built-in effect a bus falls back to (reverb and bus 3 follow their chosen model).
     private func builtInKind(for bus: SendBus) -> BuiltInEffect.Kind {
-        bus == .reverb ? reverbModel.kind : Self.builtInKinds[bus.rawValue]
+        switch bus {
+        case .delay: .delay
+        case .reverb: reverbModel.kind
+        case .bus3: bus3Model.kind
+        }
     }
 
     /// Charge un plugin AU sur un bus, à la place de l'effet intégré (ou du plugin précédent). À chaud.
@@ -591,20 +696,15 @@ public final class AudioEngine: MixEngineControl {
         plugin.setNormalizedValue(target.address, normalized)
     }
 
-    /// Une tranche sans stem n'a pas de destination d'envoi (AVAudioEngine l'écarte du graphe actif) :
-    /// les niveaux sont mémorisés et réappliqués dès qu'un stem y est branché.
+    /// Post-fader send from the fader mixer, and pre-fader take from the pre mixer: the send when the bus is
+    /// pre-fader, and the dub throw (worth a send at full) on the buses it targets. The pre take compensates
+    /// the strip headroom so its level matches a post-fader send.
     private func applySend(_ bus: SendBus, strip: Int) {
         let post = preFader[bus.rawValue] ? 0 : sendGains[strip][bus.rawValue]
-        stripMixers[strip].destination(forMixer: busInputs[bus.rawValue], bus: strip)?.volume = post
-        for stem in stems where stem.strip == strip { applyPreTake(stem, bus) }
-    }
-
-    /// Pre-fader take from a player into a bus: the send when the bus is pre-fader, and on the delay the dub throw
-    /// (worth a send at full). The strip headroom is compensated so the level matches a post-fader send.
-    private func applyPreTake(_ stem: Stem, _ bus: SendBus) {
-        var volume: Float = preFader[bus.rawValue] ? sendGains[stem.strip][bus.rawValue] * Self.headroom : 0
-        if throwing[stem.strip], throwTarget.includes(bus) { volume = Self.headroom }
-        stem.player.destination(forMixer: busInputs[bus.rawValue], bus: stem.preBuses[bus.rawValue])?.volume = volume
+        faderMixers[strip].destination(forMixer: busInputs[bus.rawValue], bus: strip)?.volume = post
+        var pre: Float = preFader[bus.rawValue] ? sendGains[strip][bus.rawValue] * Self.headroom : 0
+        if throwing[strip], throwTarget.includes(bus) { pre = Self.headroom }
+        preMixers[strip].destination(forMixer: busInputs[bus.rawValue], bus: preBus(bus, strip: strip))?.volume = pre
     }
 
     public var outputDescription: String {

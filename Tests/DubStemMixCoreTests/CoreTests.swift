@@ -438,6 +438,7 @@ private func hits(_ samples: [Float]) -> [Int: Float] {
     try engine.addStem(url: makeStem(frames: 96_000) { $0 < 100 ? 0.5 : 0 }, name: "click", strip: 0)
     engine.setFaderGain(strip: 0, 0)
     engine.setSendGain(.reverb, strip: 0, 1)
+    engine.setSendPreFader(.reverb, true) // only the bus reaches the master
     engine.setMasterGain(1)
     try warmUp(engine)
     engine.play()
@@ -450,5 +451,61 @@ private func hits(_ samples: [Float]) -> [Int: Float] {
     #expect(crashed > 5 * quiet && crashed < 4, "\(quiet) → \(crashed)")
     engine.setReverbModel(.plate)
     #expect(engine.reverbModel == .plate)
+    _ = try engine.renderOffline(frames: 4800)
+}
+
+// MARK: - Strip inserts and bus 3 model (PRD § 11.5)
+
+private func toneLevel(_ samples: [Float], hz: Double, from start: Int) -> Float {
+    var re: Float = 0, im: Float = 0
+    for i in start..<samples.count {
+        let phase = 2 * Double.pi * hz * Double(i - start) / 48_000
+        re += samples[i] * Float(cos(phase))
+        im += samples[i] * Float(sin(phase))
+    }
+    return 2 * (re * re + im * im).squareRoot() / Float(samples.count - start)
+}
+
+@MainActor @Test func subInsertAddsAnOctaveUnderTheStrip() throws {
+    let engine = try AudioEngine(offline: true, effects: true)
+    try engine.addStem(url: makeStem(frames: 192_000) { Float(0.5 * sin(2 * Double.pi * 80 * Double($0) / 48_000)) }, name: "bass", strip: 0)
+    engine.setFaderGain(strip: 0, 1)
+    engine.setMasterGain(1)
+    try warmUp(engine)
+    engine.play()
+    _ = try engine.renderOffline(frames: 9600)
+    let dry = try engine.renderOffline(frames: 48_000)
+    #expect(toneLevel(dry, hz: 40, from: 24_000) < 0.01)
+
+    engine.setInsert(strip: 0, .sub)
+    engine.setInsertParameter(strip: 0, index: 0, 1) // amount
+    #expect(engine.inserts[0] == .sub)
+    _ = try engine.renderOffline(frames: 9600)
+    let withSub = try engine.renderOffline(frames: 48_000)
+    #expect(toneLevel(withSub, hz: 40, from: 24_000) > 0.03 * pathGain / 0.25, "\(toneLevel(withSub, hz: 40, from: 24_000))")
+    #expect(abs(toneLevel(withSub, hz: 80, from: 24_000) - toneLevel(dry, hz: 80, from: 24_000)) < 0.02)
+
+    engine.setInsert(strip: 0, nil) // straight through again
+    _ = try engine.renderOffline(frames: 9600)
+    let back = try engine.renderOffline(frames: 48_000)
+    #expect(toneLevel(back, hz: 40, from: 24_000) < 0.01)
+    #expect(engine.isPlaying)
+}
+
+@MainActor @Test func bus3ModelSwapsPhaserAndFlanger() throws {
+    let engine = try AudioEngine(offline: true, effects: true)
+    try engine.addStem(url: makeStem(frames: 96_000) { $0 % 4800 < 10 ? 0.5 : 0 }, name: "clicks", strip: 0)
+    engine.setFaderGain(strip: 0, 0)
+    engine.setSendGain(.bus3, strip: 0, 1)
+    engine.setSendPreFader(.bus3, true) // only the bus reaches the master
+    engine.setMasterGain(1)
+    try warmUp(engine)
+    engine.play()
+    engine.setBus3Model(.flanger)
+    #expect(engine.bus3Model == .flanger)
+    let flanged = try engine.renderOffline(frames: 9600)
+    #expect(flanged.contains { abs($0) > 0.01 }) // the click came back through the flanger
+    engine.setBus3Model(.phaser)
+    #expect(engine.bus3Model == .phaser)
     _ = try engine.renderOffline(frames: 4800)
 }

@@ -6,7 +6,7 @@ import DubDSP
 @MainActor
 public final class BuiltInEffect {
     public enum Kind: CaseIterable, Sendable {
-        case delay, plate, phaser, master, spring
+        case delay, plate, phaser, master, spring, sub, wah, flanger
 
         var dspKind: DubEffectKind {
             switch self {
@@ -15,6 +15,9 @@ public final class BuiltInEffect {
             case .phaser: DUB_EFFECT_PHASER
             case .master: DUB_EFFECT_MASTER
             case .spring: DUB_EFFECT_SPRING
+            case .sub: DUB_EFFECT_SUB
+            case .wah: DUB_EFFECT_WAH
+            case .flanger: DUB_EFFECT_FLANGER
             }
         }
 
@@ -25,6 +28,9 @@ public final class BuiltInEffect {
             case .phaser: "dphs"
             case .master: "dmst"
             case .spring: "dspr"
+            case .sub: "dsub"
+            case .wah: "dwah"
+            case .flanger: "dfln"
             }
             return AudioComponentDescription(
                 componentType: kAudioUnitType_Effect,
