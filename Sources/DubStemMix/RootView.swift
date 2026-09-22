@@ -501,6 +501,7 @@ private struct Sidebar: View {
                     Hint(key: "BANK LEFT / RIGHT", text: "knobs = sends / effect settings")
                     Hint(key: "SOLO + MUTE", text: "solo a strip (⌥-click on screen)")
                     Hint(key: "SPACE · RETURN · L", text: "play / back to start / loop")
+                    Hint(key: "D (hold) · R", text: "drop all but KEEP strips / pull-up rewind")
                     Hint(key: "T", text: "tap tempo")
                     Hint(key: "N · P", text: "next / previous song of the setlist")
                     Hint(key: "⌘R", text: "record the master (24-bit WAV)")

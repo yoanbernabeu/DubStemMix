@@ -9,13 +9,20 @@ private let knobCellHeight: CGFloat = 92
 private let headerHeight: CGFloat = 30
 private let namePlateHeight: CGFloat = 28
 
-/// Ce que pilotent les potards d'une tranche sur la page FX.
-private func fxGroup(strip: Int) -> (title: String, color: Color)? {
-    let buses = Set(FXParameter.layout[strip].compactMap { $0?.bus })
-    guard let first = buses.first else { return nil }
-    if buses.count > 1 { return ("RETURNS", Theme.text) }
-    let bus = Bus(rawValue: first.rawValue)!
-    return (bus.label, bus.color)
+/// What a strip's knobs drive on the FX or MASTER page: the header title and tint of the knob zone.
+private func fxGroup(strip: Int, page: MixController.Page) -> (title: String, color: Color)? {
+    switch page {
+    case .mix:
+        return nil
+    case .master:
+        return FXParameter.masterLayout[strip].compactMap { $0?.masterGroup }.first.map { ($0, Theme.text) }
+    case .fx:
+        let buses = Set(FXParameter.layout[strip].compactMap { $0?.bus })
+        guard let first = buses.first else { return nil }
+        if buses.count > 1 { return ("RETURNS", Theme.text) }
+        let bus = Bus(rawValue: first.rawValue)!
+        return (bus.label, bus.color)
+    }
 }
 
 struct ConsoleView: View {
@@ -100,6 +107,7 @@ private struct StripView: View {
                 MomentaryButton(title: "THROW", active: strip.throwing, activeColor: Theme.delay) {
                     model.mix.setThrow(strip: index, $0)
                 }
+                keepMark
             }
 
             HStack(alignment: .center, spacing: 8) {
@@ -131,7 +139,7 @@ private struct StripView: View {
         return dropTargeted ? Theme.text : Theme.border
     }
 
-    private var onFXPage: Bool { model.mix.page == .fx }
+    private var group: (title: String, color: Color)? { fxGroup(strip: index, page: model.mix.page) }
 
     /// En-tête de la zone des potards : sur la page FX, l'effet qu'ils pilotent — pas le stem.
     private var header: some View {
@@ -139,19 +147,37 @@ private struct StripView: View {
             Text("\(index + 1)")
                 .font(Fonts.mono(10))
                 .foregroundStyle(Theme.textDim)
-            if onFXPage, let group = fxGroup(strip: index) {
+            if let group {
                 Text(group.title)
                     .font(Fonts.label(11, weight: 850))
                     .tracking(1.2)
                     .foregroundStyle(group.color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
         }
+    }
+
+    /// KEEP mark: this strip survives the DROP gesture (PRD § 11.6). Belongs to the stem, like MUTE and THROW.
+    private var keepMark: some View {
+        Button { model.toggleKeep(strip: index) } label: {
+            Text("KEEP")
+                .font(Fonts.mono(9, weight: 700))
+                .tracking(0.8)
+                .foregroundStyle(strip.keep ? Theme.bg : Theme.textDim)
+                .frame(maxWidth: .infinity, minHeight: 18)
+                .background(RoundedRectangle(cornerRadius: 3).fill(strip.keep ? Theme.text : .clear))
+                .overlay(RoundedRectangle(cornerRadius: 3).stroke(strip.keep ? Theme.text : Theme.border, style: StrokeStyle(lineWidth: 1, dash: strip.keep ? [] : [3, 3])))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Keep this strip playing during DROP (hold D)")
     }
 
     /// Page FX : la zone des potards prend la teinte de l'effet, pour qu'on voie qu'elle a changé de rôle.
     @ViewBuilder
     private var knobZoneBackground: some View {
-        if onFXPage, let group = fxGroup(strip: index) {
+        if let group {
             RoundedRectangle(cornerRadius: 6)
                 .fill(group.color.opacity(0.07))
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(group.color.opacity(0.35), lineWidth: 1))
@@ -350,13 +376,24 @@ private struct MasterView: View {
             .frame(height: 44)
 
             // Comme sur la console : BANK LEFT / RIGHT et SOLO au-dessus du fader master.
+            // Then the gestures (PRD § 11.6): DROP held, REWIND pressed.
             VStack(spacing: 6) {
                 Text("PAGE")
                     .font(Fonts.mono(9))
                     .foregroundStyle(Theme.textDim)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 StripButton(title: "◀ MIX", active: model.mix.page == .mix) { model.mix.setPage(.mix) }
-                StripButton(title: "FX ▶", active: model.mix.page == .fx) { model.mix.setPage(.fx) }
+                StripButton(title: "FX", active: model.mix.page == .fx) { model.mix.setPage(.fx) }
+                StripButton(title: "MASTER ▶", active: model.mix.page == .master) { model.mix.setPage(.master) }
+                Text("GESTURES")
+                    .font(Fonts.mono(9))
+                    .foregroundStyle(Theme.textDim)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
+                MomentaryButton(title: "DROP", active: model.mix.dropping, activeColor: Theme.rec) { model.mix.setDrop($0) }
+                    .help("Hold: cuts every strip not marked KEEP (key D)")
+                StripButton(title: "REWIND", active: model.engine.isPullingUp, activeColor: Theme.delay) { model.pullUp() }
+                    .help("Pull-up: brake the tape, back to the top, play (key R)")
                 Spacer(minLength: 0)
                 StripButton(title: anySolo ? "CLEAR SOLO" : "SOLO", active: anySolo) {
                     for (strip, state) in model.mix.strips.enumerated() where state.solo {

@@ -8,7 +8,7 @@ import SwiftUI
 //   swift run DubStemMix --check-documents               auto-contrôle projets + setlist, sans interface ni son
 //   swift run DubStemMix --check-audio                   carte son, buffer, charge DSP et décrochages sur le vrai moteur
 //   swift run DubStemMix --check-plugin-crash            tue le processus d'un plugin hors processus et vérifie la bascule
-//   swift run DubStemMix --snapshot out.png [--fx | --settings]   rend l'interface (données de démo) dans un PNG
+//   swift run DubStemMix --snapshot out.png [--fx | --master | --settings]   rend l'interface (données de démo) dans un PNG
 
 @main
 enum Main {
@@ -30,19 +30,20 @@ enum Main {
         } else if args.contains("--check-plugin-crash") {
             PluginCrashCheck.run()
         } else if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
-            snapshot(to: args[i + 1], fxPage: args.contains("--fx"), settings: args.contains("--settings"))
+            snapshot(to: args[i + 1], page: args.contains("--fx") ? .fx : (args.contains("--master") ? .master : .mix),
+                     settings: args.contains("--settings"))
         } else {
             DubStemMixApp.main()
         }
     }
 
     @MainActor
-    private static func snapshot(to path: String, fxPage: Bool, settings: Bool) {
+    private static func snapshot(to path: String, page: MixController.Page, settings: Bool) {
         guard let model = try? AppModel(preview: true) else {
             print("Échec de la création du modèle de démonstration")
             exit(1)
         }
-        if fxPage { model.mix.setPage(.fx) }
+        model.mix.setPage(page)
         let renderer = settings
             ? ImageRenderer(content: AnyView(SettingsView(model: model)))
             : ImageRenderer(content: AnyView(RootView(model: model).frame(width: 1440, height: 900)))
