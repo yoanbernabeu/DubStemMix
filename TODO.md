@@ -1,6 +1,6 @@
 # DubStemMix — ce qui reste à faire
 
-> État au 22 septembre 2026. Jalons M0 à M3 validés, M4 livré (en attente d'essai), dette PRD (§ 2) résorbée sauf tests de charge et reverb à ressort, robustesse (§ 3) livrée et validée. La référence produit reste `PRD.md`.
+> État au 22 septembre 2026. Jalons M0 à M3 validés, M4 livré (en attente d'essai), dette PRD (§ 2) résorbée sauf tests de charge, robustesse (§ 3) validée, M6 livré (en attente d'essai). La référence produit reste `PRD.md`.
 > Légende : **[toi]** = demande un essai ou une décision de ta part.
 
 ## 1. À essayer ou à confirmer
@@ -50,7 +50,7 @@
 
 Interview faite : tout est retenu **sauf la sirène**. Les décisions (pages MASTER et INSERTS, chaîne master, inserts de tranche, compléments delay/reverb, gestes, stockage) sont dans le PRD § 11 ; les jalons M6, M7, M8 dans le PRD § 9.
 
-- [ ] **M6 — Master** : page MASTER, big knob, kills, dubplate, pull-up, DROP + marques KEEP.
+- [x] **M6 — Master** — livré le 22/09 : page MASTER (BANK RIGHT deux fois, BANK LEFT = retour MIX), big knob à crans, kills BASS/MID/TOP, dubplate + craquements, pull-up (R), DROP (D maintenu) avec marques KEEP enregistrées dans le projet. **[toi]** à valider à l'oreille : les crans du big knob, les coupures de l'isolateur (200 Hz / 2,5 kHz), le grain du dubplate, la durée du pull-up (1,3 s, plancher à −2 octaves puis fondu).
 - [ ] **M7 — Delay et reverb** : HOLD, têtes Space Echo + ping-pong, throw configurable, reverb à ressort + CRASH.
 - [ ] **M8 — Inserts** : slot d'insert par tranche (intégrés + AU), sub, auto-wah, page INSERTS, flanger à bande sur le bus 3.
 - [ ] **[toi]** Valider la disposition de la page MASTER (PRD § 11.2) et les touches des gestes (§ 11.6) à l'usage.
