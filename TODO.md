@@ -38,7 +38,7 @@
 
 ## 4. M5 — Publication
 
-- [ ] Vraie **app `.app`** avec icône, lançable sans terminal (aujourd'hui : `swift run`). **[toi]** pour l'icône.
+- [ ] Vraie **app `.app`** avec icône, lançable sans terminal (aujourd'hui : `swift run`). Icône faite le 22/09 : `Design/AppIcon.icns` (source `tools/make-icon.swift`, potard tricolore sur fond scène).
 - [ ] **README** (installation, prise en main, contournement de Gatekeeper puisque l'app n'est pas notarisée, plugin à régler 100 % wet, limites connues) et **LICENSE** MIT.
 - [ ] **Accueil au premier lancement** : console non détectée, rappel du SEND ALL, mapping d'usine requis. **[toi]** pour le contenu.
 - [ ] **Release GitHub** (archive de l'app) et, si tu veux, formule Homebrew.
