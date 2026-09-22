@@ -1,6 +1,6 @@
 # DubStemMix — ce qui reste à faire
 
-> État au 22 septembre 2026. Jalons M0 à M3 validés, M4 livré (en attente d'essai), dette PRD (§ 2) résorbée sauf tests de charge et reverb à ressort. La référence produit reste `PRD.md`.
+> État au 22 septembre 2026. Jalons M0 à M3 validés, M4 livré (en attente d'essai), dette PRD (§ 2) résorbée sauf tests de charge et reverb à ressort, robustesse (§ 3) livrée et validée. La référence produit reste `PRD.md`.
 > Légende : **[toi]** = demande un essai ou une décision de ta part.
 
 ## 1. À essayer ou à confirmer
@@ -34,7 +34,7 @@
 - [x] **Renommer une tranche** — fait le 22/09 : double-clic ou clic droit sur la plaque de nom, enregistré dans le projet.
 - [x] **Setlist** — fait le 22/09 : glisser-déposer d'une ligne sur une autre, double-clic sur le titre pour renommer.
 - [x] Changement de carte son **avec des plugins chargés** — vérifié le 22/09 par `--check-audio` (Dub Filter hors processus conservé et vivant après deux bascules).
-- [x] Stems de **fréquences d'échantillonnage différentes** — testé le 22/09 (44,1 + 48 kHz alignés au sample près, à l'étalement du convertisseur près) ; un retard de 22 ms du départ hors ligne corrigé au passage. **[toi]** à confirmer à l'oreille sur de vrais fichiers mélangés.
+- [x] Stems de **fréquences d'échantillonnage différentes** — testé le 22/09 (44,1 + 48 kHz alignés au sample près, à l'étalement du convertisseur près) ; un retard de 22 ms du départ hors ligne corrigé au passage.
 
 ## 4. M5 — Publication
 
