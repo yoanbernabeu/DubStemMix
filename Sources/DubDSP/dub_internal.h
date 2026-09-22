@@ -54,5 +54,6 @@ void dub_delay_install(DubEffect *effect);
 void dub_plate_install(DubEffect *effect);
 void dub_phaser_install(DubEffect *effect);
 void dub_master_install(DubEffect *effect);
+void dub_spring_install(DubEffect *effect);
 
 #endif

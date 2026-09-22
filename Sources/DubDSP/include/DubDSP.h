@@ -16,6 +16,7 @@ typedef enum {
     DUB_EFFECT_PLATE = 1,  // reverb plate (Dattorro), entrée mono, sortie stéréo
     DUB_EFFECT_PHASER = 2, // phaser façon Bi-Phase : 2 × 6 étages en série, sortie 100 % déphasée (pour bus d'envoi)
     DUB_EFFECT_MASTER = 3, // master chain: stepped high-pass (big knob) → 3-band kills → dubplate colour
+    DUB_EFFECT_SPRING = 4, // spring reverb (dispersive allpass chain in a loop) with a CRASH trigger
 } DubEffectKind;
 
 // Paramètres, en unités réelles.
@@ -25,6 +26,9 @@ enum {
     DUB_DELAY_WOW = 2,      // 0 … 1
     DUB_DELAY_LOW_CUT = 3,  // Hz
     DUB_DELAY_HIGH_CUT = 4, // Hz
+    DUB_DELAY_HEADS = 5,    // Space Echo head pattern, 0 … 6: 1, 2, 3, 1+2, 2+3, 1+3, 1+2+3 (heads at 1×, 2×, 3× the time)
+    DUB_DELAY_PINGPONG = 6, // 0 … 1: repeats alternate left / right (0 = plain stereo, as before)
+    DUB_DELAY_HOLD = 7,     // ≥ 0.5: input closed, feedback at unity — the loop holds itself
 };
 enum {
     DUB_PLATE_DECAY = 0,    // coefficient de décroissance (0 … 0,98)
@@ -32,6 +36,10 @@ enum {
     DUB_PLATE_PREDELAY = 2, // secondes (0 … 0,25)
     DUB_PLATE_LOW_CUT = 3,  // Hz, avant la reverb
     DUB_PLATE_TONE = 4,     // Hz, passe-bas en sortie
+};
+// The spring shares the plate's five parameters (same indices, same units), plus:
+enum {
+    DUB_SPRING_CRASH = 5,   // set to 1 to hit the spring; the kernel resets it to 0 once the crash has fired
 };
 enum {
     DUB_PHASER_RATE = 0,     // Hz

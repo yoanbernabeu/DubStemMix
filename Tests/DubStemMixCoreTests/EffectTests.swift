@@ -411,3 +411,75 @@ private func makeMaster() -> OpaquePointer {
     #expect(loud.allSatisfy { abs($0) < 1.2 })
     #expect(rms(loud[24_000...]) > 0.3)
 }
+
+// MARK: - Delay heads, ping-pong, HOLD (PRD § 11.4)
+
+private func makeDelay(time: Float = 0.1) -> OpaquePointer {
+    let delay = dub_effect_create(DUB_EFFECT_DELAY)!
+    dub_effect_set(delay, Int32(DUB_DELAY_TIME), time)
+    dub_effect_set(delay, Int32(DUB_DELAY_FEEDBACK), 0)
+    dub_effect_set(delay, Int32(DUB_DELAY_WOW), 0)
+    dub_effect_set(delay, Int32(DUB_DELAY_LOW_CUT), 10)
+    dub_effect_set(delay, Int32(DUB_DELAY_HIGH_CUT), 20_000)
+    dub_effect_prepare(delay, 48_000)
+    return delay
+}
+
+@Test func headPatternsPlaceEchoesAtMultiplesOfTheTime() {
+    let delay = makeDelay()
+    defer { dub_effect_destroy(delay) }
+    dub_effect_set(delay, Int32(DUB_DELAY_HEADS), 5) // heads 1 + 3
+    let output = run(delay, input: impulse(24_000)).left
+    let loud = output.indices.filter { abs(output[$0]) > 0.2 }
+    #expect(loud.contains { abs($0 - 4800) <= 3 } && loud.contains { abs($0 - 14_400) <= 3 }, "\(loud)")
+    #expect(!loud.contains { abs($0 - 9600) <= 3 }) // head 2 is off
+}
+
+@Test func pingPongAlternatesSides() {
+    let delay = makeDelay()
+    defer { dub_effect_destroy(delay) }
+    dub_effect_set(delay, Int32(DUB_DELAY_FEEDBACK), 0.7)
+    dub_effect_set(delay, Int32(DUB_DELAY_PINGPONG), 1)
+    dub_effect_prepare(delay, 48_000) // the width is smoothed: start from it, not from zero
+    let output = run(delay, input: impulse(24_000))
+    let firstL = energy(output.left[4700..<4900]), firstR = energy(output.right[4700..<4900])
+    let secondL = energy(output.left[9500..<9700]), secondR = energy(output.right[9500..<9700])
+    #expect(firstL > 10 * firstR, "first repeat on the left")
+    #expect(secondR > 10 * secondL, "second repeat on the right")
+}
+
+@Test func holdKeepsTheLoopGoingWithoutInput() {
+    let delay = makeDelay()
+    defer { dub_effect_destroy(delay) }
+    dub_effect_set(delay, Int32(DUB_DELAY_FEEDBACK), 0.3)
+    var signal = [Float](repeating: 0, count: 96_000)
+    for n in 0..<4800 { signal[n] = 0.5 * sin(Float(n) * 0.05) } // 100 ms of tone, then nothing
+    _ = run(delay, input: Array(signal[..<9600]))
+    dub_effect_set(delay, Int32(DUB_DELAY_HOLD), 1)
+    let held = run(delay, input: Array(signal[9600..<72_000])).left
+    // Ten loops later the level is still there (unity feedback), and bounded.
+    #expect(energy(held[48_000..<52_800]) > 0.5 * energy(held[0..<4800]), "\(energy(held[48_000..<52_800])) vs \(energy(held[0..<4800]))")
+    #expect(held.allSatisfy { abs($0) <= 1 })
+    dub_effect_set(delay, Int32(DUB_DELAY_HOLD), 0)
+    let released = run(delay, input: Array(signal[72_000...])).left
+    #expect(energy(released[19_200..<24_000]) < 0.2 * energy(held[0..<4800])) // decays again at 30 %
+}
+
+// MARK: - Spring reverb and CRASH (PRD § 11.4)
+
+@Test func springTailDecaysAndCrashIsLoud() {
+    let spring = dub_effect_create(DUB_EFFECT_SPRING)!
+    defer { dub_effect_destroy(spring) }
+    dub_effect_set(spring, Int32(DUB_PLATE_DECAY), 0.8)
+    dub_effect_prepare(spring, 48_000)
+    let tail = run(spring, input: impulse(96_000))
+    let early = energy(tail.left[0..<9600]), late = energy(tail.left[48_000..<57_600]), end = energy(tail.left[86_400..<96_000])
+    #expect(early > late && late > end && end > 0, "\(early) \(late) \(end)")
+    #expect(tail.left != tail.right) // two springs, a stereo pair
+    let quiet = energy(run(spring, input: [Float](repeating: 0, count: 48_000)).left[38_400..<48_000])
+    dub_effect_set(spring, Int32(DUB_SPRING_CRASH), 1)
+    let crash = run(spring, input: [Float](repeating: 0, count: 48_000))
+    #expect(energy(crash.left[0..<9600]) > 100 * quiet)
+    #expect(crash.left.allSatisfy { abs($0) < 2 })
+    #expect(dub_effect_get(spring, Int32(DUB_SPRING_CRASH)) == 0) // consumed
+}
