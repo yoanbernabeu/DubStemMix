@@ -15,6 +15,7 @@ typedef enum {
     DUB_EFFECT_DELAY = 0,  // écho à bande : filtres et saturation dans la boucle, wow/flutter
     DUB_EFFECT_PLATE = 1,  // reverb plate (Dattorro), entrée mono, sortie stéréo
     DUB_EFFECT_PHASER = 2, // phaser façon Bi-Phase : 2 × 6 étages en série, sortie 100 % déphasée (pour bus d'envoi)
+    DUB_EFFECT_MASTER = 3, // master chain: stepped high-pass (big knob) → 3-band kills → dubplate colour
 } DubEffectKind;
 
 // Paramètres, en unités réelles.
@@ -38,6 +39,15 @@ enum {
     DUB_PHASER_FEEDBACK = 2, // résonance, 0 … 0,95
     DUB_PHASER_CENTER = 3,   // Hz
     DUB_PHASER_STEREO = 4,   // 0 … 1 (déphasage du LFO entre gauche et droite, jusqu'à 180°)
+};
+
+enum {
+    DUB_MASTER_HIGH_PASS = 0, // Hz; at or below 20 = bypassed. Stepped by the caller, glided here.
+    DUB_MASTER_BASS = 1,      // linear gain 0 … 1 of the band below 200 Hz
+    DUB_MASTER_MID = 2,       // 200 Hz … 2.5 kHz
+    DUB_MASTER_TOP = 3,       // above 2.5 kHz
+    DUB_MASTER_DUBPLATE = 4,  // 0 … 1 intensity (0 = exact passthrough)
+    DUB_MASTER_CRACKLE = 5,   // 0 … 1
 };
 
 #define DUB_EFFECT_MAX_PARAMS 8

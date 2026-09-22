@@ -341,3 +341,72 @@ func tempoIsDetected(played: Double, expected: Double) {
     mix.setHosted(.reverb, false)
     #expect(mix.cell(strip: 2, row: 0) == .parameter(.reverbDecay) && mix.macros[.reverb] == nil)
 }
+
+// MARK: - Master chain (big knob, kills, dubplate)
+
+private func sine(_ hz: Double, count: Int, rate: Double = 48_000) -> [Float] {
+    (0..<count).map { Float(sin(2 * .pi * hz * Double($0) / rate)) }
+}
+
+/// RMS of the last part of a signal, once filters have settled.
+private func rms(_ samples: ArraySlice<Float>) -> Float { (energy(samples) / Float(samples.count)).squareRoot() }
+
+private func decibels(_ output: [Float], reference: [Float]) -> Float {
+    20 * log10(rms(output[24_000...]) / rms(reference[24_000...]))
+}
+
+private func makeMaster() -> OpaquePointer {
+    let master = dub_effect_create(DUB_EFFECT_MASTER)!
+    dub_effect_prepare(master, 48_000)
+    return master
+}
+
+@Test func masterChainIsAnExactPassthroughByDefault() {
+    let master = makeMaster()
+    defer { dub_effect_destroy(master) }
+    let input = sine(440, count: 4800)
+    let output = run(master, input: input)
+    #expect(output.left == input && output.right == input)
+}
+
+@Test func bigKnobCutsBelowItsStepAndLeavesTheRest() {
+    let master = makeMaster()
+    defer { dub_effect_destroy(master) }
+    dub_effect_set(master, Int32(DUB_MASTER_HIGH_PASS), 300)
+    let low = run(master, input: sine(50, count: 48_000)).left
+    dub_effect_prepare(master, 48_000)
+    let high = run(master, input: sine(2000, count: 48_000)).left
+    #expect(decibels(low, reference: sine(50, count: 48_000)) < -25)
+    #expect(abs(decibels(high, reference: sine(2000, count: 48_000))) < 1)
+}
+
+@Test func killsRemoveOneBandAndSumFlatWhenOpen() {
+    let master = makeMaster()
+    defer { dub_effect_destroy(master) }
+    dub_effect_set(master, Int32(DUB_MASTER_BASS), 0)
+    let bass = run(master, input: sine(60, count: 48_000)).left
+    dub_effect_prepare(master, 48_000)
+    let mid = run(master, input: sine(1000, count: 48_000)).left
+    #expect(decibels(bass, reference: sine(60, count: 48_000)) < -30)
+    #expect(abs(decibels(mid, reference: sine(1000, count: 48_000))) < 1)
+
+    // Bands nearly open (so the crossovers are in the path): the sum stays flat across the spectrum.
+    dub_effect_set(master, Int32(DUB_MASTER_BASS), 0.999)
+    for hz in [80.0, 200.0, 1000.0, 2500.0, 8000.0] {
+        dub_effect_prepare(master, 48_000)
+        let out = run(master, input: sine(hz, count: 48_000)).left
+        #expect(abs(decibels(out, reference: sine(hz, count: 48_000))) < 1, "\(hz) Hz")
+    }
+}
+
+@Test func dubplateNarrowsTheBandwidthAndStaysBounded() {
+    let master = makeMaster()
+    defer { dub_effect_destroy(master) }
+    dub_effect_set(master, Int32(DUB_MASTER_DUBPLATE), 1)
+    let high = run(master, input: sine(14_000, count: 48_000)).left
+    #expect(decibels(high, reference: sine(14_000, count: 48_000)) < -6)
+    dub_effect_prepare(master, 48_000)
+    let loud = run(master, input: sine(200, count: 48_000).map { $0 * 1.5 }).left
+    #expect(loud.allSatisfy { abs($0) < 1.2 })
+    #expect(rms(loud[24_000...]) > 0.3)
+}
