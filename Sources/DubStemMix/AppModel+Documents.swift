@@ -60,6 +60,9 @@ extension AppModel {
         project.keep = kept.isEmpty ? nil : kept
         project.reverbModel = reverbModel == .plate ? nil : reverbModel.rawValue
         project.throwTarget = throwTarget == .delay ? nil : throwTarget.rawValue
+        project.bus3Model = bus3Model == .phaser ? nil : bus3Model.rawValue
+        let inserts = currentInserts()
+        project.inserts = inserts.isEmpty ? nil : inserts
         return project
     }
 
@@ -116,6 +119,8 @@ extension AppModel {
         for strip in project.keep ?? [] where mix.strips.indices.contains(strip) { mix.setKeep(strip: strip, true) }
         setReverbModel(project.reverbModel.flatMap(ReverbModel.init) ?? .plate)
         setThrowTarget(project.throwTarget.flatMap(ThrowTarget.init) ?? .delay)
+        setBus3Model(project.bus3Model.flatMap(Bus3Model.init) ?? .phaser)
+        unresolvedInserts = project.inserts ?? [:]
         for entry in project.stems {
             if let url = entry.file.resolve(relativeTo: document) {
                 assign([url], toStrip: min(max(0, entry.strip), AudioEngine.stripCount - 1))
@@ -133,6 +138,7 @@ extension AppModel {
         projectURL = document
         savedProject = currentProject(for: document)
         var warnings = restoreSlots().map { "\($0) is not installed (built-in effect used instead)" }
+        warnings += restoreInserts().map { "\($0) is not installed (insert bypassed)" }
         if !unresolvedStems.isEmpty { warnings.insert("\(unresolvedStems.count) stem(s) not found", at: 0) }
         errorMessage = warnings.isEmpty ? nil : warnings.joined(separator: " · ")
     }

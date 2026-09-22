@@ -12,6 +12,9 @@ public enum InsertKind: String, CaseIterable, Sendable {
         }
     }
 
+    /// For the strip header, where the strip number must stay visible.
+    public var shortLabel: String { self == .sub ? "SUB" : "WAH" }
+
     var effectKind: BuiltInEffect.Kind { self == .sub ? .sub : .wah }
 
     /// The knobs of the INSERTS page for this insert (up to 3), then any screen-only parameters.

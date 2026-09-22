@@ -80,6 +80,31 @@ public struct Project: Codable, Equatable, Sendable {
     /// Built-in reverb model (`ReverbModel.rawValue`) and dub throw target (`ThrowTarget.rawValue`), PRD § 11.4.
     public var reverbModel: String?
     public var throwTarget: String?
+    /// Built-in effect on bus 3 (`Bus3Model.rawValue`), PRD § 11.5.
+    public var bus3Model: String?
+
+    /// A strip insert (PRD § 11.5): a built-in insert with its normalized values, or a plugin with its state.
+    public struct InsertEntry: Codable, Equatable, Sendable {
+        public var kind: String?
+        public var values: [Double]?
+        public var plugin: PluginInfo?
+        public var state: Data?
+        public var macros: [PluginParameter?]?
+
+        public init(kind: String, values: [Double]) {
+            self.kind = kind
+            self.values = values
+        }
+
+        public init(plugin: PluginInfo, state: Data?, macros: [PluginParameter?]) {
+            self.plugin = plugin
+            self.state = state
+            self.macros = macros
+        }
+    }
+
+    /// Per strip number ("0"…"7").
+    public var inserts: [String: InsertEntry]?
 
     public init() {}
 

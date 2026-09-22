@@ -340,7 +340,7 @@ private struct FXSlotCard: View {
 
     private var sendBus: SendBus { SendBus(rawValue: bus.rawValue)! }
     private var plugin: HostedPlugin? { model.engine.plugins[sendBus] }
-    private var builtInName: String { ["Dub Delay", model.reverbModel.label, "Bi-Phaser"][bus.rawValue] }
+    private var builtInName: String { ["Dub Delay", model.reverbModel.label, model.bus3Model.label][bus.rawValue] }
     private var returnParameter: FXParameter { [.delayReturn, .reverbReturn, .phaserReturn][bus.rawValue] }
 
     private var summary: String {
@@ -401,6 +401,13 @@ private struct FXSlotCard: View {
                 ForEach(ReverbModel.allCases, id: \.self) { reverb in
                     Button((plugin == nil && reverb == model.reverbModel ? "✓ " : "") + "Built-in · \(reverb.label)") {
                         model.setReverbModel(reverb)
+                        model.useBuiltInEffect(on: sendBus)
+                    }
+                }
+            } else if bus == .bus3 {
+                ForEach(Bus3Model.allCases, id: \.self) { effect in
+                    Button((plugin == nil && effect == model.bus3Model ? "✓ " : "") + "Built-in · \(effect.label)") {
+                        model.setBus3Model(effect)
                         model.useBuiltInEffect(on: sendBus)
                     }
                 }

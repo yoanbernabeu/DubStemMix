@@ -48,6 +48,11 @@ final class AppModel {
     var unresolvedSlots: [String: Project.SlotEntry] = [:]
     @ObservationIgnored var pluginStates: [SendBus: Data] = [:]
     @ObservationIgnored var pluginStateCountdown = 0
+    // Strip inserts. See AppModel+Inserts.swift.
+    var loadingInsert: Set<Int> = []
+    var unresolvedInserts: [String: Project.InsertEntry] = [:]
+    @ObservationIgnored var insertStates: [Int: Data] = [:]
+    var bus3Model = Bus3Model.phaser
     @ObservationIgnored let pluginWindows = PluginWindows()
 
     var detectingTempo = false
@@ -264,6 +269,9 @@ final class AppModel {
         setHold(false)
         setReverbModel(.plate)
         setThrowTarget(.delay)
+        setBus3Model(.phaser)
+        for strip in 0..<AudioEngine.stripCount { setInsert(strip: strip, nil) }
+        unresolvedInserts = [:]
         unresolvedStems = []
         unresolvedSlots = [:]
         for bus in SendBus.allCases { unloadPlugin(on: bus) }
@@ -418,6 +426,8 @@ final class AppModel {
         mix.setThrow(strip: 2, true)
         mix.setKeep(strip: 0, true)
         mix.setKeep(strip: 1, true)
+        setInsert(strip: 1, .sub)
+        setInsert(strip: 2, .autoWah)
         mix.handle(.knob(strip: 3, row: 2, value: 0.2)) // potard « fantôme »
         mix.setSend(strip: 3, row: 2, 0.55)
         levels[AudioEngine.masterMeter] = 0.78

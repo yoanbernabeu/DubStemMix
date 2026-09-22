@@ -568,7 +568,7 @@ public final class AudioEngine: MixEngineControl {
 
     /// A built-in insert on a strip (nil = straight through). Replaces a plugin insert if any.
     public func setInsert(strip: Int, _ kind: InsertKind?) {
-        guard !stripInsertUnavailable else { return }
+        guard !stripInsertUnavailable, kind != nil || insertNodes[strip] != nil else { return } // nothing to swap
         if let kind {
             let effect = BuiltInEffect(kind.effectKind)
             insertEffects[strip] = effect

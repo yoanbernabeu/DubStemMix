@@ -8,7 +8,7 @@ extension AppModel {
     func loadPlugin(_ info: PluginInfo, on bus: SendBus, saved entry: Project.SlotEntry? = nil) {
         guard !loadingPlugin.contains(bus) else { return }
         loadingPlugin.insert(bus)
-        pluginWindows.close(bus)
+        pluginWindows.close(bus.key)
         Task {
             defer { loadingPlugin.remove(bus) }
             do {
@@ -32,7 +32,7 @@ extension AppModel {
     /// Retour à l'effet intégré.
     func unloadPlugin(on bus: SendBus) {
         guard engine.plugins[bus] != nil else { return }
-        pluginWindows.close(bus)
+        pluginWindows.close(bus.key)
         engine.unloadPlugin(on: bus)
         mix.setHosted(bus, false)
         pluginStates[bus] = nil
@@ -64,6 +64,7 @@ extension AppModel {
     /// Once a second: a plugin whose process died no longer answers.
     func checkPluginLiveness() {
         for (bus, plugin) in engine.plugins where !plugin.isAlive { pluginCrashed(on: bus) }
+        checkInsertLiveness()
     }
 
     /// Back to the built-in effect, with a warning. The slot stays in the project (state and macros as last
@@ -83,7 +84,7 @@ extension AppModel {
 
     func openPluginWindow(on bus: SendBus) {
         guard let plugin = engine.plugins[bus] else { return }
-        pluginWindows.open(plugin, bus: bus)
+        pluginWindows.open(plugin, key: bus.key)
     }
 
     // MARK: Potards macros
@@ -125,6 +126,7 @@ extension AppModel {
         }
         pluginStateCountdown -= 1
         if pluginStateCountdown % 30 == 0 { checkPluginLiveness() }
+        followInsertPlugins(refreshStates: pluginStateCountdown <= 0)
         if pluginStateCountdown <= 0 {
             pluginStateCountdown = 150 // toutes les 5 s : demander son état complet à un plugin n'est pas gratuit
             refreshPluginStates()
@@ -164,12 +166,13 @@ extension AppModel {
 }
 
 /// Plugin windows: the plugin's own interface, or Apple's generic parameter view when it has none.
+/// Keyed by bus key (send slots) or "insert-N" (strip inserts).
 @MainActor
 final class PluginWindows {
-    private var windows: [SendBus: NSWindow] = [:]
+    private var windows: [String: NSWindow] = [:]
 
-    func open(_ plugin: HostedPlugin, bus: SendBus) {
-        if let window = windows[bus] {
+    func open(_ plugin: HostedPlugin, key: String) {
+        if let window = windows[key] {
             window.makeKeyAndOrderFront(nil)
             return
         }
@@ -181,7 +184,7 @@ final class PluginWindows {
                 window.title = plugin.info.name + (controller == nil ? " (generic view)" : "")
                 window.styleMask = [.titled, .closable, .miniaturizable]
                 window.isReleasedWhenClosed = false
-                self.windows[bus] = window
+                self.windows[key] = window
                 window.makeKeyAndOrderFront(nil)
             } }
         }
@@ -207,8 +210,8 @@ final class PluginWindows {
         return window
     }
 
-    func close(_ bus: SendBus) {
-        windows[bus]?.close()
-        windows[bus] = nil
+    func close(_ key: String) {
+        windows[key]?.close()
+        windows[key] = nil
     }
 }

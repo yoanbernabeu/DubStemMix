@@ -18,7 +18,7 @@ private func fxGroup(strip: Int, mix: MixController) -> (title: String, color: C
     case .inserts:
         let state = mix.strips[strip]
         if state.insertHosted { return ("AU", Theme.text) }
-        return state.insert.map { ($0.label.uppercased(), Theme.text) }
+        return state.insert.map { ($0.shortLabel, Theme.text) }
     case .master:
         let parameters = FXParameter.masterLayout[strip].compactMap { $0 }
         guard let title = parameters.first?.masterGroup else { return nil }
@@ -150,12 +150,33 @@ private struct StripView: View {
     private var group: (title: String, color: Color)? { fxGroup(strip: index, mix: model.mix) }
 
     /// En-tête de la zone des potards : sur la page FX, l'effet qu'ils pilotent — pas le stem.
+    /// On the INSERTS page the title is the insert menu.
     private var header: some View {
         HStack(spacing: 5) {
             Text("\(index + 1)")
                 .font(Fonts.mono(10))
                 .foregroundStyle(Theme.textDim)
-            if let group {
+            if model.mix.page == .inserts {
+                Menu { insertMenuItems } label: {
+                    HStack(spacing: 3) {
+                        Text(model.loadingInsert.contains(index) ? "LOADING…" : (group?.title ?? "INSERT"))
+                            .font(Fonts.label(11, weight: 850))
+                            .tracking(1.2)
+                            .foregroundStyle(group == nil ? Theme.textDim : Theme.text)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(Theme.textDim)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .disabled(model.isPreview)
+            } else if let group {
                 Text(group.title)
                     .font(Fonts.label(11, weight: 850))
                     .tracking(1.2)
@@ -222,6 +243,7 @@ private struct StripView: View {
                             Button("Use the file name") { model.renameStrip(index, "") }
                         }
                     }
+                    Menu("Insert") { insertMenuItems }
                 }
                 .help(isEmpty ? "" : "Double-click to rename the strip")
         }
@@ -240,6 +262,10 @@ private struct StripView: View {
             fxCell(parameter)
         } else if case let .macro(bus, macro) = model.mix.cell(strip: index, row: row) {
             macroCell(bus: bus, index: macro)
+        } else if case let .insert(_, parameter) = model.mix.cell(strip: index, row: row) {
+            insertCell(parameter)
+        } else if case let .insertMacro(_, macro) = model.mix.cell(strip: index, row: row) {
+            insertMacroCell(macro)
         } else {
             Circle()
                 .stroke(Theme.border, style: StrokeStyle(lineWidth: 1.5, dash: [3, 4]))
@@ -310,6 +336,100 @@ private struct StripView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
+    }
+
+    /// INSERTS page: a parameter of the strip's built-in insert.
+    private func insertCell(_ parameter: Int) -> some View {
+        let value = strip.insertValues[parameter]
+        return VStack(spacing: 2) {
+            Knob(
+                value: Binding(get: { value }, set: { model.setInsertValue(strip: index, index: parameter, $0) }),
+                color: Theme.text,
+                ghost: model.mix.insertGhost(strip: index, index: parameter),
+                size: 54
+            )
+            Text(strip.insert?.parameters[parameter].label ?? "")
+                .font(Fonts.label(9.5, weight: 800))
+                .tracking(0.6)
+                .foregroundStyle(Theme.text)
+                .lineLimit(1)
+            Text(model.mix.insertDisplay(strip: index, index: parameter))
+                .font(Fonts.mono(10))
+                .foregroundStyle(Theme.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+    }
+
+    /// INSERTS page, plugin insert: a macro the user assigns to one of the plugin's parameters.
+    private func insertMacroCell(_ macro: Int) -> some View {
+        let value = strip.insertMacros[macro]
+        let target = model.insertMacroTarget(strip: index, index: macro)
+        return VStack(spacing: 2) {
+            Knob(
+                value: Binding(get: { value }, set: { model.mix.setInsertMacro(strip: index, index: macro, $0) }),
+                color: Theme.text,
+                ghost: model.mix.insertGhost(strip: index, index: macro),
+                size: 54
+            )
+            .opacity(target == nil ? 0.35 : 1)
+            .allowsHitTesting(target != nil)
+            Menu {
+                Button("None") { model.assignInsertMacro(nil, strip: index, index: macro) }
+                Divider()
+                ForEach(model.engine.insertPlugins[index]?.parameters ?? []) { parameter in
+                    Button(parameter.name) { model.assignInsertMacro(parameter, strip: index, index: macro) }
+                }
+            } label: {
+                Text(target?.name.uppercased() ?? "ASSIGN ▾")
+                    .font(Fonts.label(9.5, weight: 800))
+                    .tracking(0.6)
+                    .foregroundStyle(target == nil ? Theme.textDim : Theme.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            Text(model.insertMacroDisplay(strip: index, index: macro))
+                .font(Fonts.mono(10))
+                .foregroundStyle(Theme.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+    }
+
+    /// Insert menu (PRD § 11.5): none, a built-in insert, or any Audio Unit; in the INSERTS page header and
+    /// in the name plate's context menu.
+    @ViewBuilder
+    private var insertMenuItems: some View {
+        let hosted = strip.insertHosted
+        Button((!hosted && strip.insert == nil ? "✓ " : "") + "None") { model.setInsert(strip: index, nil) }
+        ForEach(InsertKind.allCases, id: \.self) { kind in
+            Button((!hosted && strip.insert == kind ? "✓ " : "") + "Built-in · \(kind.label)") { model.setInsert(strip: index, kind) }
+        }
+        if strip.insert == .autoWah, strip.insertValues.count > 3 {
+            let down = strip.insertValues[3] >= 0.5
+            Button((down ? "✓ " : "") + "Down mode (louder closes the filter)") { model.setInsertValue(strip: index, index: 3, down ? 0 : 1) }
+        }
+        if hosted {
+            Button("Open plugin window") { model.openInsertWindow(strip: index) }
+        }
+        Divider()
+        ForEach(insertManufacturers, id: \.self) { manufacturer in
+            Menu(manufacturer) {
+                ForEach(model.installedPlugins.filter { $0.manufacturer == manufacturer }) { info in
+                    let current = hosted && model.engine.insertPlugins[index]?.info.id == info.id
+                    Button((current ? "✓ " : "") + info.name) { model.loadInsertPlugin(info, strip: index) }
+                }
+            }
+        }
+    }
+
+    private var insertManufacturers: [String] {
+        var seen = Set<String>()
+        return model.installedPlugins.map(\.manufacturer).filter { seen.insert($0).inserted }
     }
 
     private func sendCell(_ row: Int) -> some View {
@@ -392,7 +512,8 @@ private struct MasterView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 StripButton(title: "◀ MIX", active: model.mix.page == .mix) { model.mix.setPage(.mix) }
                 StripButton(title: "FX", active: model.mix.page == .fx) { model.mix.setPage(.fx) }
-                StripButton(title: "MASTER ▶", active: model.mix.page == .master) { model.mix.setPage(.master) }
+                StripButton(title: "MASTER", active: model.mix.page == .master) { model.mix.setPage(.master) }
+                StripButton(title: "INSERTS ▶", active: model.mix.page == .inserts) { model.mix.setPage(.inserts) }
                 Text("GESTURES")
                     .font(Fonts.mono(9))
                     .foregroundStyle(Theme.textDim)

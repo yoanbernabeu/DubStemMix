@@ -54,6 +54,10 @@ enum DocumentsCheck {
             model.mix.setFX(.killBass, 0.25)
             model.setReverbModel(.spring)
             model.setThrowTarget(.both)
+            model.setBus3Model(.flanger)
+            model.setInsert(strip: 4, .sub)
+            model.setInsertValue(strip: 4, index: 0, 0.9)
+            check(model.engine.inserts[4] == .sub && model.mix.strips[4].insert == .sub, "insert intégré posé sur la tranche 5")
             model.mix.setFX(.delayFeedback, 0.83)
             model.toggleLoop()
             model.mix.setTempo(72.5)
@@ -75,6 +79,8 @@ enum DocumentsCheck {
             check(model.mix.fx[.killBass] == 0.25, "réouverture : réglage de la chaîne master restauré")
             check(model.reverbModel == .spring && model.engine.reverbModel == .spring, "réouverture : reverb à ressort restaurée")
             check(model.throwTarget == .both && model.engine.throwTarget == .both, "réouverture : cible du throw restaurée")
+            check(model.bus3Model == .flanger && model.engine.bus3Model == .flanger, "réouverture : flanger sur le bus 3 restauré")
+            check(model.engine.inserts[4] == .sub && model.mix.strips[4].insertValues.first == 0.9, "réouverture : insert intégré et réglage restaurés")
             model.renameStrip(4, "")
             check(model.mix.strips[4].name == "BASS", "nom vidé : retour au nom du fichier")
             model.renameStrip(4, "riddim")
@@ -127,6 +133,26 @@ enum DocumentsCheck {
                     wait { model.engine.plugins[.reverb] != nil }
                     check(model.macroTarget(bus: .reverb, index: 0) == parameter, "macros mémorisées par plugin et reproposées")
                     model.useBuiltInEffect(on: .reverb)
+
+                    print("Plugin Audio Unit en insert de tranche")
+                    UserDefaults.standard.removeObject(forKey: "insertmacros." + appleDelay.id)
+                    model.loadInsertPlugin(appleDelay, strip: 2)
+                    wait { model.engine.insertPlugins[2] != nil }
+                    check(model.engine.insertPlugins[2] != nil && model.mix.strips[2].insertHosted, "plugin chargé en insert de la tranche 3")
+                    model.assignInsertMacro(parameter, strip: 2, index: 1)
+                    model.mix.setInsertMacro(strip: 2, index: 1, 0.4)
+                    model.followInsertPlugins(refreshStates: true)
+                    model.saveProject()
+                    model.newSession()
+                    check(model.engine.insertPlugins.isEmpty && !model.mix.strips[2].insertHosted, "nouvelle session : plus d'insert")
+                    model.openProject(movedDocument)
+                    wait { model.engine.insertPlugins[2] != nil }
+                    check(model.engine.insertPlugins[2]?.info.id == appleDelay.id, "réouverture : le plugin revient en insert")
+                    check(model.insertMacroTarget(strip: 2, index: 1) == parameter, "réouverture : la macro d'insert est toujours affectée")
+                    let restoredInsert = model.engine.insertPlugins[2]?.normalizedValue(parameter.address) ?? -1
+                    check(abs(restoredInsert - 0.4) < 0.02, "réouverture : l'état du plugin d'insert est restauré")
+                    model.setInsert(strip: 2, nil)
+                    UserDefaults.standard.removeObject(forKey: "insertmacros." + appleDelay.id)
                 }
                 UserDefaults.standard.removeObject(forKey: memoryKey)
 
