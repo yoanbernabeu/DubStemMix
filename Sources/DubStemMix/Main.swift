@@ -7,7 +7,7 @@ import SwiftUI
 //   swift run DubStemMix --check-plugins                 charge chaque plugin AU tiers installé, sans son, et rapporte
 //   swift run DubStemMix --check-documents               auto-contrôle projets + setlist, sans interface ni son
 //   swift run DubStemMix --check-audio                   carte son, buffer, charge DSP et décrochages sur le vrai moteur
-//   swift run DubStemMix --snapshot out.png [--fx]       rend l'interface (données de démo) dans un PNG
+//   swift run DubStemMix --snapshot out.png [--fx | --settings]   rend l'interface (données de démo) dans un PNG
 
 @main
 enum Main {
@@ -27,20 +27,22 @@ enum Main {
         } else if args.contains("--check-audio") {
             AudioCheck.run()
         } else if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
-            snapshot(to: args[i + 1], fxPage: args.contains("--fx"))
+            snapshot(to: args[i + 1], fxPage: args.contains("--fx"), settings: args.contains("--settings"))
         } else {
             DubStemMixApp.main()
         }
     }
 
     @MainActor
-    private static func snapshot(to path: String, fxPage: Bool) {
+    private static func snapshot(to path: String, fxPage: Bool, settings: Bool) {
         guard let model = try? AppModel(preview: true) else {
             print("Échec de la création du modèle de démonstration")
             exit(1)
         }
         if fxPage { model.mix.setPage(.fx) }
-        let renderer = ImageRenderer(content: RootView(model: model).frame(width: 1440, height: 900))
+        let renderer = settings
+            ? ImageRenderer(content: AnyView(SettingsView(model: model)))
+            : ImageRenderer(content: AnyView(RootView(model: model).frame(width: 1440, height: 900)))
         renderer.scale = 1
         guard let image = renderer.nsImage,
               let tiff = image.tiffRepresentation,
@@ -78,6 +80,9 @@ struct DubStemMixApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1440, height: 900)
+        Settings {
+            if let model { SettingsView(model: model) }
+        }
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Session") { model?.newSession() }.keyboardShortcut("n")

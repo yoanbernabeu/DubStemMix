@@ -221,7 +221,7 @@ private struct Chip: View {
     }
 }
 
-/// Enregistre le master (ce qu'on entend, après le limiteur) en WAV 24 bits dans ~/Music/DubStemMix.
+/// Enregistre le master (ce qu'on entend, après le limiteur) en WAV 24 bits dans le dossier des Réglages.
 private struct RecordButton: View {
     var model: AppModel
 
@@ -241,7 +241,7 @@ private struct RecordButton: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut("r", modifiers: .command)
-        .help("Record the master to ~/Music/DubStemMix (⌘R)")
+        .help("Record the master to \(model.recordingsFolder.path(percentEncoded: false)) (⌘R)")
     }
 
     private var timecode: String {

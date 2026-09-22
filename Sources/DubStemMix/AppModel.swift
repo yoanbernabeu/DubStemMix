@@ -51,6 +51,11 @@ final class AppModel {
     // Preferences. See AppModel+Settings.swift.
     /// Per bus (`SendBus.rawValue`): send taken before the fader and mute.
     var sendPreFader = AppModel.storedSendPreFader()
+    var recordingsFolder = AppModel.storedRecordingsFolder()
+    /// Output devices offered in Settings, and the one in use (its UID) with its buffer size.
+    var outputDevices: [AudioDeviceInfo] = []
+    var outputDeviceUID = ""
+    var bufferFrames = 0
 
     var isRecording = false
     var recordingTime = 0.0
@@ -76,6 +81,7 @@ final class AppModel {
             if demoData { loadPreviewData() }
             return
         }
+        applyStoredAudioPreferences()
         refreshAudioStatus()
         midi.onEvent = { [weak self] in self?.mix.handle($0) }
         midi.onConnectionChange = { [weak self] connected in
@@ -122,9 +128,6 @@ final class AppModel {
 
     // MARK: Enregistrement du master
 
-    static let recordingsFolder = FileManager.default.urls(for: .musicDirectory, in: .userDomainMask)[0]
-        .appending(path: "DubStemMix")
-
     func toggleRecording() {
         if isRecording {
             lastRecording = engine.stopRecording()
@@ -132,13 +135,13 @@ final class AppModel {
             return
         }
         do {
-            try FileManager.default.createDirectory(at: Self.recordingsFolder, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: recordingsFolder, withIntermediateDirectories: true)
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.dateFormat = "yyyy-MM-dd HH.mm.ss" // heure locale
             let stamp = formatter.string(from: .now)
             let name = (title.isEmpty ? "Untitled" : title.capitalized).replacingOccurrences(of: "/", with: "-")
-            try engine.startRecording(to: Self.recordingsFolder.appending(path: "\(name) \(stamp).wav"))
+            try engine.startRecording(to: recordingsFolder.appending(path: "\(name) \(stamp).wav"))
             errorMessage = nil
             recordingTime = 0
             isRecording = true
@@ -308,6 +311,10 @@ final class AppModel {
         title = "MIDNIGHT VERSION"
         audioDevice = "MacBook Pro Speakers"
         audioFormat = "48 kHz · buffer 128"
+        outputDevices = [AudioDeviceInfo(id: 1, uid: "built-in", name: "MacBook Pro Speakers"),
+                         AudioDeviceInfo(id: 2, uid: "scarlett", name: "Scarlett 2i2 USB")]
+        outputDeviceUID = "built-in"
+        bufferFrames = 128
         dspLoad = 0.23
         let demo: [(String, [String], [Double], Double, Float)] = [
             ("DRUMS", ["kick.wav", "snare.wav", "hats.wav"], [0, 0.18, 0], 0.80, 0.82),

@@ -7,6 +7,12 @@ public struct AudioDeviceInfo: Identifiable, Hashable, Sendable {
     /// Stable across launches (the CoreAudio `id` is not).
     public let uid: String
     public let name: String
+
+    public init(id: AudioDeviceID, uid: String, name: String) {
+        self.id = id
+        self.uid = uid
+        self.name = name
+    }
 }
 
 /// CoreAudio (HAL) access to audio devices: listing, buffer size, sample rate, dropouts.
