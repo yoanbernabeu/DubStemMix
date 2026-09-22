@@ -38,6 +38,44 @@ extension AppModel {
         pluginStates[bus] = nil
     }
 
+    // MARK: Plugin crash (out-of-process extension gone)
+
+    /// The system tells us when the connection to an extension process (AUv3) is lost. Plugins bridged out of
+    /// process (v2) get no such notification: `checkPluginLiveness` polls them instead.
+    func watchPluginCrashes() {
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name(kAudioComponentInstanceInvalidationNotification as String), object: nil, queue: .main
+        ) { [weak self] note in
+            // Identities only cross into the main actor: the objects themselves stay where they are.
+            let unit = (note.object as AnyObject?).map(ObjectIdentifier.init)
+            let pointer = ((note.userInfo?["audioUnit"] as? NSValue)?.pointerValue).map { UInt(bitPattern: $0) }
+            MainActor.assumeIsolated { self?.pluginInvalidated(auAudioUnit: unit, audioUnit: pointer) }
+        }
+    }
+
+    private func pluginInvalidated(auAudioUnit: ObjectIdentifier?, audioUnit: UInt?) {
+        for (bus, plugin) in engine.plugins {
+            let sameObject = auAudioUnit == ObjectIdentifier(plugin.unit.auAudioUnit)
+            let samePointer = audioUnit != nil && audioUnit == UInt(bitPattern: plugin.unit.audioUnit)
+            if sameObject || samePointer { pluginCrashed(on: bus) }
+        }
+    }
+
+    /// Once a second: a plugin whose process died no longer answers.
+    func checkPluginLiveness() {
+        for (bus, plugin) in engine.plugins where !plugin.isAlive { pluginCrashed(on: bus) }
+    }
+
+    /// Back to the built-in effect, with a warning. The slot stays in the project (state and macros as last
+    /// known) so the song is not silently changed; picking the plugin again in the slot menu reloads it.
+    private func pluginCrashed(on bus: SendBus) {
+        guard let plugin = engine.plugins[bus] else { return }
+        let entry = Project.SlotEntry(plugin: plugin.info, state: pluginStates[bus], macros: engine.macroTargets[bus] ?? [])
+        unloadPlugin(on: bus)
+        unresolvedSlots[bus.key] = entry
+        errorMessage = "\(plugin.info.name) crashed — built-in effect used instead (pick it again in the slot menu to reload)"
+    }
+
     func useBuiltInEffect(on bus: SendBus) {
         unresolvedSlots[bus.key] = nil
         unloadPlugin(on: bus)
@@ -88,6 +126,7 @@ extension AppModel {
             }
         }
         pluginStateCountdown -= 1
+        if pluginStateCountdown % 30 == 0 { checkPluginLiveness() }
         if pluginStateCountdown <= 0 {
             pluginStateCountdown = 150 // toutes les 5 s : demander son état complet à un plugin n'est pas gratuit
             refreshPluginStates()

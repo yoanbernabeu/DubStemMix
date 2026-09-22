@@ -100,6 +100,18 @@ public final class HostedPlugin {
         return HostedPlugin(info: info, unit: unit, isOutOfProcess: outOfProcess)
     }
 
+    /// False once the process hosting the plugin is gone: a property read then fails with an XPC error
+    /// (connection invalid or interrupted) or `kAudioComponentErr_InstanceInvalidated`. The system's
+    /// invalidation notification is not posted for v2 plugins bridged out of process, hence this poll.
+    public var isAlive: Bool {
+        guard isOutOfProcess else { return true }
+        var latency: Float64 = 0
+        var size = UInt32(MemoryLayout<Float64>.size)
+        let status = AudioUnitGetProperty(unit.audioUnit, kAudioUnitProperty_Latency, kAudioUnitScope_Global, 0, &latency, &size)
+        let xpcInterrupted: OSStatus = 4097, xpcInvalid: OSStatus = 4099
+        return ![xpcInterrupted, xpcInvalid, kAudioComponentErr_InstanceInvalidated].contains(status)
+    }
+
     // MARK: Paramètres
 
     public var parameters: [PluginParameter] {

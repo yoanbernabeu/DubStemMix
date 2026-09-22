@@ -79,6 +79,7 @@ final class AppModel {
         mix = MixController(engine: engine, surface: preview ? nil : midi)
         installedPlugins = PluginInfo.installed()
         for bus in SendBus.allCases { engine.setSendPreFader(bus, sendPreFader[bus.rawValue]) }
+        watchPluginCrashes()
         if preview {
             if demoData { loadPreviewData() }
             return

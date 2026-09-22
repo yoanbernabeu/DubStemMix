@@ -7,6 +7,7 @@ import SwiftUI
 //   swift run DubStemMix --check-plugins                 charge chaque plugin AU tiers installé, sans son, et rapporte
 //   swift run DubStemMix --check-documents               auto-contrôle projets + setlist, sans interface ni son
 //   swift run DubStemMix --check-audio                   carte son, buffer, charge DSP et décrochages sur le vrai moteur
+//   swift run DubStemMix --check-plugin-crash            tue le processus d'un plugin hors processus et vérifie la bascule
 //   swift run DubStemMix --snapshot out.png [--fx | --settings]   rend l'interface (données de démo) dans un PNG
 
 @main
@@ -26,6 +27,8 @@ enum Main {
             DocumentsCheck.run()
         } else if args.contains("--check-audio") {
             AudioCheck.run()
+        } else if args.contains("--check-plugin-crash") {
+            PluginCrashCheck.run()
         } else if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
             snapshot(to: args[i + 1], fxPage: args.contains("--fx"), settings: args.contains("--settings"))
         } else {
