@@ -597,13 +597,33 @@ private struct StemPool: View {
 private struct SetlistSection: View {
     var model: AppModel
 
+    @State private var renaming = false
+    @State private var draftName = ""
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(model.setlist.map { $0.name.isEmpty ? "SETLIST" : "SETLIST · \($0.name)" } ?? "SETLIST")
-                    .font(Fonts.mono(9.5))
-                    .foregroundStyle(Theme.textDim)
-                    .lineLimit(1)
+                if renaming {
+                    TextField("Setlist name", text: $draftName)
+                        .textFieldStyle(.plain)
+                        .font(Fonts.mono(9.5))
+                        .foregroundStyle(Theme.text)
+                        .onSubmit {
+                            model.renameSetlist(draftName)
+                            renaming = false
+                        }
+                        .onExitCommand { renaming = false }
+                        .onAppear { draftName = model.setlist?.name ?? "" }
+                } else {
+                    Text(model.setlist.map { $0.name.isEmpty ? "SETLIST" : "SETLIST · \($0.name)" } ?? "SETLIST")
+                        .font(Fonts.mono(9.5))
+                        .foregroundStyle(Theme.textDim)
+                        .lineLimit(1)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) { if model.setlist != nil { renaming = true } }
+                        .contextMenu { if model.setlist != nil { Button("Rename…") { renaming = true } } }
+                        .help(model.setlist == nil ? "" : "Double-click to rename the setlist")
+                }
                 Spacer()
                 if model.setlist != nil {
                     Button { model.closeSetlist() } label: {
@@ -646,6 +666,7 @@ private struct SetlistSection: View {
                 .background(RoundedRectangle(cornerRadius: 6).fill(current ? Theme.text : .clear))
                 .contentShape(Rectangle())
                 .onTapGesture { model.openSetlistEntry(at: index) }
+                .setlistDrag(entry, model: model)
                 .contextMenu {
                     Button("Move up") { model.moveInSetlist(entry, by: -1) }
                     Button("Move down") { model.moveInSetlist(entry, by: 1) }
@@ -662,6 +683,23 @@ private struct SetlistSection: View {
         parts.append(String(format: "%d:%02d", Int(entry.duration) / 60, Int(entry.duration) % 60))
         if next { parts.append("NEXT (N)") }
         return parts.joined(separator: " · ")
+    }
+}
+
+extension View {
+    /// Setlist rows can be dragged onto one another to reorder the set (disabled for PNG captures).
+    @ViewBuilder
+    fileprivate func setlistDrag(_ entry: SetlistEntry, model: AppModel) -> some View {
+        if model.isPreview {
+            self
+        } else {
+            draggable(entry.id.uuidString)
+                .dropDestination(for: String.self) { ids, _ in
+                    guard let id = ids.first, let dragged = model.setlistEntries.first(where: { $0.id.uuidString == id }) else { return false }
+                    model.moveInSetlist(dragged, onto: entry)
+                    return true
+                }
+        }
     }
 }
 

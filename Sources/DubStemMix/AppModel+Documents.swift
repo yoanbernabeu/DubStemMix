@@ -216,6 +216,24 @@ extension AppModel {
         saveSetlist()
     }
 
+    /// Drag and drop: puts `entry` where `target` is (before it when moving up, after it when moving down).
+    func moveInSetlist(_ entry: SetlistEntry, onto target: SetlistEntry) {
+        guard var projects = setlist?.projects, entry != target,
+              let from = projects.firstIndex(of: entry.reference), let to = projects.firstIndex(of: target.reference)
+        else { return }
+        let moved = projects.remove(at: from)
+        projects.insert(moved, at: to)
+        setlist?.projects = projects
+        refreshSetlistEntries()
+        saveSetlist()
+    }
+
+    func renameSetlist(_ name: String) {
+        guard setlist != nil else { return }
+        setlist?.name = name.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        saveSetlist()
+    }
+
     func closeSetlist() {
         setlist = nil
         setlistURL = nil

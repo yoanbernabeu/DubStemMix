@@ -148,6 +148,10 @@ enum DocumentsCheck {
             check(model.setlistIndex == 1, "N sur le dernier morceau : on reste dessus")
             model.openNextInSetlist(offset: -1)
             check(model.setlistIndex == 0, "P : morceau précédent")
+            model.moveInSetlist(model.setlistEntries[0], onto: model.setlistEntries[1])
+            check(model.setlistEntries.map(\.title) == ["second", "song"] || model.setlistIndex == 1, "glisser-déposer : morceau courant passé en 2e position")
+            model.renameSetlist(" friday ")
+            check((try? Setlist.load(from: setlistFile))?.name == "FRIDAY", "setlist renommée et enregistrée")
         } catch {
             print("  ❌ erreur inattendue : \(error)")
             failures += 1
