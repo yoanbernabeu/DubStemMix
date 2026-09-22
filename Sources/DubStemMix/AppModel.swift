@@ -53,6 +53,12 @@ final class AppModel {
     var detectingTempo = false
     @ObservationIgnored private var taps: [Date] = []
 
+    // Delay and reverb (PRD § 11.4): mirrors of the engine's state, for the interface and the project.
+    var reverbModel = ReverbModel.plate
+    var throwTarget = ThrowTarget.delay
+    /// HOLD held (H): the delay loops on itself.
+    var holding = false
+
     // Preferences. See AppModel+Settings.swift.
     /// Per bus (`SendBus.rawValue`): send taken before the fader and mute.
     var sendPreFader = AppModel.storedSendPreFader()
@@ -255,6 +261,9 @@ final class AppModel {
         stripNames = [:]
         mix.setDrop(false)
         for strip in 0..<AudioEngine.stripCount { mix.setKeep(strip: strip, false) }
+        setHold(false)
+        setReverbModel(.plate)
+        setThrowTarget(.delay)
         unresolvedStems = []
         unresolvedSlots = [:]
         for bus in SendBus.allCases { unloadPlugin(on: bus) }
@@ -313,6 +322,10 @@ final class AppModel {
             mix.setDrop(down)
         case "r":
             if down { pullUp() }
+        case "h":
+            setHold(down)
+        case "c":
+            if down { crash() }
         default:
             return false
         }
@@ -321,6 +334,31 @@ final class AppModel {
 
     func pullUp() {
         engine.pullUp()
+    }
+
+    func setHold(_ on: Bool) {
+        holding = on
+        engine.setHold(on)
+    }
+
+    /// CRASH hits the spring; on the plate the gesture does nothing and says so.
+    func crash() {
+        guard reverbModel == .spring else {
+            errorMessage = "CRASH needs the Spring reverb (slot menu of the REVERB bus)"
+            return
+        }
+        engine.crash()
+    }
+
+    func setReverbModel(_ model: ReverbModel) {
+        reverbModel = model
+        engine.setReverbModel(model)
+        if model == .spring, errorMessage?.hasPrefix("CRASH needs") == true { errorMessage = nil }
+    }
+
+    func setThrowTarget(_ target: ThrowTarget) {
+        throwTarget = target
+        engine.setThrowTarget(target)
     }
 
     func toggleKeep(strip: Int) {

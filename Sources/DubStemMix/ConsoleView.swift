@@ -15,7 +15,10 @@ private func fxGroup(strip: Int, page: MixController.Page) -> (title: String, co
     case .mix:
         return nil
     case .master:
-        return FXParameter.masterLayout[strip].compactMap { $0?.masterGroup }.first.map { ($0, Theme.text) }
+        let parameters = FXParameter.masterLayout[strip].compactMap { $0 }
+        guard let title = parameters.first?.masterGroup else { return nil }
+        let color = parameters.first?.bus.map { Bus(rawValue: $0.rawValue)!.color } ?? Theme.text
+        return (title, color)
     case .fx:
         let buses = Set(FXParameter.layout[strip].compactMap { $0?.bus })
         guard let first = buses.first else { return nil }
@@ -394,6 +397,11 @@ private struct MasterView: View {
                     .help("Hold: cuts every strip not marked KEEP (key D)")
                 StripButton(title: "REWIND", active: model.engine.isPullingUp, activeColor: Theme.delay) { model.pullUp() }
                     .help("Pull-up: brake the tape, back to the top, play (key R)")
+                MomentaryButton(title: "HOLD", active: model.holding, activeColor: Theme.delay) { model.setHold($0) }
+                    .help("Hold: the delay loops on itself (key H)")
+                StripButton(title: "CRASH", active: false, activeColor: Theme.reverb) { model.crash() }
+                    .help("Hit the spring reverb (key C)")
+                    .opacity(model.reverbModel == .spring ? 1 : 0.45)
                 Spacer(minLength: 0)
                 StripButton(title: anySolo ? "CLEAR SOLO" : "SOLO", active: anySolo) {
                     for (strip, state) in model.mix.strips.enumerated() where state.solo {

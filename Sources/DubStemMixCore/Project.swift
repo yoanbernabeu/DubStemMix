@@ -77,6 +77,9 @@ public struct Project: Codable, Equatable, Sendable {
     public var stripNames: [String: String]?
     /// Strips marked KEEP: they survive the DROP gesture (PRD § 11.6).
     public var keep: [Int]?
+    /// Built-in reverb model (`ReverbModel.rawValue`) and dub throw target (`ThrowTarget.rawValue`), PRD § 11.4.
+    public var reverbModel: String?
+    public var throwTarget: String?
 
     public init() {}
 

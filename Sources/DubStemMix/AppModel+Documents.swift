@@ -58,6 +58,8 @@ extension AppModel {
         project.stripNames = stripNames.isEmpty ? nil : Dictionary(uniqueKeysWithValues: stripNames.map { ("\($0.key)", $0.value) })
         let kept = mix.strips.indices.filter { mix.strips[$0].keep }
         project.keep = kept.isEmpty ? nil : kept
+        project.reverbModel = reverbModel == .plate ? nil : reverbModel.rawValue
+        project.throwTarget = throwTarget == .delay ? nil : throwTarget.rawValue
         return project
     }
 
@@ -112,6 +114,8 @@ extension AppModel {
         mix.setDelaySync(project.delaySync)
         stripNames = Dictionary(uniqueKeysWithValues: (project.stripNames ?? [:]).compactMap { key, name in Int(key).map { ($0, name) } })
         for strip in project.keep ?? [] where mix.strips.indices.contains(strip) { mix.setKeep(strip: strip, true) }
+        setReverbModel(project.reverbModel.flatMap(ReverbModel.init) ?? .plate)
+        setThrowTarget(project.throwTarget.flatMap(ThrowTarget.init) ?? .delay)
         for entry in project.stems {
             if let url = entry.file.resolve(relativeTo: document) {
                 assign([url], toStrip: min(max(0, entry.strip), AudioEngine.stripCount - 1))

@@ -340,7 +340,7 @@ private struct FXSlotCard: View {
 
     private var sendBus: SendBus { SendBus(rawValue: bus.rawValue)! }
     private var plugin: HostedPlugin? { model.engine.plugins[sendBus] }
-    private var builtInName: String { ["Dub Delay", "Plate", "Bi-Phaser"][bus.rawValue] }
+    private var builtInName: String { ["Dub Delay", model.reverbModel.label, "Bi-Phaser"][bus.rawValue] }
     private var returnParameter: FXParameter { [.delayReturn, .reverbReturn, .phaserReturn][bus.rawValue] }
 
     private var summary: String {
@@ -348,7 +348,10 @@ private struct FXSlotCard: View {
         if let plugin { return plugin.info.manufacturer + (plugin.isOutOfProcess ? "" : " · in-process") }
         func show(_ parameter: FXParameter) -> String { model.mix.fxDisplay(parameter) }
         switch bus {
-        case .delay: return "\(show(.delayTime)) · FB \(show(.delayFeedback))"
+        case .delay:
+            let heads = (model.mix.fx[.delayHeads] ?? 0) > 0.01 ? " · heads \(show(.delayHeads))" : ""
+            let target = model.throwTarget == .delay ? "" : " · throw → \(model.throwTarget.label.lowercased())"
+            return (model.holding ? "HOLD · " : "") + "\(show(.delayTime)) · FB \(show(.delayFeedback))" + heads + target
         case .reverb: return "decay \(show(.reverbDecay))"
         case .bus3: return "\(show(.phaserRate)) · depth \(show(.phaserDepth))"
         }
@@ -394,9 +397,26 @@ private struct FXSlotCard: View {
     /// Le nom de l'effet est un menu : effet intégré, ou un plugin AU (rangés par éditeur).
     private var slotMenu: some View {
         Menu {
-            Button((plugin == nil ? "✓ " : "") + "Built-in · \(builtInName)") { model.useBuiltInEffect(on: sendBus) }
+            if bus == .reverb {
+                ForEach(ReverbModel.allCases, id: \.self) { reverb in
+                    Button((plugin == nil && reverb == model.reverbModel ? "✓ " : "") + "Built-in · \(reverb.label)") {
+                        model.setReverbModel(reverb)
+                        model.useBuiltInEffect(on: sendBus)
+                    }
+                }
+            } else {
+                Button((plugin == nil ? "✓ " : "") + "Built-in · \(builtInName)") { model.useBuiltInEffect(on: sendBus) }
+            }
             if plugin != nil {
                 Button("Open plugin window") { model.openPluginWindow(on: sendBus) }
+            }
+            if bus == .delay {
+                // Where REC ARM / THROW sends the strip (PRD § 11.4).
+                Menu("Dub throw goes to · \(model.throwTarget.label)") {
+                    ForEach(ThrowTarget.allCases, id: \.self) { target in
+                        Button((target == model.throwTarget ? "✓ " : "") + target.label) { model.setThrowTarget(target) }
+                    }
+                }
             }
             Divider()
             ForEach(manufacturers, id: \.self) { manufacturer in
@@ -502,6 +522,7 @@ private struct Sidebar: View {
                     Hint(key: "SOLO + MUTE", text: "solo a strip (⌥-click on screen)")
                     Hint(key: "SPACE · RETURN · L", text: "play / back to start / loop")
                     Hint(key: "D (hold) · R", text: "drop all but KEEP strips / pull-up rewind")
+                    Hint(key: "H (hold) · C", text: "hold the echo / crash the spring")
                     Hint(key: "T", text: "tap tempo")
                     Hint(key: "N · P", text: "next / previous song of the setlist")
                     Hint(key: "⌘R", text: "record the master (24-bit WAV)")
