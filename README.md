@@ -4,7 +4,7 @@
 
 **A dub mixing console for the Akai MIDImix.** Load the stems of a song, and mix it live like a dub engineer: faders, mutes, sends to a tape delay, a reverb and a phaser, dub throws, a stepped high-pass, sound-system kills, drops and rewinds. No DAW, no configuration. Plug the console, drop a folder of stems, play.
 
-Free and open source (MIT), macOS 26, Apple Silicon.
+Free and open source (MIT). macOS 15 or later (built and tested on macOS 26), Apple Silicon.
 
 ## Install
 
@@ -85,7 +85,7 @@ Output device and buffer size (128 or 256 for live), recordings folder, pre/post
 - Plugin latency is not compensated. Fine on send buses (100 % wet), audible in an insert with a plugin that adds latency.
 - Changing the effect of a bus or an insert stops the engine for a fraction of a second (effect tails are cut), then playback resumes where it was: AVAudioEngine cannot rewire while running.
 - Dropping or removing a stem during playback causes a short gap; MUTE takes about 25 ms to close (the mixer's own ramp).
-- macOS 26 only for now: the engine uses the `Synchronization` module and macOS 26 SDK APIs.
+- macOS 14 is out: the engine uses the `Synchronization` module (macOS 15). Only macOS 26 has actually been tested.
 - The MIDImix is the only controller in this version; the mapping lives in one file, other controllers can follow.
 
 ## Build from source

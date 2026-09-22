@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "DubStemMix",
-    platforms: [.macOS(.v26)],
+    platforms: [.macOS(.v15)],
     dependencies: [
         // Stem separation (PRD § 12): ONNX Runtime, Microsoft's official SwiftPM package (MIT).
         .package(url: "https://github.com/microsoft/onnxruntime-swift-package-manager", from: "1.19.2"),

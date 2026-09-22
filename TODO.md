@@ -38,12 +38,12 @@
 
 ## 4. M5 — Publication
 
-- [ ] Vraie **app `.app`** avec icône, lançable sans terminal (aujourd'hui : `swift run`). Icône faite le 22/09 : `Design/AppIcon.icns` (source `tools/make-icon.swift`, potard tricolore sur fond scène).
-- [ ] **README** (installation, prise en main, contournement de Gatekeeper puisque l'app n'est pas notarisée, plugin à régler 100 % wet, limites connues) et **LICENSE** MIT.
-- [ ] **Accueil au premier lancement** : console non détectée, rappel du SEND ALL, mapping d'usine requis. **[toi]** pour le contenu.
-- [ ] **Release GitHub** (archive de l'app) et, si tu veux, formule Homebrew.
-- [ ] Nettoyage avant passage en public : noms de stems neutres dans les tests (ils citent « Akae Beka - Don't Feel No Way »), suppression de la cible `M0Spike`.
-- [ ] Évaluer le support de **macOS 15 / 14** (seulement si presque aucune adaptation).
+- [x] Vraie **app `.app`** — fait le 22/09 : `tools/make-app.sh <version> dist` (release, signature ad hoc, Info.plist avec types .dubstem/.dubset, zip 9,4 Mo). Icône : `Design/AppIcon.icns` (source `tools/make-icon.swift`).
+- [x] **README** et **LICENSE** MIT — faits le 22/09, plus `install.sh` (une ligne : télécharge la dernière release, installe ou met à jour dans /Applications, retire la quarantaine, ouvre l'app).
+- [x] **Accueil au premier lancement** — fait le 22/09 (quatre étapes, Aide ▸ Welcome pour le revoir). **[toi]** relire le texte à l'écran.
+- [ ] **Release GitHub** : workflows écrits (`release.yml` construit et attache le zip à une release ou un tag `v*` sur un runner macos-26 ; `ci.yml` teste chaque push). Reste : pousser `main`, créer le tag `v0.1.0`, vérifier que la pipeline passe sur le runner (impossible à vérifier en local). Homebrew : pas maintenant.
+- [x] Nettoyage — fait le 22/09 : noms de stems neutres dans les tests, cible `M0Spike` supprimée.
+- [x] **macOS 15 / 14** évalué le 22/09 : macOS 15 compile et passe les tests sans adaptation → cible minimale fixée à 15 (non testée sur une vraie machine 15) ; macOS 14 exclu (`Atomic` et `Mutex` du module Synchronization exigent 15).
 - [ ] Passer le repo en **public**. **[toi]**
 
 ## 5. Effets et gestes dub — tranché le 22/09, voir PRD § 11

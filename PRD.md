@@ -19,7 +19,7 @@ Ableton Live + MIDImix fait techniquement la même chose, mais demande un DAW pa
 |---|---|
 | Public | Musiciens, selectors, ingénieurs dub/reggae sur Mac possédant une MIDImix. D'abord l'auteur, puis public. |
 | Modèle | **Open source public**, licence **MIT** |
-| Plateforme | macOS uniquement. Cible : **macOS 26** (machine de l'auteur) ; on descend à 15 ou 14 seulement si cela ne demande presque aucune adaptation (à évaluer en M5) |
+| Plateforme | macOS uniquement. Développé et testé sur **macOS 26** (machine de l'auteur). Évalué en M5 le 22/09/2026 : compile et passe les tests en ciblant **macOS 15** sans aucune adaptation → cible minimale 15 (non testée sur machine) ; macOS 14 exclu (module Synchronization : `Atomic`, `Mutex`) |
 | Langue de l'interface | Anglais uniquement |
 | Usage | **Live** (performance en direct) **+ enregistrement** du mix |
 
