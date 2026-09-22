@@ -1,3 +1,4 @@
+import AVFoundation
 import DubStemMixCore
 import Foundation
 
@@ -72,6 +73,44 @@ enum AudioCheck {
             } catch {
                 check(false, "device switch: \(error.localizedDescription)")
             }
+        }
+        // Pull-up: a short stem, brake, restart from the top.
+        do {
+            let url = FileManager.default.temporaryDirectory.appending(path: "dsm-pullup-\(UUID().uuidString).wav")
+            // Written in its own scope: the file is only complete once its AVAudioFile is released.
+            try {
+                let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)!
+                let file = try AVAudioFile(forWriting: url, settings: format.settings, commonFormat: .pcmFormatFloat32, interleaved: false)
+                let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 48_000 * 4)!
+                buffer.frameLength = buffer.frameCapacity
+                for n in 0..<Int(buffer.frameLength) {
+                    let v = Float(0.2 * sin(2 * Double.pi * 220 * Double(n) / 48_000))
+                    buffer.floatChannelData![0][n] = v
+                    buffer.floatChannelData![1][n] = v
+                }
+                try file.write(from: buffer)
+            }()
+            defer { try? FileManager.default.removeItem(at: url) }
+            try engine.addStem(url: url, name: "tone", strip: 0)
+            engine.setFaderGain(strip: 0, 1)
+            engine.setMasterGain(0.2)
+            engine.play()
+            RunLoop.main.run(until: Date().addingTimeInterval(2))
+            let before = engine.position
+            engine.pullUp()
+            check(engine.isPullingUp, "pull-up started at \(String(format: "%.2f", before)) s")
+            var ticks = 0
+            while engine.isPullingUp, ticks < 200 {
+                engine.tick()
+                RunLoop.main.run(until: Date().addingTimeInterval(1.0 / 30))
+                ticks += 1
+            }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            check(!engine.isPullingUp && engine.isPlaying && engine.position < 1, "restarted from the top after \(ticks) ticks (position \(String(format: "%.2f", engine.position)) s)")
+            check(engine.load.overloadCount == 0, "no dropout during the pull-up")
+            engine.stop()
+        } catch {
+            check(false, "pull-up: \(error.localizedDescription)")
         }
         print(failures == 0 ? "\nAll good." : "\n\(failures) check(s) failed.")
         exit(failures == 0 ? 0 : 1)

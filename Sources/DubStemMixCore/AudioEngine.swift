@@ -48,7 +48,7 @@ public protocol MixEngineControl: AnyObject {
 
 /// Graphe validé au jalon M0 :
 ///
-///   lecteur ─┬─▶ mixeur de tranche (fader/mute) ─┬─▶ master ─▶ gain ─▶ limiteur ─▶ sortie
+///   lecteur ─┬─▶ mixeur de tranche (fader/mute) ─┬─▶ master ─▶ chaîne master ─▶ varispeed ─▶ gain ─▶ limiteur ─▶ sortie
 ///            │                                   └─▶ 3 bus d'envoi (post-fader) ─▶ effet ─▶ retour ─▶ master
 ///            └─▶ 3 send buses (taken before fader and mute: pre-fader sends, dub throw)
 ///                                                                       retour delay ─▶ bus reverb (DLY→REV)
@@ -117,6 +117,12 @@ public final class AudioEngine: MixEngineControl {
     private var sendGains = [[Float]](repeating: [0, 0, 0], count: stripCount)
     private var throwing = [Bool](repeating: false, count: stripCount)
     private var switchingDevice = false
+    /// Pull-up (PRD § 11.3): tape brake on the master, real time only.
+    private var varispeed: AVAudioUnitVarispeed?
+    private var pullUpStart: Date?
+    private var masterVolume: Float = headroom
+    public var isPullingUp: Bool { pullUpStart != nil }
+    private static let pullUpDuration = 1.3
     private var basePosition = 0.0
 
     /// - Parameter offline: rendu manuel sans carte son ni limiteur (tests au sample près).
@@ -190,9 +196,24 @@ public final class AudioEngine: MixEngineControl {
             engine.connect(returnMixers[b], to: main, fromBus: 0, toBus: returnBusBase + b, format: format)
         }
 
+        // Master chain (PRD § 11.3): big knob → kills → dubplate, exact passthrough until touched.
+        var tail: AVAudioNode = main
+        if withEffects {
+            let master = BuiltInEffect(.master)
+            effects[.master] = master
+            engine.attach(master.node)
+            engine.connect(tail, to: master.node, format: format)
+            tail = master.node
+        }
         if offline {
-            masterOutput = main
+            // The main mixer was wired to the output on its own; the master chain now sits in between.
+            if tail !== main { engine.connect(tail, to: engine.outputNode, format: format) }
+            masterOutput = tail
         } else {
+            // Pull-up: a varispeed, bypassed until the gesture (rate 1 = plain passthrough).
+            let varispeed = AVAudioUnitVarispeed()
+            varispeed.auAudioUnit.shouldBypassEffect = true
+            self.varispeed = varispeed
             // Master : rattrapage des 12 dB de marge (tranche + master), puis limiteur de sécurité.
             let makeup = AVAudioUnitEQ(numberOfBands: 1)
             makeup.bands[0].bypass = true
@@ -203,9 +224,9 @@ public final class AudioEngine: MixEngineControl {
                 componentManufacturer: kAudioUnitManufacturer_Apple,
                 componentFlags: 0, componentFlagsMask: 0
             ))
-            engine.attach(makeup)
-            engine.attach(limiter)
-            engine.connect(main, to: makeup, format: format)
+            for node in [varispeed, makeup, limiter] { engine.attach(node) }
+            engine.connect(tail, to: varispeed, format: format)
+            engine.connect(varispeed, to: makeup, format: format)
             engine.connect(makeup, to: limiter, format: format)
             engine.connect(limiter, to: engine.outputNode, format: format)
             masterOutput = limiter
@@ -387,7 +408,36 @@ public final class AudioEngine: MixEngineControl {
     }
 
     public func setMasterGain(_ gain: Float) {
-        engine.mainMixerNode.outputVolume = min(1, gain * Self.headroom)
+        masterVolume = min(1, gain * Self.headroom)
+        if !isPullingUp { engine.mainMixerNode.outputVolume = masterVolume }
+    }
+
+    // MARK: Pull-up (PRD § 11.3)
+
+    /// The selector's rewind: the whole master brakes like a tape (pitch falls with the speed), fades out
+    /// at the bottom, then the song restarts from the top at once. Driven by `tick()`.
+    public func pullUp() {
+        guard isPlaying, varispeed != nil, !isPullingUp else { return }
+        varispeed?.rate = 1
+        varispeed?.auAudioUnit.shouldBypassEffect = false
+        pullUpStart = .now
+    }
+
+    private func advancePullUp() {
+        guard let start = pullUpStart, let varispeed else { return }
+        let t = min(1, Date.now.timeIntervalSince(start) / Self.pullUpDuration)
+        // Speed: 1 → 0.25 (two octaves down, the varispeed's floor), accelerating like a real brake.
+        varispeed.rate = Float(1 - 0.75 * t * t)
+        // The last stretch fades to silence: the tape never quite stops but the ear hears it stop.
+        let fade: Float = t < 0.55 ? 1 : Float(pow(1 - (t - 0.55) / 0.45, 2))
+        engine.mainMixerNode.outputVolume = masterVolume * fade
+        guard t >= 1 else { return }
+        pullUpStart = nil
+        stop()
+        varispeed.rate = 1
+        varispeed.auAudioUnit.shouldBypassEffect = true
+        engine.mainMixerNode.outputVolume = masterVolume
+        play()
     }
 
     public func setFX(_ parameter: FXParameter, _ value: Float) {
@@ -542,6 +592,7 @@ public final class AudioEngine: MixEngineControl {
 
     /// À appeler régulièrement : arrête la lecture en fin de morceau quand la boucle est coupée.
     public func tick() {
+        advancePullUp()
         if isPlaying, !loop, position >= duration - 0.01 { stop() }
     }
 
