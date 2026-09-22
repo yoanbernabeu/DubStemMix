@@ -43,6 +43,18 @@ enum AudioCheck {
         check(load > 0, "render load is measured (the render notify fired)")
         check(load < 0.5, "idle graph stays far from overload")
 
+        // A third-party plugin (out of process) on a bus: the device switch must not lose it.
+        var plugin: HostedPlugin?
+        if let info = PluginInfo.installed().first(where: { $0.manufacturer != "Apple" }) {
+            var done = false
+            Task {
+                plugin = try? await engine.loadPlugin(info, on: .reverb)
+                done = true
+            }
+            while !done { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+            check(plugin != nil, "plugin \(info.name) loaded on the reverb bus" + (plugin?.isOutOfProcess == true ? " (out of process)" : ""))
+        }
+
         // Hot switch to another device (if any), then back.
         if let other = devices.first(where: { $0.id != engine.outputDeviceID }), let current = device {
             do {
@@ -50,8 +62,13 @@ enum AudioCheck {
                 check(engine.outputDeviceID == other.id, "switched to \(other.name)")
                 RunLoop.main.run(until: Date().addingTimeInterval(0.5))
                 check(engine.load.takePeak() > 0, "render load still measured after the switch")
+                if let plugin {
+                    check(engine.plugins[.reverb] === plugin && plugin.isAlive, "plugin still on its bus and answering after the switch")
+                }
                 try engine.setOutputDevice(current)
                 check(engine.outputDeviceID == current.id, "back to \(current.name)")
+                RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+                if let plugin { check(plugin.isAlive, "plugin still answering after switching back") }
             } catch {
                 check(false, "device switch: \(error.localizedDescription)")
             }
