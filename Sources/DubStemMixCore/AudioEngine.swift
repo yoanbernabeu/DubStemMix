@@ -50,7 +50,8 @@ public protocol MixEngineControl: AnyObject {
 ///
 ///   lecteur ─┬─▶ mixeur de tranche (fader/mute) ─┬─▶ master ─▶ gain ─▶ limiteur ─▶ sortie
 ///            │                                   └─▶ 3 bus d'envoi (post-fader) ─▶ effet ─▶ retour ─▶ master
-///            └─▶ bus delay (dub throw, pris avant fader et mute)        retour delay ─▶ bus reverb (DLY→REV)
+///            └─▶ 3 send buses (taken before fader and mute: pre-fader sends, dub throw)
+///                                                                       retour delay ─▶ bus reverb (DLY→REV)
 ///
 /// AVAudioMixerNode lisse lui-même les changements de volume (~25 ms) mais plafonne à 1,0 :
 /// tranches et master travaillent donc 6 dB sous l'unité, rattrapés par l'étage de gain final.
@@ -72,13 +73,18 @@ public final class AudioEngine: MixEngineControl {
 
         let file: AVAudioFile
         let player = AVAudioPlayerNode()
-        /// Bus d'entrée occupés sur le mixeur de tranche et sur le bus delay (dub throw).
+        /// Input buses used on the strip mixer and, for the pre-fader take, on each send bus.
         var inputBus = 0
-        var throwBus = 0
+        var preBuses = [Int](repeating: 0, count: SendBus.allCases.count)
     }
 
     public let meters = MeterStore(count: stripCount + 1)
     public let recorder = MasterRecorder()
+    /// Audio thread load and dropouts (real time only).
+    public let load = RenderLoad()
+    private var overloadListener: AudioDevices.OverloadListener?
+    /// Per bus: the send is taken before the fader and mute (otherwise after, as on a console).
+    public private(set) var preFader = [Bool](repeating: false, count: SendBus.allCases.count)
     public private(set) var stems: [Stem] = []
     public private(set) var isPlaying = false
     public var loop = true {
@@ -110,6 +116,7 @@ public final class AudioEngine: MixEngineControl {
     public static let macroCount = 6
     private var sendGains = [[Float]](repeating: [0, 0, 0], count: stripCount)
     private var throwing = [Bool](repeating: false, count: stripCount)
+    private var switchingDevice = false
     private var basePosition = 0.0
 
     /// - Parameter offline: rendu manuel sans carte son ni limiteur (tests au sample près).
@@ -132,6 +139,7 @@ public final class AudioEngine: MixEngineControl {
             }
         }
         try engine.start()
+        if !offline { watchHealth() }
     }
 
     // MARK: Graphe
@@ -141,6 +149,9 @@ public final class AudioEngine: MixEngineControl {
 
     /// Entrée du bus reverb réservée au renvoi du delay (les tranches occupent 0…7).
     private var delayToReverbBus: Int { Self.stripCount }
+
+    /// First input of a send bus available for pre-fader takes.
+    private func preBusBase(_ bus: SendBus) -> Int { bus == .reverb ? delayToReverbBus + 1 : Self.stripCount }
 
     private func buildGraph(withEffects: Bool) {
         let main = engine.mainMixerNode
@@ -240,6 +251,7 @@ public final class AudioEngine: MixEngineControl {
     public func stopRecording() -> URL? { recorder.stop() }
 
     private func recoverFromConfigurationChange() {
+        guard !switchingDevice else { return } // we are switching devices ourselves: already handled
         // Carte son changée ou débranchée : on relance le moteur et on reprend où on en était.
         let wasPlaying = isPlaying
         let resumeAt = position
@@ -247,6 +259,44 @@ public final class AudioEngine: MixEngineControl {
         basePosition = resumeAt
         try? engine.start()
         if wasPlaying { play() }
+        watchHealth()
+    }
+
+    // MARK: Output device, buffer size, load
+
+    /// Load measurement on the output unit, and dropout listening on the device in use.
+    private func watchHealth() {
+        if let unit = engine.outputNode.audioUnit { load.attach(to: unit) }
+        load.setSampleRate(engine.outputNode.outputFormat(forBus: 0).sampleRate)
+        let load = load
+        overloadListener = AudioDevices.listenForOverloads(on: outputDeviceID) { load.reportOverload() }
+    }
+
+    public var outputDeviceID: AudioDeviceID { engine.outputNode.auAudioUnit.deviceID }
+    public var outputDevice: AudioDeviceInfo? { AudioDevices.info(for: outputDeviceID) }
+    public var outputSampleRate: Double { engine.outputNode.outputFormat(forBus: 0).sampleRate }
+    public var bufferFrames: Int? { AudioDevices.bufferFrames(of: outputDeviceID) }
+
+    /// Hot-switches the output device: the engine stops for the switch, playback resumes at the same position.
+    public func setOutputDevice(_ device: AudioDeviceInfo) throws {
+        guard !offline, device.id != outputDeviceID else { return }
+        switchingDevice = true
+        defer { switchingDevice = false }
+        var failure: Error?
+        restructure {
+            engine.stop()
+            do { try engine.outputNode.auAudioUnit.setDeviceID(device.id) } catch { failure = error }
+            try? engine.start()
+        }
+        watchHealth()
+        if let failure { throw failure }
+    }
+
+    /// - Returns: the size the device actually applied.
+    @discardableResult
+    public func setBufferFrames(_ frames: Int) -> Int? {
+        guard !offline else { return nil }
+        return AudioDevices.setBufferFrames(frames, of: outputDeviceID)
     }
 
     // MARK: Stems
@@ -289,15 +339,19 @@ public final class AudioEngine: MixEngineControl {
     private func connect(_ stem: inout Stem) {
         let strip = stem.strip
         let usedInputs = Set(stems.filter { $0.strip == strip }.map(\.inputBus))
-        let usedThrows = Set(stems.map(\.throwBus))
         stem.inputBus = (0...).first { !usedInputs.contains($0) }!
-        stem.throwBus = (Self.stripCount...).first { !usedThrows.contains($0) }!
-        engine.connect(stem.player, to: [
-            AVAudioConnectionPoint(node: stripMixers[strip], bus: stem.inputBus),
-            AVAudioConnectionPoint(node: busInputs[SendBus.delay.rawValue], bus: stem.throwBus),
-        ], fromBus: 0, format: stem.file.processingFormat)
-        for bus in SendBus.allCases { applySend(bus, strip: strip) }
-        applyThrow(stem)
+        for bus in SendBus.allCases {
+            let used = Set(stems.map { $0.preBuses[bus.rawValue] })
+            stem.preBuses[bus.rawValue] = (preBusBase(bus)...).first { !used.contains($0) }!
+        }
+        let preTakes = SendBus.allCases.map { AVAudioConnectionPoint(node: busInputs[$0.rawValue], bus: stem.preBuses[$0.rawValue]) }
+        engine.connect(stem.player, to: [AVAudioConnectionPoint(node: stripMixers[strip], bus: stem.inputBus)] + preTakes,
+                       fromBus: 0, format: stem.file.processingFormat)
+        // A new connection opens at full volume: apply the intended levels right away.
+        for bus in SendBus.allCases {
+            applySend(bus, strip: strip)
+            applyPreTake(stem, bus)
+        }
     }
 
     /// Toute modification du graphe se fait lecteurs arrêtés, puis la lecture reprend au même endroit.
@@ -323,7 +377,13 @@ public final class AudioEngine: MixEngineControl {
 
     public func setThrow(strip: Int, _ on: Bool) {
         throwing[strip] = on
-        applyThrow(strip: strip)
+        applySend(.delay, strip: strip)
+    }
+
+    /// Send taken before the fader and mute (pre) or after (post), for the whole bus.
+    public func setSendPreFader(_ bus: SendBus, _ pre: Bool) {
+        preFader[bus.rawValue] = pre
+        for strip in 0..<Self.stripCount { applySend(bus, strip: strip) }
     }
 
     public func setMasterGain(_ gain: Float) {
@@ -406,17 +466,17 @@ public final class AudioEngine: MixEngineControl {
     /// Une tranche sans stem n'a pas de destination d'envoi (AVAudioEngine l'écarte du graphe actif) :
     /// les niveaux sont mémorisés et réappliqués dès qu'un stem y est branché.
     private func applySend(_ bus: SendBus, strip: Int) {
-        stripMixers[strip].destination(forMixer: busInputs[bus.rawValue], bus: strip)?.volume = sendGains[strip][bus.rawValue]
+        let post = preFader[bus.rawValue] ? 0 : sendGains[strip][bus.rawValue]
+        stripMixers[strip].destination(forMixer: busInputs[bus.rawValue], bus: strip)?.volume = post
+        for stem in stems where stem.strip == strip { applyPreTake(stem, bus) }
     }
 
-    private func applyThrow(strip: Int) {
-        for stem in stems where stem.strip == strip { applyThrow(stem) }
-    }
-
-    private func applyThrow(_ stem: Stem) {
-        // Le throw part avant le fader : on compense la marge pour qu'il arrive au niveau d'un envoi à fond.
-        stem.player.destination(forMixer: busInputs[SendBus.delay.rawValue], bus: stem.throwBus)?
-            .volume = throwing[stem.strip] ? Self.headroom : 0
+    /// Pre-fader take from a player into a bus: the send when the bus is pre-fader, and on the delay the dub throw
+    /// (worth a send at full). The strip headroom is compensated so the level matches a post-fader send.
+    private func applyPreTake(_ stem: Stem, _ bus: SendBus) {
+        var volume: Float = preFader[bus.rawValue] ? sendGains[stem.strip][bus.rawValue] * Self.headroom : 0
+        if bus == .delay, throwing[stem.strip] { volume = Self.headroom }
+        stem.player.destination(forMixer: busInputs[bus.rawValue], bus: stem.preBuses[bus.rawValue])?.volume = volume
     }
 
     public var outputDescription: String {

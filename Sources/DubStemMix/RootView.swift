@@ -365,7 +365,10 @@ private struct FXSlotCard: View {
                         .foregroundStyle(bus.color)
                         .fixedSize()
                     Tag(text: plugin == nil ? "BUILT-IN" : "AU")
-                    Tag(text: "POST")
+                    Tag(text: model.sendPreFader[bus.rawValue] ? "PRE" : "POST")
+                        .help(model.sendPreFader[bus.rawValue]
+                              ? "Sends to this bus are taken before the fader and mute (Settings)"
+                              : "Sends to this bus follow the fader and mute (Settings)")
                 }
                 slotMenu
             }

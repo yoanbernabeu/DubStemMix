@@ -284,3 +284,40 @@ private func hits(_ samples: [Float]) -> [Int: Float] {
     let recorded = UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength))
     #expect(recorded.allSatisfy { abs($0 - 0.8 * pathGain) < 0.001 })
 }
+
+@MainActor @Test func preFaderSendIgnoresTheFaderAndDoesNotStackWithTheThrow() throws {
+    let engine = try AudioEngine(offline: true)
+    try engine.addStem(url: makeStem(frames: 96_000) { _ in 0.8 }, name: "dc", strip: 0)
+    engine.setMasterGain(1)
+    engine.setFaderGain(strip: 0, 0) // strip cut
+    engine.setSendGain(.reverb, strip: 0, 1)
+    engine.setSendGain(.delay, strip: 0, 1)
+    try warmUp(engine)
+    engine.play()
+    _ = try engine.renderOffline(frames: 9600)
+
+    // Pre-fader reverb send: the bus gets the signal even though the strip is cut.
+    engine.setSendPreFader(.reverb, true)
+    let pre = try engine.renderOffline(frames: 9600)
+    #expect(abs((pre.last ?? 0) - 0.8 * pathGain) < 0.005)
+
+    // Back to post-fader: nothing leaves the cut strip anymore.
+    engine.setSendPreFader(.reverb, false)
+    let post = try engine.renderOffline(frames: 9600)
+    #expect(abs(post.last ?? 1) < 0.001)
+
+    // Pre-fader delay send at full + dub throw: a single take, not twice the level.
+    engine.setSendPreFader(.delay, true)
+    engine.setThrow(strip: 0, true)
+    let thrown = try engine.renderOffline(frames: 9600)
+    #expect(abs((thrown.last ?? 0) - 0.8 * pathGain) < 0.005)
+
+    // A stem added on a pre-fader bus picks up the strip's send level right away.
+    try engine.addStem(url: makeStem(frames: 96_000) { _ in 0.8 }, name: "dc2", strip: 1)
+    engine.setFaderGain(strip: 1, 0)
+    engine.setSendGain(.delay, strip: 1, 1)
+    engine.setThrow(strip: 0, false)
+    _ = try engine.renderOffline(frames: 9600)
+    let two = try engine.renderOffline(frames: 9600)
+    #expect(abs((two.last ?? 0) - 2 * 0.8 * pathGain) < 0.01)
+}

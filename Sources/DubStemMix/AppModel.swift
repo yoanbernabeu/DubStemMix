@@ -42,6 +42,10 @@ final class AppModel {
     var detectingTempo = false
     @ObservationIgnored private var taps: [Date] = []
 
+    // Preferences. See AppModel+Settings.swift.
+    /// Per bus (`SendBus.rawValue`): send taken before the fader and mute.
+    var sendPreFader = AppModel.storedSendPreFader()
+
     var isRecording = false
     var recordingTime = 0.0
     /// Dernier enregistrement terminé (pour le retrouver dans le Finder).
@@ -61,6 +65,7 @@ final class AppModel {
         engine = try AudioEngine(offline: preview, effects: true)
         mix = MixController(engine: engine, surface: preview ? nil : midi)
         installedPlugins = PluginInfo.installed()
+        for bus in SendBus.allCases { engine.setSendPreFader(bus, sendPreFader[bus.rawValue]) }
         if preview {
             if demoData { loadPreviewData() }
             return
