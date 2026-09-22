@@ -75,6 +75,8 @@ public struct Project: Codable, Equatable, Sendable {
     public var slots: [String: SlotEntry]?
     /// Strip names typed by the user, keyed by strip number ("0"…"7"); the others are derived from file names.
     public var stripNames: [String: String]?
+    /// Strips marked KEEP: they survive the DROP gesture (PRD § 11.6).
+    public var keep: [Int]?
 
     public init() {}
 

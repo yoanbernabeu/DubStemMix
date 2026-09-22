@@ -30,6 +30,7 @@ private func temporaryFolder() throws -> URL {
     project.pool = [FileReference(folder.appending(path: "stems/full mix.wav"), relativeTo: document)]
     project.fx = Dictionary(uniqueKeysWithValues: FXParameter.allCases.map { ($0.rawValue, $0.defaultValue) })
     project.stripNames = ["1": "RIDDIM"]
+    project.keep = [0, 1]
     try project.save(to: document)
 
     let loaded = try Project.load(from: document)

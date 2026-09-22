@@ -10,6 +10,7 @@ final class AppModel {
     @ObservationIgnored let engine: AudioEngine
     @ObservationIgnored private let midi = MidiMix()
     @ObservationIgnored private var timer: Timer?
+    @ObservationIgnored private var keys: KeyGestures?
     @ObservationIgnored var peaksByStem: [UUID: [Float]] = [:]
 
     var title = ""
@@ -98,6 +99,7 @@ final class AppModel {
             if self?.midiWarning == nil { self?.midiWarning = description }
         }
         midi.start()
+        keys = KeyGestures { [weak self] key, down in self?.handleGestureKey(key, down: down) ?? false }
         timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -251,6 +253,8 @@ final class AppModel {
         for stem in engine.stems { dropStem(stem.id) }
         pool = []
         stripNames = [:]
+        mix.setDrop(false)
+        for strip in 0..<AudioEngine.stripCount { mix.setKeep(strip: strip, false) }
         unresolvedStems = []
         unresolvedSlots = [:]
         for bus in SendBus.allCases { unloadPlugin(on: bus) }
@@ -298,6 +302,29 @@ final class AppModel {
 
     func refreshWaveform() {
         waveform = Waveform.combine(engine.stems.compactMap { peaksByStem[$0.id] })
+    }
+
+    // MARK: Gestures (PRD § 11.6)
+
+    /// - Returns: true when the key is a gesture (the event is consumed).
+    private func handleGestureKey(_ key: String, down: Bool) -> Bool {
+        switch key {
+        case "d":
+            mix.setDrop(down)
+        case "r":
+            if down { pullUp() }
+        default:
+            return false
+        }
+        return true
+    }
+
+    func pullUp() {
+        engine.pullUp()
+    }
+
+    func toggleKeep(strip: Int) {
+        mix.setKeep(strip: strip, !mix.strips[strip].keep)
     }
 
     // MARK: Transport
@@ -351,6 +378,8 @@ final class AppModel {
         mix.toggleMute(strip: 4)
         mix.toggleMute(strip: 6)
         mix.setThrow(strip: 2, true)
+        mix.setKeep(strip: 0, true)
+        mix.setKeep(strip: 1, true)
         mix.handle(.knob(strip: 3, row: 2, value: 0.2)) // potard « fantôme »
         mix.setSend(strip: 3, row: 2, 0.55)
         levels[AudioEngine.masterMeter] = 0.78
