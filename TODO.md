@@ -9,8 +9,8 @@
 - [ ] **[toi]** Confirmer le geste **SOLO maintenu + MUTE** sur la console (l'app attend les notes 2, 5, 8…, jamais capturées). S'il ne marche pas : relever les vraies notes avec `tools/midi-monitor.swift`.
 - [ ] **[toi]** Juger sur un vrai set si le **chargement du morceau suivant** est assez rapide sans préchargement.
 - [ ] **[toi]** Juger si la **coupure des MUTE** (rampe d'environ 25 ms imposée par le mixeur d'Apple) est assez franche pour des cuts dub secs.
-- [ ] **[toi]** Essayer la **fenêtre Réglages** (⌘,) avec une vraie carte son : changement de carte pendant la lecture, taille de buffer (128 ou 256 pour le live), dossier d'enregistrement, envois PRE sur le delay (le geste dub classique : fader fermé, l'écho continue).
-- [ ] **[toi]** Regarder la ligne **DSP** de la barre d'état sur un vrai set (charge et décrochages) ; si elle reste basse avec 16 stems + 3 effets, le test de charge du § 2 est fait.
+- [x] **[toi]** Fenêtre Réglages (carte son, buffer, dossier, envois PRE) — validée le 22/09.
+- [x] **[toi]** Ligne DSP de la barre d'état — validée le 22/09 (le test de charge à 16 stems reste à faire, § 2).
 - [ ] **[toi]** Provoquer l'avertissement **« console not on factory mapping »** (par exemple en envoyant un CC depuis un autre contrôleur nommé « MIDI Mix », ou en reconfigurant un potard avec l'éditeur Akai) pour valider le message.
 
 ## 2. Promis dans le PRD, pas encore fait
