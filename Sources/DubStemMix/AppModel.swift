@@ -1,4 +1,5 @@
 import DubStemMixCore
+import StemSplit
 import SwiftUI
 
 /// Relie le moteur audio, la MIDImix et la logique de mix à l'interface.
@@ -48,6 +49,15 @@ final class AppModel {
     var unresolvedSlots: [String: Project.SlotEntry] = [:]
     @ObservationIgnored var pluginStates: [SendBus: Data] = [:]
     @ObservationIgnored var pluginStateCountdown = 0
+    // Stem separation (PRD § 12). See AppModel+Separation.swift.
+    var separation = SeparationState.idle
+    var modelStatus = ModelStore.Status.missing
+    var stemsFolder = AppModel.storedStemsFolder()
+    @ObservationIgnored var separationTask: Task<Void, Never>?
+    @ObservationIgnored var pendingSong: URL?
+    /// Session title set by a split (the stems are named drums, bass… and would give no title).
+    var titleOverride: String?
+
     // Strip inserts. See AppModel+Inserts.swift.
     var loadingInsert: Set<Int> = []
     var unresolvedInserts: [String: Project.InsertEntry] = [:]
@@ -100,6 +110,7 @@ final class AppModel {
         }
         applyStoredAudioPreferences()
         refreshAudioStatus()
+        refreshModelStatus()
         midi.onEvent = { [weak self] in self?.mix.handle($0) }
         midi.onConnectionChange = { [weak self] connected in
             self?.midiConnected = connected
@@ -272,6 +283,7 @@ final class AppModel {
         setBus3Model(.phaser)
         for strip in 0..<AudioEngine.stripCount { setInsert(strip: strip, nil) }
         unresolvedInserts = [:]
+        titleOverride = nil
         unresolvedStems = []
         unresolvedSlots = [:]
         for bus in SendBus.allCases { unloadPlugin(on: bus) }
@@ -293,7 +305,7 @@ final class AppModel {
         let urls = engine.stems.map(\.url) + pool.map(\.url)
         let cleaned = StemImporter.stripNames(for: urls.map { $0.deletingPathExtension().lastPathComponent })
         let names = Dictionary(uniqueKeysWithValues: zip(urls, cleaned))
-        title = urls.isEmpty ? "" : StemImporter.sessionTitle(for: urls)
+        title = urls.isEmpty ? "" : (titleOverride ?? StemImporter.sessionTitle(for: urls))
         for index in pool.indices { pool[index].name = names[pool[index].url] ?? "" }
         for strip in 0..<AudioEngine.stripCount {
             let stems = engine.stems.filter { $0.strip == strip }

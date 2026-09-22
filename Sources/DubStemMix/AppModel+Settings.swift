@@ -7,6 +7,7 @@ enum Preference {
     static let outputDeviceUID = "audio.outputDeviceUID"
     static let bufferFrames = "audio.bufferFrames"
     static let recordingsFolder = "recording.folder"
+    static let stemsFolder = "separation.stemsFolder"
 }
 
 extension AppModel {

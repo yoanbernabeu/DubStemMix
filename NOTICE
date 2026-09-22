@@ -1,0 +1,17 @@
+DubStemMix — third-party notices
+
+Code
+  DubStemMix is released under the MIT License (see LICENSE).
+  ONNX Runtime and its Swift package (microsoft/onnxruntime-swift-package-manager): MIT, Microsoft.
+  Fonts: Archivo and JetBrains Mono, SIL Open Font License 1.1.
+
+Stem separation model (downloaded on request, never bundled)
+  Model: htdemucs_ft (Demucs, Meta AI Research), four fine-tuned networks.
+  Files: ONNX exports published by StemSplitio on Hugging Face,
+         repository StemSplitio/htdemucs-ft-onnx, revision 8616370ed541bc183dbe15fb0d54d5f49918f47e.
+  License status: the Hugging Face model card states MIT for the export, but the original Demucs
+  weights carry no explicit license from Meta (facebookresearch/demucs issue #327, open since 2022)
+  and were trained on MUSDB18-HQ, whose terms are "educational purposes only".
+  DubStemMix does not redistribute these weights: this repository, its releases and the app bundle
+  contain no .onnx file. The app downloads them from Hugging Face only after the user agrees, and
+  makes no claim to relicense them.

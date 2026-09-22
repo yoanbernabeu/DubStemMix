@@ -166,7 +166,7 @@ extension AppModel {
     }
 
     /// Seule une session jamais enregistrée peut se perdre : un projet enregistré se sauvegarde tout seul.
-    private func confirmDiscardingUnsavedSession() -> Bool {
+    func confirmDiscardingUnsavedSession() -> Bool {
         guard !isPreview, projectURL == nil, hasUnsavedChanges else { return true } // pas de dialogue sans interface
         let alert = NSAlert()
         alert.messageText = "This session has never been saved"

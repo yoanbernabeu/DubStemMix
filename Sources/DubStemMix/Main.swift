@@ -8,6 +8,8 @@ import SwiftUI
 //   swift run DubStemMix --check-documents               auto-contrôle projets + setlist, sans interface ni son
 //   swift run DubStemMix --check-audio                   carte son, buffer, charge DSP et décrochages sur le vrai moteur
 //   swift run DubStemMix --check-plugin-crash            tue le processus d'un plugin hors processus et vérifie la bascule
+//   swift run DubStemMix --download-models               télécharge les 4 réseaux htdemucs_ft (663 Mo) dans le dossier de l'app
+//   swift run DubStemMix --split <fichier> [--out dir]   sépare un morceau avec les vrais modèles et rapporte Σ stems vs mix
 //   swift run DubStemMix --snapshot out.png [--fx | --master | --inserts | --settings]   rend l'interface (données de démo) dans un PNG
 
 @main
@@ -29,6 +31,11 @@ enum Main {
             AudioCheck.run()
         } else if args.contains("--check-plugin-crash") {
             PluginCrashCheck.run()
+        } else if args.contains("--download-models") {
+            SplitCheck.downloadModels()
+        } else if let i = args.firstIndex(of: "--split"), i + 1 < args.count {
+            let out = args.firstIndex(of: "--out").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
+            SplitCheck.split(args[i + 1], out: out)
         } else if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
             let page: MixController.Page = args.contains("--fx") ? .fx : args.contains("--master") ? .master : args.contains("--inserts") ? .inserts : .mix
             snapshot(to: args[i + 1], page: page, settings: args.contains("--settings"))
@@ -91,6 +98,7 @@ struct DubStemMixApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("New Session") { model?.newSession() }.keyboardShortcut("n")
                 Button("Open…") { model?.chooseFilesToOpen() }.keyboardShortcut("o")
+                Button("Split a Song…") { model?.chooseSongToSplit() }
             }
             CommandGroup(replacing: .saveItem) {
                 Button("Save Project") { model?.saveProject() }.keyboardShortcut("s")

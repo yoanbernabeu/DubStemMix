@@ -1,4 +1,5 @@
 import DubStemMixCore
+import StemSplit
 import SwiftUI
 
 /// Settings window (⌘,), PRD § 5.12: output device and buffer size, recordings folder,
@@ -12,12 +13,16 @@ struct SettingsView: View {
             sends
             recording
             plugins
+            separation
         }
         .padding(26)
         .frame(width: 480, alignment: .leading)
         .background(Theme.bg)
         .environment(\.colorScheme, .dark)
-        .onAppear { model.refreshOutputDevices() }
+        .onAppear {
+            model.refreshOutputDevices()
+            model.refreshModelStatus()
+        }
     }
 
     // MARK: Audio
@@ -122,6 +127,53 @@ struct SettingsView: View {
                 }
             }
             SettingsNote("Set a plugin 100 % wet: each bus is a send, the dry signal already goes to the master.")
+        }
+    }
+
+    // MARK: Stem separation (PRD § 12.2)
+
+    private var separation: some View {
+        SettingsSection(title: "STEM SEPARATION") {
+            SettingsRow(label: "ENGINE") {
+                HStack(spacing: 10) {
+                    Text(engineStatus)
+                        .font(Fonts.mono(10.5))
+                        .foregroundStyle(model.modelStatus == .ready ? Theme.reverb : Theme.text)
+                    if case .downloading = model.separation {
+                        SettingsChip(text: "CANCEL", active: false) { model.cancelSeparation() }
+                    } else if model.modelStatus != .ready {
+                        SettingsChip(text: "DOWNLOAD \(Int(Double(ModelCatalog.totalBytes) / 1e6)) MB", active: false) { model.startDownload() }
+                    }
+                    if model.modelStatus != .missing, !model.separation.isActive {
+                        SettingsChip(text: "DELETE", active: false) { model.deleteModels() }
+                    }
+                }
+            }
+            SettingsRow(label: "STEMS") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(model.stemsFolder.path(percentEncoded: false).replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                        .font(Fonts.mono(10.5))
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    HStack(spacing: 4) {
+                        SettingsChip(text: "CHOOSE…", active: false) { model.chooseStemsFolder() }
+                        if model.stemsFolder != AppModel.defaultStemsFolder {
+                            SettingsChip(text: "DEFAULT", active: false) { model.resetStemsFolder() }
+                        }
+                    }
+                }
+            }
+            SettingsNote(ModelCatalog.licenseNotice)
+        }
+    }
+
+    private var engineStatus: String {
+        if case let .downloading(received, total) = model.separation { return "downloading… \(received / 1_000_000) / \(total / 1_000_000) MB" }
+        switch model.modelStatus {
+        case .ready: return "\(ModelCatalog.name) ready (\(ModelCatalog.shortRevision))"
+        case .missing: return "not downloaded"
+        case let .partial(ready): return "\(ready) of 4 files, incomplete"
         }
     }
 }

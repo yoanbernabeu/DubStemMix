@@ -1,5 +1,6 @@
 import AppKit
 import DubStemMixCore
+import StemSplit
 import SwiftUI
 
 struct RootView: View {
@@ -513,6 +514,9 @@ private struct Sidebar: View {
                 .padding(.top, 8)
             }
 
+            SplitZone(model: model)
+                .padding(.top, 20)
+
             if !model.pool.isEmpty || stemCount > 0 {
                 StemPool(model: model)
                     .padding(.top, 20)
@@ -562,6 +566,91 @@ private struct Sidebar: View {
         .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.bg)
+    }
+}
+
+/// The one place where a dropped file is split into stems (PRD § 12.1); shows the job while it runs.
+private struct SplitZone: View {
+    var model: AppModel
+
+    @State private var targeted = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("SPLIT A SONG")
+                .font(Fonts.mono(9.5))
+                .foregroundStyle(Theme.textDim)
+            switch model.separation {
+            case .idle:
+                dropTarget
+            case let .downloading(received, total):
+                progressBox(title: "DOWNLOADING THE ENGINE", detail: "\(received / 1_000_000) / \(total / 1_000_000) MB",
+                            fraction: Double(received) / Double(max(1, total)))
+            case let .splitting(song, stem, fraction, started):
+                progressBox(title: song.uppercased(), detail: splitDetail(stem: stem, fraction: fraction, started: started), fraction: fraction)
+            }
+        }
+    }
+
+    private var dropTarget: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Drop a full mix here")
+                .font(Fonts.label(12, weight: 800))
+                .tracking(0.8)
+                .foregroundStyle(targeted ? Theme.bg : Theme.text)
+            Text(model.modelStatus == .ready ? "→ drums, bass, instruments, vocals on strips 1–4" : "engine not downloaded yet (asks first)")
+                .font(Fonts.mono(9))
+                .foregroundStyle(targeted ? Theme.bg.opacity(0.7) : Theme.textDim)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 5).fill(targeted ? Theme.text : .clear))
+        .overlay(RoundedRectangle(cornerRadius: 5).stroke(targeted ? Theme.text : Theme.textDim.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
+        .contentShape(Rectangle())
+        .stemDrop(enabled: !model.isPreview, isTargeted: $targeted) { urls in
+            if let first = urls.first { model.splitSong(first) }
+        }
+        .onTapGesture { model.chooseSongToSplit() }
+        .help("Drop one WAV, MP3, AIFF, FLAC or M4A file (or click to choose)")
+    }
+
+    private func progressBox(title: String, detail: String, fraction: Double) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(Fonts.label(12, weight: 800))
+                .tracking(0.8)
+                .foregroundStyle(Theme.text)
+                .lineLimit(1)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Theme.border).frame(height: 4)
+                GeometryReader { geo in
+                    Capsule().fill(Theme.delay).frame(width: geo.size.width * min(1, max(0, fraction)), height: 4)
+                }
+                .frame(height: 4)
+            }
+            HStack {
+                Text(detail).font(Fonts.mono(9)).foregroundStyle(Theme.textDim).lineLimit(1)
+                Spacer()
+                Button("CANCEL") { model.cancelSeparation() }
+                    .buttonStyle(.plain)
+                    .font(Fonts.mono(9, weight: 700))
+                    .foregroundStyle(Theme.rec)
+            }
+        }
+        .padding(9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(RoundedRectangle(cornerRadius: 5).stroke(Theme.delay, lineWidth: 1))
+    }
+
+    private func splitDetail(stem: Stem, fraction: Double, started: Date) -> String {
+        let elapsed = Date().timeIntervalSince(started)
+        var text = "\(stem.rawValue)… \(Int(fraction * 100)) %"
+        if fraction > 0.02 {
+            let remaining = Int(elapsed * (1 - fraction) / fraction)
+            text += " · \(remaining / 60):\(String(format: "%02d", remaining % 60)) left"
+        }
+        return text
     }
 }
 
