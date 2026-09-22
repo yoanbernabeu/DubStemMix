@@ -6,9 +6,9 @@
 
 Free and open source (MIT). macOS 15 or later (built and tested on macOS 26), Apple Silicon.
 
-<p align="center"><img src="docs/screenshots/mix.png" width="100%" alt="DubStemMix, MIX page: eight strips with sends to delay, reverb and phaser"></p>
+▶ [Watch it in action on YouTube](https://www.youtube.com/watch?v=k314RyG2htE)
 
-<p align="center"><a href="https://www.youtube.com/watch?v=k314RyG2htE"><img src="https://img.youtube.com/vi/k314RyG2htE/maxresdefault.jpg" width="100%" alt="Watch DubStemMix in action on YouTube"></a><br><em>▶ Watch it on YouTube</em></p>
+<p align="center"><img src="docs/screenshots/mix.png" width="100%" alt="DubStemMix, MIX page: eight strips with sends to delay, reverb and phaser"></p>
 
 ## Install
 

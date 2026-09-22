@@ -1,0 +1,20 @@
+---
+import Section from "./Section.astro";
+import { site } from "../site";
+---
+<Section id="video" index="01" title="See it played" kicker="DubStemMix in action">
+  <div class="relative aspect-video w-full border border-border bg-surface">
+    <iframe
+      src={`https://www.youtube-nocookie.com/embed/${site.videoId}`}
+      title="DubStemMix in action"
+      loading="lazy"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      referrerpolicy="strict-origin-when-cross-origin"
+      allowfullscreen
+      class="absolute inset-0 h-full w-full"
+    ></iframe>
+  </div>
+  <p class="mono mt-3 text-[11px] text-dim">
+    <a href={`https://www.youtube.com/watch?v=${site.videoId}`} rel="noopener" class="transition-colors hover:text-cream">▶ Watch it on YouTube</a>
+  </p>
+</Section>

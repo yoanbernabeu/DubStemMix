@@ -10,7 +10,7 @@ const cards = [
   { color: "cream", value: 0.5, title: "Audio Units", text: "Any AU effect can replace a built-in effect on a bus, or sit in a strip's insert. Plugins load out of process: one that crashes falls back to the built-in effect and stays in the project. On the FX page the bus's six knobs become macros you assign to the plugin's parameters.", specs: ["AU", "out of process", "macros"] },
 ] as const;
 ---
-<Section id="sound" index="04" title="The sound" kicker="everything built in, no plugin needed. The references are the ones you would expect">
+<Section id="sound" index="05" title="The sound" kicker="everything built in, no plugin needed. The references are the ones you would expect">
   <ul class="grid gap-px overflow-hidden rounded border-[1.5px] border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
     {cards.map((c) => (
       <li class="flex flex-col gap-4 bg-bg p-6 transition-colors hover:bg-surface">
