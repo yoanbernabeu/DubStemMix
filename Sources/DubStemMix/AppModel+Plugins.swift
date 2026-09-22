@@ -83,9 +83,7 @@ extension AppModel {
 
     func openPluginWindow(on bus: SendBus) {
         guard let plugin = engine.plugins[bus] else { return }
-        pluginWindows.open(plugin, bus: bus) { [weak self] in
-            self?.errorMessage = "\(plugin.info.name) has no window of its own"
-        }
+        pluginWindows.open(plugin, bus: bus)
     }
 
     // MARK: Potards macros
@@ -165,28 +163,48 @@ extension AppModel {
     }
 }
 
-/// Fenêtres des plugins (leur propre interface).
+/// Plugin windows: the plugin's own interface, or Apple's generic parameter view when it has none.
 @MainActor
 final class PluginWindows {
     private var windows: [SendBus: NSWindow] = [:]
 
-    func open(_ plugin: HostedPlugin, bus: SendBus, onNoInterface: @escaping @MainActor () -> Void) {
+    func open(_ plugin: HostedPlugin, bus: SendBus) {
         if let window = windows[bus] {
             window.makeKeyAndOrderFront(nil)
             return
         }
         plugin.unit.auAudioUnit.requestViewController { controller in
-            // Le plugin peut répondre sur n'importe quel thread : la fenêtre se crée sur le thread principal.
+            // The plugin may answer on any thread: the window is created on the main thread.
             DispatchQueue.main.async { MainActor.assumeIsolated {
-                guard let controller else { return onNoInterface() }
-                let window = NSWindow(contentViewController: controller)
-                window.title = plugin.info.name
+                let window = controller.map(NSWindow.init(contentViewController:))
+                    ?? Self.genericWindow(for: plugin)
+                window.title = plugin.info.name + (controller == nil ? " (generic view)" : "")
                 window.styleMask = [.titled, .closable, .miniaturizable]
                 window.isReleasedWhenClosed = false
                 self.windows[bus] = window
                 window.makeKeyAndOrderFront(nil)
             } }
         }
+    }
+
+    /// Apple's generic view lists every parameter as a slider; scrolls when the plugin has many.
+    static func genericView(for plugin: HostedPlugin) -> AUGenericView {
+        let view = AUGenericView(audioUnit: plugin.unit.audioUnit)
+        view.showsExpertParameters = true
+        return view
+    }
+
+    private static func genericWindow(for plugin: HostedPlugin) -> NSWindow {
+        let view = genericView(for: plugin)
+        let scroll = NSScrollView()
+        scroll.documentView = view
+        scroll.hasVerticalScroller = true
+        scroll.drawsBackground = false
+        let size = NSSize(width: max(360, view.frame.width), height: min(640, max(120, view.frame.height)))
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.contentView = scroll
+        window.center()
+        return window
     }
 
     func close(_ bus: SendBus) {

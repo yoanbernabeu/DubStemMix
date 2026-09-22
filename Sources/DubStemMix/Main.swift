@@ -4,7 +4,7 @@ import SwiftUI
 
 //   swift run DubStemMix ["<dossier, projet .dubstem ou setlist .dubset>"]   lance l'app et l'ouvre
 //   swift run DubStemMix --detect-tempo "<dossier>" [texte à exclure]   estime le BPM d'un dossier de stems
-//   swift run DubStemMix --check-plugins                 charge chaque plugin AU tiers installé, sans son, et rapporte
+//   swift run DubStemMix --check-plugins [--all]         charge chaque plugin AU tiers (ou tous) installé, sans son, et rapporte
 //   swift run DubStemMix --check-documents               auto-contrôle projets + setlist, sans interface ni son
 //   swift run DubStemMix --check-audio                   carte son, buffer, charge DSP et décrochages sur le vrai moteur
 //   swift run DubStemMix --check-plugin-crash            tue le processus d'un plugin hors processus et vérifie la bascule
