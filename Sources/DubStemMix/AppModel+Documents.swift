@@ -55,6 +55,7 @@ extension AppModel {
         project.fx = Dictionary(uniqueKeysWithValues: mix.fx.map { ($0.key.rawValue, $0.value) })
         let slots = currentSlots()
         project.slots = slots.isEmpty ? nil : slots
+        project.stripNames = stripNames.isEmpty ? nil : Dictionary(uniqueKeysWithValues: stripNames.map { ("\($0.key)", $0.value) })
         return project
     }
 
@@ -107,6 +108,7 @@ extension AppModel {
         clear()
         mix.setTempo(project.bpm) // avant de poser les stems : un tempo enregistré n'est pas re-détecté
         mix.setDelaySync(project.delaySync)
+        stripNames = Dictionary(uniqueKeysWithValues: (project.stripNames ?? [:]).compactMap { key, name in Int(key).map { ($0, name) } })
         for entry in project.stems {
             if let url = entry.file.resolve(relativeTo: document) {
                 assign([url], toStrip: min(max(0, entry.strip), AudioEngine.stripCount - 1))

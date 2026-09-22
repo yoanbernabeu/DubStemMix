@@ -68,6 +68,8 @@ private struct StripView: View {
     var index: Int
 
     @State private var dropTargeted = false
+    @State private var renaming = false
+    @State private var draftName = ""
 
     private var strip: MixController.Strip { model.mix.strips[index] }
     private var isEmpty: Bool { strip.stems.isEmpty }
@@ -157,13 +159,43 @@ private struct StripView: View {
     }
 
     /// Le nom du stem, collé à ce qui lui appartient sur les deux pages : MUTE, THROW et le fader.
+    /// Double-click (or right-click) to type a name; an empty name goes back to the file's.
+    @ViewBuilder
     private var namePlate: some View {
-        Text(isEmpty ? "—" : strip.name)
-            .font(Fonts.label(14, weight: 850, width: 118))
-            .tracking(0.8)
-            .foregroundStyle(model.mix.isAudible(strip: index) ? Theme.text : Theme.textDim)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
+        if renaming {
+            TextField("", text: $draftName)
+                .textFieldStyle(.plain)
+                .font(Fonts.label(14, weight: 850, width: 118))
+                .foregroundStyle(Theme.text)
+                .multilineTextAlignment(.center)
+                .onSubmit { commitRename() }
+                .onExitCommand { renaming = false }
+                .onAppear { draftName = model.stripNames[index] ?? "" }
+        } else {
+            Text(isEmpty ? "—" : strip.name)
+                .font(Fonts.label(14, weight: 850, width: 118))
+                .tracking(0.8)
+                .foregroundStyle(model.mix.isAudible(strip: index) ? Theme.text : Theme.textDim)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) { if !isEmpty { renaming = true } }
+                .contextMenu {
+                    if !isEmpty {
+                        Button("Rename…") { renaming = true }
+                        if model.stripNames[index] != nil {
+                            Button("Use the file name") { model.renameStrip(index, "") }
+                        }
+                    }
+                }
+                .help(isEmpty ? "" : "Double-click to rename the strip")
+        }
+    }
+
+    private func commitRename() {
+        model.renameStrip(index, draftName)
+        renaming = false
     }
 
     @ViewBuilder

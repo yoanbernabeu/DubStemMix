@@ -29,10 +29,12 @@ private func temporaryFolder() throws -> URL {
     project.stems = [.init(file: FileReference(folder.appending(path: "stems/bass.wav"), relativeTo: document), strip: 1)]
     project.pool = [FileReference(folder.appending(path: "stems/full mix.wav"), relativeTo: document)]
     project.fx = Dictionary(uniqueKeysWithValues: FXParameter.allCases.map { ($0.rawValue, $0.defaultValue) })
+    project.stripNames = ["1": "RIDDIM"]
     try project.save(to: document)
 
     let loaded = try Project.load(from: document)
     #expect(loaded == project)
+    #expect(loaded.stripNames?["1"] == "RIDDIM")
     #expect(loaded.stems[0].file.relativePath == "stems/bass.wav")
     #expect(FXParameter(rawValue: "delayTime") == .delayTime) // noms enregistrés dans les projets
 }

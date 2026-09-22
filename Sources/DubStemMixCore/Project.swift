@@ -73,6 +73,8 @@ public struct Project: Codable, Equatable, Sendable {
     public var fx: [String: Double] = [:]
     /// Par bus (`SendBus.key`). Absent des projets d'avant les plugins.
     public var slots: [String: SlotEntry]?
+    /// Strip names typed by the user, keyed by strip number ("0"…"7"); the others are derived from file names.
+    public var stripNames: [String: String]?
 
     public init() {}
 

@@ -26,6 +26,8 @@ final class AppModel {
     @ObservationIgnored private var audioStatusCountdown = 0
     var errorMessage: String?
     var pool: [PoolItem] = []
+    /// Strip names typed by the user; a strip without one is named after its first stem.
+    var stripNames: [Int: String] = [:]
     // Documents : projet (.dubstem) et setlist (.dubset). Voir AppModel+Documents.swift.
     var projectURL: URL?
     /// Dernier état écrit sur le disque, pour savoir s'il reste des changements à enregistrer.
@@ -248,6 +250,7 @@ final class AppModel {
     func clear() {
         for stem in engine.stems { dropStem(stem.id) }
         pool = []
+        stripNames = [:]
         unresolvedStems = []
         unresolvedSlots = [:]
         for bus in SendBus.allCases { unloadPlugin(on: bus) }
@@ -275,11 +278,18 @@ final class AppModel {
             let stems = engine.stems.filter { $0.strip == strip }
             mix.setStems(
                 strip: strip,
-                name: stems.first.flatMap { names[$0.url] } ?? "",
+                name: stripNames[strip] ?? stems.first.flatMap { names[$0.url] } ?? "",
                 stems: stems.map { MixController.StemInfo(id: $0.id, name: $0.url.lastPathComponent) }
             )
         }
         duration = engine.duration
+    }
+
+    /// Empty name: back to the name derived from the file.
+    func renameStrip(_ strip: Int, _ name: String) {
+        let cleaned = name.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        stripNames[strip] = cleaned.isEmpty ? nil : cleaned
+        refreshNames()
     }
 
     func url(ofStem id: UUID) -> URL? {
