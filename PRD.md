@@ -329,6 +329,6 @@ Réglages de la chaîne master et des compléments (nouveaux cas de `FXParameter
 ### 11.8 Architecture
 
 - **Master** : les étages s'insèrent entre le mixeur principal et le rattrapage de gain, chacun entre deux nœuds neutres fixes (même recette que les bus : un changement à chaud ne touche jamais aux mixeurs). Pull-up : `AVAudioUnitVarispeed` sur le master.
-- **Inserts** : `mixeur de tranche → entrée neutre → effet → sortie neutre → éventail (master + bus)`. Les nœuds neutres existent dès le départ pour toutes les tranches ; un insert vide est un simple passage.
+- **Inserts** (construit en M8) : `somme des stems → entrée neutre → effet → sortie neutre → mixeur « pré » (prises pré-fader et throw) → mixeur fader (master + envois post)`. Les nœuds neutres existent dès le départ pour toutes les tranches ; un insert vide est un simple passage. Conséquence : les envois pré-fader et le dub throw sont pris **après** l'insert (un sub ajouté sur la basse part aussi dans le delay).
 - **Noyaux DSP en C** (`DubDSP`), sans allocation ni verrou : passe-haut à crans, isolateur, dubplate, ressort (+ crash), têtes et ping-pong dans `dub_delay.c`, HOLD dans la boucle du delay, sub, auto-wah, flanger. Chacun testé en rendu hors ligne.
 - **Contrôleur logique** : pages MASTER et INSERTS, disposition en données comme `FXParameter.layout`, rattrapage inchangé.
