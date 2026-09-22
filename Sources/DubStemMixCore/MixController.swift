@@ -27,20 +27,33 @@ public final class MixController {
         public var throwing = false
         /// Survives the DROP gesture (PRD § 11.6).
         public var keep = false
+        /// Insert (PRD § 11.5): a built-in insert with its normalized values, or a hosted plugin with 3 macros.
+        public var insert: InsertKind?
+        public var insertValues: [Double] = []
+        public var insertHosted = false
+        public var insertMacros: [Double] = [0, 0, 0]
     }
 
     /// Ce que pilotent les 24 potards : les envois (BANK LEFT) ou les paramètres d'effets (BANK RIGHT).
     /// Les faders restent des volumes de tranche sur les deux pages.
-    /// MASTER (PRD § 11.1): BANK RIGHT again from FX; BANK LEFT always returns to MIX.
+    /// MASTER and INSERTS (PRD § 11.1): BANK RIGHT again from FX; BANK LEFT always returns to MIX.
     public enum Page: Sendable, CaseIterable {
-        case mix, fx, master
+        case mix, fx, master, inserts
 
-        /// Knob layout of the page (nil for MIX: the knobs are sends).
+        /// Knob layout of the page (nil for MIX, where the knobs are sends, and INSERTS, per strip).
         var layout: [[FXParameter?]]? {
             switch self {
-            case .mix: nil
+            case .mix, .inserts: nil
             case .fx: FXParameter.layout
             case .master: FXParameter.masterLayout
+            }
+        }
+
+        var next: Page {
+            switch self {
+            case .mix: .fx
+            case .fx: .master
+            case .master, .inserts: .inserts
             }
         }
     }
@@ -60,6 +73,9 @@ public final class MixController {
     public enum FXCell: Equatable, Sendable {
         case parameter(FXParameter)
         case macro(SendBus, Int)
+        /// INSERTS page: a built-in insert's parameter, or a macro of a plugin insert, on that strip.
+        case insert(Int, Int)
+        case insertMacro(Int, Int)
     }
 
     /// Bus qui hébergent un plugin AU, et valeurs normalisées de leurs potards macros.
@@ -113,7 +129,7 @@ public final class MixController {
                 if pickUp(&knobs[strip][row], physical: value, current: strips[strip].sends[row]) {
                     applySend(strip: strip, row: row, value)
                 }
-            case .fx, .master:
+            case .fx, .master, .inserts:
                 switch cell(strip: strip, row: row) {
                 case let .parameter(parameter):
                     if pickUp(&knobs[strip][row], physical: value, current: fx[parameter] ?? 0) {
@@ -122,6 +138,14 @@ public final class MixController {
                 case let .macro(bus, index):
                     if pickUp(&knobs[strip][row], physical: value, current: macros[bus]?[index] ?? 0) {
                         applyMacro(bus: bus, index: index, value)
+                    }
+                case let .insert(strip, index):
+                    if pickUp(&knobs[strip][row], physical: value, current: strips[strip].insertValues[index]) {
+                        applyInsertValue(strip: strip, index: index, value)
+                    }
+                case let .insertMacro(strip, index):
+                    if pickUp(&knobs[strip][row], physical: value, current: strips[strip].insertMacros[index]) {
+                        applyInsertMacro(strip: strip, index: index, value)
                     }
                 case nil:
                     knobs[strip][row].value = value
@@ -142,7 +166,7 @@ public final class MixController {
         case let .button(.bankLeft, _, pressed):
             if pressed { setPage(.mix) }
         case let .button(.bankRight, _, pressed):
-            if pressed { setPage(page == .mix ? .fx : .master) }
+            if pressed { setPage(page.next) }
         case .button(.soloMode, _, _):
             break // SOLO maintenu : la console envoie alors elle-même les notes de solo
         }
@@ -211,7 +235,7 @@ public final class MixController {
             for row in knobs[strip].indices {
                 let target: Double? = switch newPage {
                 case .mix: strips[strip].sends[row]
-                case .fx, .master: cellValue(strip: strip, row: row)
+                case .fx, .master, .inserts: cellValue(strip: strip, row: row)
                 }
                 if let target, let physical = knobs[strip][row].value {
                     knobs[strip][row].picked = abs(physical - target) <= Self.pickupWindow
@@ -315,19 +339,87 @@ public final class MixController {
         return bus == .delay && index == 5 ? nil : (bus, index)
     }
 
-    /// On the MASTER page, a master-chain parameter; otherwise the FX page's assignment (parameter or macro).
+    /// On the MASTER page, a master-chain parameter; on INSERTS, the strip's insert; otherwise the FX page's
+    /// assignment (parameter or macro).
     public func cell(strip: Int, row: Int) -> FXCell? {
-        if page == .master { return FXParameter.masterLayout[strip][row].map(FXCell.parameter) }
-        if let (bus, index) = Self.macroSlot(strip: strip, row: row), hostedBuses.contains(bus) { return .macro(bus, index) }
-        return FXParameter.layout[strip][row].map(FXCell.parameter)
+        switch page {
+        case .master:
+            return FXParameter.masterLayout[strip][row].map(FXCell.parameter)
+        case .inserts:
+            if strips[strip].insertHosted { return .insertMacro(strip, row) }
+            if let kind = strips[strip].insert, row < kind.knobCount { return .insert(strip, row) }
+            return nil
+        case .mix, .fx:
+            if let (bus, index) = Self.macroSlot(strip: strip, row: row), hostedBuses.contains(bus) { return .macro(bus, index) }
+            return FXParameter.layout[strip][row].map(FXCell.parameter)
+        }
     }
 
     private func cellValue(strip: Int, row: Int) -> Double? {
         switch cell(strip: strip, row: row) {
         case let .parameter(parameter): fx[parameter]
         case let .macro(bus, index): macros[bus]?[index]
+        case let .insert(strip, index): strips[strip].insertValues[index]
+        case let .insertMacro(strip, index): strips[strip].insertMacros[index]
         case nil: nil
         }
+    }
+
+    // MARK: Strip inserts (PRD § 11.5)
+
+    /// A built-in insert on a strip (nil = none), starting from its default settings.
+    public func setInsert(strip: Int, _ kind: InsertKind?) {
+        strips[strip].insert = kind
+        strips[strip].insertHosted = false
+        strips[strip].insertValues = kind?.parameters.map(\.defaultValue) ?? []
+        for (index, value) in strips[strip].insertValues.enumerated() { engine.setInsertParameter(strip: strip, index: index, value) }
+        if page == .inserts { setPage(.inserts) } // the knobs have new targets to catch up with
+    }
+
+    /// A plugin was loaded in (or removed from) a strip's insert: its knobs become macros.
+    public func setInsertHosted(strip: Int, _ hosted: Bool) {
+        strips[strip].insertHosted = hosted
+        if hosted { strips[strip].insert = nil; strips[strip].insertValues = [] }
+        strips[strip].insertMacros = Array(repeating: 0, count: AudioEngine.insertMacroCount)
+        if page == .inserts { setPage(.inserts) }
+    }
+
+    /// From the screen (or a project): a built-in insert's parameter, normalized.
+    public func setInsertValue(strip: Int, index: Int, _ value: Double) {
+        applyInsertValue(strip: strip, index: index, value)
+        if page == .inserts, index < 3 { release(&knobs[strip][index], to: value) }
+    }
+
+    public func setInsertMacro(strip: Int, index: Int, _ value: Double) {
+        applyInsertMacro(strip: strip, index: index, value)
+        if page == .inserts { release(&knobs[strip][index], to: value) }
+    }
+
+    /// The value changed in the plugin itself: follow it without driving it back.
+    public func syncInsertMacro(strip: Int, index: Int, _ value: Double) {
+        guard abs(strips[strip].insertMacros[index] - value) > 0.0005 else { return }
+        strips[strip].insertMacros[index] = value
+        if page == .inserts { release(&knobs[strip][index], to: value) }
+    }
+
+    public func insertGhost(strip: Int, index: Int) -> Double? {
+        page == .inserts && index < 3 ? ghost(knobs[strip][index]) : nil
+    }
+
+    public func insertDisplay(strip: Int, index: Int) -> String {
+        guard let kind = strips[strip].insert, kind.parameters.indices.contains(index) else { return "" }
+        return kind.parameters[index].display(strips[strip].insertValues[index])
+    }
+
+    private func applyInsertValue(strip: Int, index: Int, _ value: Double) {
+        guard strips[strip].insertValues.indices.contains(index) else { return }
+        strips[strip].insertValues[index] = value
+        engine.setInsertParameter(strip: strip, index: index, value)
+    }
+
+    private func applyInsertMacro(strip: Int, index: Int, _ value: Double) {
+        strips[strip].insertMacros[index] = value
+        engine.setInsertMacro(strip: strip, index: index, value)
     }
 
     /// Un plugin vient d'être chargé sur ce bus (ou retiré) : ses potards changent de rôle.

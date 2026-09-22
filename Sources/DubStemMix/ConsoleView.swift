@@ -9,11 +9,16 @@ private let knobCellHeight: CGFloat = 92
 private let headerHeight: CGFloat = 30
 private let namePlateHeight: CGFloat = 28
 
-/// What a strip's knobs drive on the FX or MASTER page: the header title and tint of the knob zone.
-private func fxGroup(strip: Int, page: MixController.Page) -> (title: String, color: Color)? {
-    switch page {
+/// What a strip's knobs drive on the FX, MASTER or INSERTS page: the header title and tint of the knob zone.
+@MainActor
+private func fxGroup(strip: Int, mix: MixController) -> (title: String, color: Color)? {
+    switch mix.page {
     case .mix:
         return nil
+    case .inserts:
+        let state = mix.strips[strip]
+        if state.insertHosted { return ("AU", Theme.text) }
+        return state.insert.map { ($0.label.uppercased(), Theme.text) }
     case .master:
         let parameters = FXParameter.masterLayout[strip].compactMap { $0 }
         guard let title = parameters.first?.masterGroup else { return nil }
@@ -142,7 +147,7 @@ private struct StripView: View {
         return dropTargeted ? Theme.text : Theme.border
     }
 
-    private var group: (title: String, color: Color)? { fxGroup(strip: index, page: model.mix.page) }
+    private var group: (title: String, color: Color)? { fxGroup(strip: index, mix: model.mix) }
 
     /// En-tête de la zone des potards : sur la page FX, l'effet qu'ils pilotent — pas le stem.
     private var header: some View {

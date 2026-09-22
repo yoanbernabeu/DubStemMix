@@ -74,6 +74,9 @@ final class FakeEngine: MixEngineControl {
     func setFX(_ parameter: FXParameter, _ value: Float) { fx[parameter] = value }
     var macros: [String: Double] = [:]
     func setMacro(bus: SendBus, index: Int, _ normalized: Double) { macros["\(bus)-\(index)"] = normalized }
+    var insertValues: [String: Double] = [:]
+    func setInsertParameter(strip: Int, index: Int, _ normalized: Double) { insertValues["\(strip)-\(index)"] = normalized }
+    func setInsertMacro(strip: Int, index: Int, _ normalized: Double) { macros["insert\(strip)-\(index)"] = normalized }
 }
 
 @MainActor
@@ -369,9 +372,34 @@ private func hits(_ samples: [Float]) -> [Int: Float] {
     mix.handle(.button(.bankRight, strip: 0, pressed: true))
     #expect(mix.page == .master && surface.bankLeds == (true, true))
     mix.handle(.button(.bankRight, strip: 0, pressed: true))
-    #expect(mix.page == .master) // stays on the last page
+    #expect(mix.page == .inserts && surface.bankLeds == (true, true))
+    mix.handle(.button(.bankRight, strip: 0, pressed: true))
+    #expect(mix.page == .inserts) // stays on the last page
     mix.handle(.button(.bankLeft, strip: 0, pressed: true))
     #expect(mix.page == .mix && surface.bankLeds == (true, false))
+}
+
+@MainActor @Test func insertsPageKnobsDriveTheStripInsert() {
+    let engine = FakeEngine()
+    let mix = MixController(engine: engine)
+    mix.setPage(.inserts)
+    #expect(mix.cell(strip: 1, row: 0) == nil) // no insert: inert knobs
+    mix.setInsert(strip: 1, .autoWah)
+    #expect(mix.cell(strip: 1, row: 2) == .insert(1, 2))
+    #expect(engine.insertValues["1-0"] == 0.6 && engine.insertValues["1-3"] == 0) // defaults pushed, screen-only DOWN too
+    mix.handle(.knob(strip: 1, row: 0, value: 0.62)) // near the default: picked up
+    #expect(engine.insertValues["1-0"] == 0.62)
+    mix.setInsertValue(strip: 1, index: 3, 1) // DOWN, from the screen
+    #expect(engine.insertValues["1-3"] == 1 && mix.insertDisplay(strip: 1, index: 3) == "ON")
+    mix.setInsert(strip: 1, .sub)
+    #expect(mix.cell(strip: 1, row: 2) == nil) // the sub has two knobs
+    #expect(mix.insertDisplay(strip: 1, index: 1) == "80 Hz")
+
+    mix.setInsertHosted(strip: 2, true)
+    #expect(mix.cell(strip: 2, row: 1) == .insertMacro(2, 1))
+    mix.handle(.knob(strip: 2, row: 1, value: 0.01))
+    mix.handle(.knob(strip: 2, row: 1, value: 0.5))
+    #expect(engine.macros["insert2-1"] == 0.5)
 }
 
 @MainActor @Test func masterPageKnobsDriveTheMasterChain() {

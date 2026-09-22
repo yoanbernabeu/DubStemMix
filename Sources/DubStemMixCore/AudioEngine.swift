@@ -74,6 +74,9 @@ public protocol MixEngineControl: AnyObject {
     func setFX(_ parameter: FXParameter, _ value: Float)
     /// Potard macro d'un bus qui héberge un plugin (valeur normalisée 0…1).
     func setMacro(bus: SendBus, index: Int, _ normalized: Double)
+    /// Strip insert (PRD § 11.5): a built-in insert's parameter, or a macro of a plugin insert (0…1).
+    func setInsertParameter(strip: Int, index: Int, _ normalized: Double)
+    func setInsertMacro(strip: Int, index: Int, _ normalized: Double)
 }
 
 /// Graphe validé au jalon M0 :
