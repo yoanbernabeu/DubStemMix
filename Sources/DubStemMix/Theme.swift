@@ -48,11 +48,23 @@ enum Bus: Int, CaseIterable {
 enum Fonts {
     private static var cache: [String: Font] = [:]
 
+    /// The fonts live in the package's resource bundle, whose layout depends on the toolchain that built it
+    /// (flat, or Contents/Resources). They are looked up by file name, never through `Bundle.module`,
+    /// which traps when it cannot load the bundle. Missing fonts fall back to the system ones.
     static func register() {
-        for name in ["Archivo-Variable", "JetBrainsMono-Variable"] {
-            guard let url = Bundle.module.url(forResource: name, withExtension: "ttf") else { continue }
+        let names = ["Archivo-Variable.ttf", "JetBrainsMono-Variable.ttf"]
+        let roots = [Bundle.main.resourceURL, Bundle.main.bundleURL].compactMap { $0 }
+            .map { $0.appending(path: "DubStemMix_DubStemMix.bundle") }
+        for name in names {
+            guard let url = roots.lazy.compactMap({ find(name, under: $0) }).first else { continue }
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
         }
+    }
+
+    private static func find(_ fileName: String, under root: URL) -> URL? {
+        guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil) else { return nil }
+        for case let url as URL in enumerator where url.lastPathComponent == fileName { return url }
+        return nil
     }
 
     static func label(_ size: CGFloat, weight: Double = 750, width: Double = 112) -> Font {
