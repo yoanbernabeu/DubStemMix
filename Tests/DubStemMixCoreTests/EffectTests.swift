@@ -483,3 +483,67 @@ private func makeDelay(time: Float = 0.1) -> OpaquePointer {
     #expect(crash.left.allSatisfy { abs($0) < 2 })
     #expect(dub_effect_get(spring, Int32(DUB_SPRING_CRASH)) == 0) // consumed
 }
+
+// MARK: - Strip inserts and flanger (PRD § 11.5)
+
+/// Correlation of a signal with a sine at `hz`, over its last part: how much of that frequency is there.
+private func level(of samples: [Float], at hz: Double) -> Float {
+    let tail = samples[24_000...]
+    var re: Float = 0, im: Float = 0
+    for (i, x) in tail.enumerated() {
+        let phase = 2 * Double.pi * hz * Double(i) / 48_000
+        re += x * Float(cos(phase))
+        im += x * Float(sin(phase))
+    }
+    return 2 * (re * re + im * im).squareRoot() / Float(tail.count)
+}
+
+@Test func subGeneratorAddsAnOctaveBelowTheBass() {
+    let sub = dub_effect_create(DUB_EFFECT_SUB)!
+    defer { dub_effect_destroy(sub) }
+    dub_effect_prepare(sub, 48_000)
+    let bass = sine(80, count: 48_000).map { $0 * 0.5 }
+    let dry = run(sub, input: bass).left
+    #expect(dry == bass) // amount 0: exact passthrough
+
+    dub_effect_set(sub, Int32(DUB_SUB_AMOUNT), 1)
+    dub_effect_set(sub, Int32(DUB_SUB_CUTOFF), 100)
+    dub_effect_prepare(sub, 48_000)
+    let boosted = run(sub, input: bass).left
+    #expect(level(of: boosted, at: 40) > 0.15, "sub at 40 Hz: \(level(of: boosted, at: 40))")
+    #expect(abs(level(of: boosted, at: 80) - 0.5) < 0.1) // the bass itself is untouched
+    #expect(level(of: boosted, at: 120) < 0.25 * level(of: boosted, at: 40), "harmonic \(level(of: boosted, at: 120)) vs sub \(level(of: boosted, at: 40))")
+}
+
+@Test func autoWahOpensWithLevel() {
+    let wah = dub_effect_create(DUB_EFFECT_WAH)!
+    defer { dub_effect_destroy(wah) }
+    dub_effect_set(wah, Int32(DUB_WAH_RANGE), 1)
+    dub_effect_set(wah, Int32(DUB_WAH_RESONANCE), 0.2)
+    dub_effect_prepare(wah, 48_000)
+    let quiet = run(wah, input: sine(1500, count: 48_000).map { $0 * 0.02 }).left
+    dub_effect_prepare(wah, 48_000)
+    let loud = run(wah, input: sine(1500, count: 48_000).map { $0 * 0.5 }).left
+    let quietGain = level(of: quiet, at: 1500) / 0.02, loudGain = level(of: loud, at: 1500) / 0.5
+    #expect(loudGain > 4 * quietGain, "quiet \(quietGain) loud \(loudGain)") // the filter opened
+
+    dub_effect_set(wah, Int32(DUB_WAH_DIRECTION), 1)
+    dub_effect_prepare(wah, 48_000)
+    let loudDown = run(wah, input: sine(1500, count: 48_000).map { $0 * 0.5 }).left
+    #expect(level(of: loudDown, at: 1500) / 0.5 < loudGain / 4) // down mode: louder closes it
+    #expect(loud.allSatisfy { abs($0) < 3 })
+}
+
+@Test func flangerIsAShortDelayWithFeedback() {
+    let flanger = dub_effect_create(DUB_EFFECT_FLANGER)!
+    defer { dub_effect_destroy(flanger) }
+    dub_effect_set(flanger, Int32(DUB_PHASER_DEPTH), 0)
+    dub_effect_set(flanger, Int32(DUB_PHASER_FEEDBACK), 0.5)
+    dub_effect_set(flanger, Int32(DUB_PHASER_CENTER), 500) // 2 ms = 96 samples
+    dub_effect_prepare(flanger, 48_000)
+    let output = run(flanger, input: impulse(2400)).left
+    let peak = output.indices.max { abs(output[$0]) < abs(output[$1]) }!
+    #expect(abs(peak - 96) <= 2, "first repeat at \(peak)")
+    #expect(output[..<90].allSatisfy { abs($0) < 0.001 }) // wet only
+    #expect(abs(output[min(2399, peak * 2)]) > 0.2 && abs(output[min(2399, peak * 2)]) < abs(output[peak])) // decaying repeats
+}

@@ -17,6 +17,9 @@ typedef enum {
     DUB_EFFECT_PHASER = 2, // phaser façon Bi-Phase : 2 × 6 étages en série, sortie 100 % déphasée (pour bus d'envoi)
     DUB_EFFECT_MASTER = 3, // master chain: stepped high-pass (big knob) → 3-band kills → dubplate colour
     DUB_EFFECT_SPRING = 4, // spring reverb (dispersive allpass chain in a loop) with a CRASH trigger
+    DUB_EFFECT_SUB = 5,    // strip insert: sub-octave generator (dbx "boom box" style), dry + sub
+    DUB_EFFECT_WAH = 6,    // strip insert: envelope-following filter (Mu-Tron III style), wet only
+    DUB_EFFECT_FLANGER = 7,// tape flanger, output 100 % wet (for a send bus, like the phaser); phaser parameter indices
 } DubEffectKind;
 
 // Paramètres, en unités réelles.
@@ -40,6 +43,16 @@ enum {
 // The spring shares the plate's five parameters (same indices, same units), plus:
 enum {
     DUB_SPRING_CRASH = 5,   // set to 1 to hit the spring; the kernel resets it to 0 once the crash has fired
+};
+enum {
+    DUB_SUB_AMOUNT = 0,     // 0 … 1 (0 = exact passthrough)
+    DUB_SUB_CUTOFF = 1,     // Hz, low-pass on the generated sub (40 … 160)
+};
+enum {
+    DUB_WAH_SENSITIVITY = 0, // 0 … 1: how far the envelope opens the filter
+    DUB_WAH_RANGE = 1,       // 0 … 1: sweep span, up to 3 octaves above the base
+    DUB_WAH_RESONANCE = 2,   // 0 … 1
+    DUB_WAH_DIRECTION = 3,   // 0 = louder opens the filter (up), 1 = louder closes it (down)
 };
 enum {
     DUB_PHASER_RATE = 0,     // Hz

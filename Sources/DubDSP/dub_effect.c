@@ -11,6 +11,9 @@ DubEffect *dub_effect_create(DubEffectKind kind) {
         case DUB_EFFECT_PHASER: dub_phaser_install(effect); break;
         case DUB_EFFECT_MASTER: dub_master_install(effect); break;
         case DUB_EFFECT_SPRING: dub_spring_install(effect); break;
+        case DUB_EFFECT_SUB: dub_sub_install(effect); break;
+        case DUB_EFFECT_WAH: dub_wah_install(effect); break;
+        case DUB_EFFECT_FLANGER: dub_flanger_install(effect); break;
     }
     if (!effect->state) { free(effect); return NULL; }
     effect->prepare(effect);
