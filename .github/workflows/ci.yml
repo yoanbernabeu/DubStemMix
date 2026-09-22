@@ -1,0 +1,19 @@
+# Every push and pull request: build and unit tests (no model download, no audio device needed).
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)/Contents/Developer" && swift --version
+      - name: Build
+        run: swift build
+      - name: Tests
+        run: swift test 2>&1 | tail -40

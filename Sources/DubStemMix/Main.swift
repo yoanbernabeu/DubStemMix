@@ -110,12 +110,35 @@ struct DubStemMixApp: App {
                 Button("Next Song") { model?.openNextInSetlist() }
                 Button("Previous Song") { model?.openNextInSetlist(offset: -1) }
             }
+            CommandGroup(replacing: .help) {
+                Button("Welcome to DubStemMix") { model?.showWelcome = true }
+                Button("DubStemMix on GitHub") { NSWorkspace.shared.open(URL(string: "https://github.com/yoanbernabeu/dubstemmix")!) }
+            }
         }
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    @MainActor var model: AppModel?
+    @MainActor var model: AppModel? {
+        didSet { MainActor.assumeIsolated { openPending() } }
+    }
+    /// Documents double-clicked in the Finder before the window (and the model) exist.
+    @MainActor private var pendingURLs: [URL] = []
+
+    /// Projects, setlists and stems opened from the Finder (the app owns .dubstem and .dubset).
+    func application(_ application: NSApplication, open urls: [URL]) {
+        MainActor.assumeIsolated {
+            pendingURLs += urls
+            openPending()
+        }
+    }
+
+    @MainActor private func openPending() {
+        guard let model, !pendingURLs.isEmpty else { return }
+        let urls = pendingURLs
+        pendingURLs = []
+        model.open(urls)
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Lancée via `swift run` (sans bundle), l'app doit demander elle-même à passer au premier plan.

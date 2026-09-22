@@ -8,6 +8,7 @@ enum Preference {
     static let bufferFrames = "audio.bufferFrames"
     static let recordingsFolder = "recording.folder"
     static let stemsFolder = "separation.stemsFolder"
+    static let welcomeShown = "welcome.shown"
 }
 
 extension AppModel {

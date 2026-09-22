@@ -30,6 +30,9 @@ struct RootView: View {
         .stemDrop(enabled: !model.isPreview, isTargeted: $dropTargeted) { model.open($0) }
         .background(Shortcuts(model: model))
         .environment(\.colorScheme, .dark)
+        .sheet(isPresented: Binding(get: { model.showWelcome && !model.isPreview }, set: { if !$0 { model.dismissWelcome() } })) {
+            WelcomeView(model: model) { model.dismissWelcome() }
+        }
     }
 }
 

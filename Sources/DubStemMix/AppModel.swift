@@ -49,6 +49,9 @@ final class AppModel {
     var unresolvedSlots: [String: Project.SlotEntry] = [:]
     @ObservationIgnored var pluginStates: [SendBus: Data] = [:]
     @ObservationIgnored var pluginStateCountdown = 0
+    /// First launch: the welcome panel, until dismissed once (Help ▸ Welcome reopens it).
+    var showWelcome = !UserDefaults.standard.bool(forKey: Preference.welcomeShown)
+
     // Stem separation (PRD § 12). See AppModel+Separation.swift.
     var separation = SeparationState.idle
     var modelStatus = ModelStore.Status.missing
@@ -379,6 +382,11 @@ final class AppModel {
     func setThrowTarget(_ target: ThrowTarget) {
         throwTarget = target
         engine.setThrowTarget(target)
+    }
+
+    func dismissWelcome() {
+        showWelcome = false
+        UserDefaults.standard.set(true, forKey: Preference.welcomeShown)
     }
 
     func toggleKeep(strip: Int) {

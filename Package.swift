@@ -26,10 +26,5 @@ let package = Package(
             dependencies: ["DubStemMixCore", "StemSplit"],
             resources: [.process("Resources")]
         ),
-        // Jalon M0 : spike technique jetable, conservé jusqu'à la validation du M1.
-        .executableTarget(
-            name: "M0Spike",
-            swiftSettings: [.swiftLanguageMode(.v5)]
-        ),
     ]
 )

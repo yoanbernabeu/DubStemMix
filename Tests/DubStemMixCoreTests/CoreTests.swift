@@ -7,10 +7,10 @@ import Testing
 
 @Test func stripNamesDropCommonPrefixAndSuffix() {
     let names = [
-        "Akae Beka - Don't Feel No Way (Autre)_1",
-        "Akae Beka - Don't Feel No Way (Basse)_1",
-        "Akae Beka - Don't Feel No Way (Batteries)_1",
-        "Akae Beka - Don't Feel No Way (Chant)_1",
+        "Artist - Song Title (Autre)_1",
+        "Artist - Song Title (Basse)_1",
+        "Artist - Song Title (Batteries)_1",
+        "Artist - Song Title (Chant)_1",
     ]
     #expect(StemImporter.stripNames(for: names) == ["AUTRE", "BASSE", "BATTERIES", "CHANT"])
     #expect(StemImporter.stripNames(for: ["bass"]) == ["BASS"])
