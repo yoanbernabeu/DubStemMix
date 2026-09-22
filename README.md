@@ -106,6 +106,24 @@ Output device and buffer size (128 or 256 for the dance), recordings folder, pre
 - macOS 14 is out: the engine uses the `Synchronization` module (macOS 15). Only macOS 26 has actually been tested.
 - The MIDImix is the only controller in this version; the mapping lives in one file, other controllers can follow.
 
+## FAQ
+
+**Only the Akai MIDImix?** Today, yes: it is the console this was built and tested with. But the mix logic never sees the MIDImix. It receives abstract events (knob on strip 3, row 2; MUTE on strip 5; BANK RIGHT) and sends abstract LED states back. The MIDImix itself is a **profile**, plain data: which control change is which knob, which note is which button, which notes light the LEDs. See `ControllerProfile` in `Sources/DubStemMixCore/MidiMix.swift`.
+
+**Adding another controller.** If it has the same geometry (8 strips with 3 knobs, a fader and buttons for MUTE / SOLO / REC ARM, two bank buttons, a master fader), write a profile: the tables of CC and note numbers, the fragment of its MIDI name, whether it has LEDs. Add it to `ControllerProfile.all`, check the numbers with `tools/midi-monitor.swift`, open a pull request. The Novation Launch Control XL is the obvious candidate. A controller with a different shape (one knob per strip, no per-strip buttons) needs changes in the interface and the mix logic, not just a profile: open an issue first so we can talk about it.
+
+**No controller at all?** Everything works with the mouse and the keyboard: knobs, faders, MUTE (⌥-click for solo), THROW, pages, gestures. The console adds the hands.
+
+**Intel Macs?** The releases are built for Apple Silicon and nothing has been tested on Intel. Building from source may work; no promise.
+
+**Why does macOS complain at first launch?** The app is signed ad hoc, not notarized: no Apple Developer account. Open Anyway once, or use the install script.
+
+**Where does the separation model live, and how do I remove it?** `~/Library/Application Support/DubStemMix/Models`, 663 MB. Settings ▸ Stem separation ▸ Delete. It is never bundled with the app.
+
+**Which stems can I load?** Any audio files (WAV, AIFF, FLAC, MP3, M4A, CAF), any sample rate, any length; several stems can share a strip. Stems exported from a DAW, bought as multitracks, or split by the app itself.
+
+**Latency?** Set the buffer to 128 or 256 samples in Settings. Built-in effects add no latency; a plugin's latency is not compensated.
+
 ## Build from source
 
 ```sh

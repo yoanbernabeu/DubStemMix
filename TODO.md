@@ -69,7 +69,7 @@ Interview faite : tout est retenu **sauf la sirène**. Les décisions (pages MAS
 ## 6. Idées pour plus tard (hors v1, notées dans le PRD)
 
 - [ ] Sortie **cue / casque** pour pré-écouter une tranche.
-- [ ] **Second contrôleur** dédié aux effets ; autres contrôleurs que la MIDImix (le mapping est déjà isolé).
+- [ ] **Second contrôleur** dédié aux effets ; autres contrôleurs que la MIDImix (le mapping est un `ControllerProfile` depuis le 22/09 : une console de même géométrie = un profil, sinon interface et logique à adapter). Candidate : Novation Launch Control XL. Sélection automatique du profil dont l'appareil est branché : à faire quand il y en aura deux.
 - [ ] Enregistrement de la **performance** (gestes) pour rejouer, corriger ou ré-exporter un mix ; **export hors ligne** (le moteur sait déjà rendre hors ligne, c'est ce qu'utilisent les tests).
 - [ ] Enregistrement des **retours d'effets séparés** pour retravailler dans un DAW.
 - [ ] **Marqueurs / sections** et boucles de passages.
