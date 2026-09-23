@@ -10,7 +10,7 @@ import inserts from "../assets/screenshots/inserts.png";
 // The four pages, in the order BANK RIGHT walks them. BANK LEFT always comes back to MIX.
 const pages = [
   { id: "mix", label: "MIX", reach: "BANK LEFT", knobs: "sends to DELAY, REVERB, BUS 3", image: mix, alt: "MIX page: eight strips with sends to delay, reverb and phaser" },
-  { id: "fx", label: "FX", reach: "BANK RIGHT", knobs: "delay time, feedback, wow, filters, reverb decay, damping, tone, phaser rate, depth… and the three returns", image: fx, alt: "FX page: the knobs drive the tape delay, the reverb and the phaser" },
+  { id: "fx", label: "FX", reach: "BANK RIGHT", knobs: "delay time, feedback, wow, filters, reverb decay, damping, tone, phaser rate, depth… the three returns and the bus-to-bus sends", image: fx, alt: "FX page: the knobs drive the tape delay, the reverb and the phaser" },
   { id: "master", label: "MASTER", reach: "BANK RIGHT again", knobs: "the big knob, the kills, the dubplate colour, delay heads and ping-pong", image: master, alt: "MASTER page: big knob, kills, dubplate, delay heads" },
   { id: "inserts", label: "INSERTS", reach: "BANK RIGHT again", knobs: "each strip's insert: sub, auto-wah, or a plugin's macros", image: inserts, alt: "INSERTS page: sub on the bass, auto-wah on the skank" },
 ];
@@ -19,6 +19,7 @@ const notes = [
   ["REC ARM held", "is the dub throw: the strip goes at full into the delay (or the reverb, or both), taken before the fader and the mute. Throw a cut vocal, hear only its echo."],
   ["Shared buses", "like the sends of a real board: cutting a strip never kills an echo or a reverb tail already on its way. That is the whole point."],
   ["Pre or post", "sends are post-fader by default; Settings switch any bus to pre-fader for the classic move: fader down, echo still running."],
+  ["Bus to bus", "each bus return can also feed one other bus, like patching a return into a send. Pick the target in the bus card's Send to menu, dose it on strip 8 of the FX page: a filter on bus 3 with the delay sent into it is a filtered echo. Loops are greyed out."],
 ];
 ---
 <Section id="board" index="03" title="The board" kicker="eight strips, mirrored on screen: what you touch is where you look">

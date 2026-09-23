@@ -41,7 +41,7 @@ Eight strips, mirrored on screen so what you touch is where you look. Per strip:
 | Page | Reach it | The knobs are |
 |---|---|---|
 | **MIX** | BANK LEFT (always comes back here) | sends to DELAY, REVERB, BUS 3 |
-| **FX** | BANK RIGHT | the built-in effects: delay time, feedback, wow, filters, reverb decay, damping, tone, phaser rate, depth… and the three returns |
+| **FX** | BANK RIGHT | the built-in effects: delay time, feedback, wow, filters, reverb decay, damping, tone, phaser rate, depth… the three returns and the bus-to-bus sends |
 | **MASTER** | BANK RIGHT again | the big knob, the kills, the dubplate colour, delay heads and ping-pong |
 | **INSERTS** | BANK RIGHT again | each strip's insert: sub, auto-wah, or a plugin's macros |
 
@@ -49,6 +49,7 @@ Eight strips, mirrored on screen so what you touch is where you look. Per strip:
 - **REC ARM held** is the **dub throw**: the strip goes at full into the delay (or the reverb, or both, from the delay card's menu), taken before the fader and the mute. Throw a cut vocal, hear only its echo.
 - Effects sit on shared buses, like the sends of a real board: cutting a strip never kills an echo or a reverb tail already on its way. That is the whole point.
 - Sends are post-fader by default; Settings (⌘,) switch any bus to pre-fader for the classic move: fader down, echo still running.
+- **Bus to bus**: each bus return can also feed one other bus, like patching a return into a send on a real board. Pick the target in the bus card's **Send to** menu, dose it with the three send knobs on strip 8 of the FX page. The order of your effects is which bus holds which: a filter plugin on bus 3 with the delay sent into it is a filtered echo. Targets that would close a loop are greyed out.
 
 <p align="center"><img src="docs/screenshots/fx.png" width="100%" alt="DubStemMix, FX page: the knobs drive the tape delay, the reverb and the phaser"></p>
 
@@ -132,8 +133,8 @@ Output device and buffer size (128 or 256 for the dance), recordings folder, pre
 git clone https://github.com/yoanbernabeu/DubStemMix.git
 cd DubStemMix
 swift run DubStemMix          # runs the app from the package
-tools/make-app.sh 0.2.0 dist  # builds dist/DubStemMix.app and the zip
-swift test                    # 65 tests, no model or audio device needed
+tools/make-app.sh 0.3.0 dist  # builds dist/DubStemMix.app and the zip
+swift test                    # 70 tests, no model or audio device needed
 ```
 
 Needs Xcode 26 (Swift 6.2). Useful self-checks without the UI: `--check-documents`, `--check-audio`, `--check-plugins`, `--check-plugin-crash`, `--download-models`, `--split <file>`. The screenshots above come from `--snapshot <file.png> [--fx | --master | --inserts | --settings]`, rendered with demo data.
