@@ -366,7 +366,7 @@ private struct FXSlotCard: View {
             RoundedRectangle(cornerRadius: 2).fill(bus.color).frame(width: 5)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(bus.label)
+                    Text(model.busLabel(sendBus))
                         .font(Fonts.label(12, weight: 850))
                         .tracking(1.2)
                         .foregroundStyle(bus.color)
@@ -422,10 +422,10 @@ private struct FXSlotCard: View {
                 Button("Open plugin window") { model.openPluginWindow(on: sendBus) }
             }
             // Bus-to-bus send (issue #1): targets that would close a loop are disabled.
-            Menu("Send to · \(model.busRouting.target(of: sendBus).map { Bus(rawValue: $0.rawValue)!.label.capitalized } ?? "None")") {
+            Menu("Send to · \(model.busRouting.target(of: sendBus).map { model.busMenuName($0) } ?? "None")") {
                 Button((model.busRouting.target(of: sendBus) == nil ? "✓ " : "") + "None") { model.setBusSend(from: sendBus, to: nil) }
                 ForEach(SendBus.allCases.filter { $0 != sendBus }, id: \.self) { target in
-                    Button((model.busRouting.target(of: sendBus) == target ? "✓ " : "") + Bus(rawValue: target.rawValue)!.label.capitalized) {
+                    Button((model.busRouting.target(of: sendBus) == target ? "✓ " : "") + model.busMenuName(target)) {
                         model.setBusSend(from: sendBus, to: target)
                     }
                     .disabled(!model.busRouting.allows(sendBus, to: target))

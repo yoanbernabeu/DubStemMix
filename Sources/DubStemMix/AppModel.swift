@@ -396,10 +396,33 @@ final class AppModel {
         busRouting = engine.busRouting
     }
 
-    /// FX-page knob label; a bus-send knob names its current target.
+    /// Bus name on screen. Bus 3 has no fixed role, so its name follows the effect it holds.
+    func busLabel(_ bus: SendBus) -> String {
+        switch bus {
+        case .delay: "DELAY"
+        case .reverb: "REVERB"
+        case .bus3: engine.plugins[.bus3] != nil ? "FX 3" : bus3Model == .phaser ? "PHASER" : "FLANGER"
+        }
+    }
+
+    /// Bus name in menus ("Phaser", "FX 3").
+    func busMenuName(_ bus: SendBus) -> String {
+        engine.plugins[bus] != nil && bus == .bus3 ? "FX 3" : busLabel(bus).capitalized
+    }
+
+    /// Short bus name for knob labels ("PHS RETURN", "DLY→FLG").
+    func busShortName(_ bus: SendBus) -> String {
+        switch bus {
+        case .delay, .reverb: bus.shortName
+        case .bus3: engine.plugins[.bus3] != nil ? "FX3" : bus3Model == .phaser ? "PHS" : "FLG"
+        }
+    }
+
+    /// FX-page knob label; bus-send knobs name their target, and bus 3's return follows its effect.
     func fxLabel(_ parameter: FXParameter) -> String {
+        if parameter == .phaserReturn { return busShortName(.bus3) + " RETURN" }
         guard parameter.isBusSend, let source = parameter.bus else { return parameter.label }
-        return parameter.label(sendingTo: busRouting.target(of: source))
+        return parameter.label(sendingTo: busRouting.target(of: source), names: busShortName)
     }
 
     func dismissWelcome() {

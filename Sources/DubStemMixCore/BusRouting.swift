@@ -69,12 +69,12 @@ public struct BusRouting: Equatable, Sendable {
 }
 
 extension SendBus {
-    /// Short name for knob labels ("DLY→REV").
+    /// Short name for knob labels ("DLY→REV"). The app names bus 3 after the effect it holds.
     public var shortName: String {
         switch self {
         case .delay: "DLY"
         case .reverb: "REV"
-        case .bus3: "B3"
+        case .bus3: "PHS"
         }
     }
 }

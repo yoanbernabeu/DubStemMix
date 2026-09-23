@@ -75,10 +75,11 @@ public enum FXParameter: String, CaseIterable, Sendable {
         }
     }
 
-    /// Label of a bus-send knob for its current target ("REV→—" when it feeds no bus).
-    public func label(sendingTo target: SendBus?) -> String {
+    /// Label of a bus-send knob for its current target ("REV→—" when it feeds no bus), with the buses'
+    /// short names (bus 3's follows the effect it holds).
+    public func label(sendingTo target: SendBus?, names: (SendBus) -> String = \.shortName) -> String {
         guard isBusSend, let source = bus else { return label }
-        return "\(source.shortName)→\(target?.shortName ?? "—")"
+        return "\(names(source))→\(target.map(names) ?? "—")"
     }
 
     /// Master-page group title (PRD § 11.2), for the strip header.
