@@ -11,7 +11,8 @@ private let namePlateHeight: CGFloat = 28
 
 /// What a strip's knobs drive on the FX, MASTER or INSERTS page: the header title and tint of the knob zone.
 @MainActor
-private func fxGroup(strip: Int, mix: MixController) -> (title: String, color: Color)? {
+private func fxGroup(strip: Int, model: AppModel) -> (title: String, color: Color)? {
+    let mix = model.mix
     switch mix.page {
     case .mix:
         return nil
@@ -25,11 +26,13 @@ private func fxGroup(strip: Int, mix: MixController) -> (title: String, color: C
         let color = parameters.first?.bus.map { Bus(rawValue: $0.rawValue)!.color } ?? Theme.text
         return (title, color)
     case .fx:
-        let buses = Set(FXParameter.layout[strip].compactMap { $0?.bus })
+        let parameters = FXParameter.layout[strip].compactMap { $0 }
+        if !parameters.isEmpty, parameters.allSatisfy(\.isBusSend) { return ("ROUTING", Theme.text) }
+        let buses = Set(parameters.compactMap(\.bus))
         guard let first = buses.first else { return nil }
         if buses.count > 1 { return ("RETURNS", Theme.text) }
         let bus = Bus(rawValue: first.rawValue)!
-        return (bus.label, bus.color)
+        return (model.busLabel(first), bus.color)
     }
 }
 
@@ -38,7 +41,7 @@ struct ConsoleView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            RowLabels(page: model.mix.page)
+            RowLabels(page: model.mix.page, names: SendBus.allCases.map(model.busLabel))
                 .frame(width: 70)
             ForEach(0..<AudioEngine.stripCount, id: \.self) { index in
                 StripView(model: model, index: index)
@@ -51,6 +54,7 @@ struct ConsoleView: View {
 
 private struct RowLabels: View {
     var page: MixController.Page
+    var names: [String]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -59,7 +63,7 @@ private struct RowLabels: View {
                 VStack(alignment: .leading, spacing: 3) {
                     if page == .mix {
                         RoundedRectangle(cornerRadius: 1.5).fill(bus.color).frame(width: 22, height: 4)
-                        Text(bus.label)
+                        Text(names[bus.rawValue])
                             .font(Fonts.label(11, weight: 800))
                             .tracking(1.2)
                             .foregroundStyle(bus.color)
@@ -147,7 +151,7 @@ private struct StripView: View {
         return dropTargeted ? Theme.text : Theme.border
     }
 
-    private var group: (title: String, color: Color)? { fxGroup(strip: index, mix: model.mix) }
+    private var group: (title: String, color: Color)? { fxGroup(strip: index, model: model) }
 
     /// En-tête de la zone des potards : sur la page FX, l'effet qu'ils pilotent — pas le stem.
     /// On the INSERTS page the title is the insert menu.
@@ -284,7 +288,7 @@ private struct StripView: View {
                 ghost: model.mix.fxGhost(parameter),
                 size: 54
             )
-            Text(parameter.label)
+            Text(model.fxLabel(parameter))
                 .font(Fonts.label(9.5, weight: 800))
                 .tracking(0.6)
                 .foregroundStyle(color)

@@ -105,13 +105,15 @@ Proposition de disposition (à valider à l'usage) :
 | Tranche | Haut | Milieu | Bas |
 |---|---|---|---|
 | 1 — Delay | Time | Feedback | Wow/flutter |
-| 2 — Delay | Low cut | High cut | Delay → Reverb |
+| 2 — Delay | Low cut | High cut | — |
 | 3 — Reverb | Decay | Damping | Predelay |
 | 4 — Reverb | Low cut | Tone | — |
 | 5 — Phaser | Rate | Depth | Feedback |
 | 6 — Phaser | Center | Stereo | — |
 | 7 — Retours | Retour Delay | Retour Reverb | Retour Bus 3 |
-| 8 | réservé | réservé | réservé |
+| 8 — Renvois | Delay → (au choix) | Reverb → (au choix) | Bus 3 → (au choix) |
+
+**Renvois de bus à bus** (issue #1, validés le 23/09/2026) : le retour de chaque bus peut partir, en plus du master, dans **un autre bus choisi par l'utilisateur**, comme sur une console dub. Menu « Send to » sur la carte de chaque bus : None, Delay, Reverb ou Bus 3. Un potard par bus dose le renvoi, les trois en tranche 8 : celui du delay (ancien DLY→REV de la tranche 2, déplacé ; reverb et 20 % par défaut, comme avant), puis ceux de la reverb et du bus 3 (aucune destination et 0 par défaut). Le libellé du potard affiche la destination (« REV→DLY », « PHS→— »). **Le bus 3 porte le nom de son effet** partout à l'écran (carte, en-tête de la page FX, page MIX, menus, réglages, potards) : PHASER / PHS avec le Bi-Phaser, FLANGER / FLG avec le Tape Flanger, FX 3 / FX3 avec un plugin. **Jamais de boucle** : un choix qui en fermerait une est grisé dans le menu, et un projet qui en contiendrait une revient au routage par défaut. Changer de destination arrête le moteur un instant (queues d'effets coupées), comme changer d'effet : c'est un réglage de préparation, les potards restent jouables en direct. Renvoi et retour d'un bus sont indépendants : retour à zéro, le renvoi passe quand même. Les potards de renvoi restent du routage quand un bus héberge un plugin : chaque bus a ses 6 macros, delay compris. Pas de renvoi depuis les inserts de tranche. Écarté pour l'instant : empiler plusieurs effets dans un même bus (voir l'issue).
 
 **Lisibilité à l'écran** : chaque tranche a deux zones. En haut, les potards : sur la page FX leur en-tête annonce l'effet piloté (DELAY, REVERB, PHASER, RETURNS) et la zone prend la teinte du bus. En bas, ce qui appartient au stem sur les deux pages : son nom, MUTE, THROW et le fader — le nom ne bouge donc pas quand on change de page.
 
@@ -132,7 +134,7 @@ Objectif : un son crédible pour le dub sans aucun plugin tiers.
 
 - Chaque bus (Delay, Reverb, Bus 3) a un **slot** : l'effet intégré (défaut) ou **n'importe quel plugin AU d'effet installé**. Le nom de l'effet, sur sa carte, est un menu : effet intégré, ou plugins rangés par éditeur ; « Open plugin window » ouvre l'interface du plugin.
 - Chargement **dans un processus séparé** quand c'est possible (sinon dans l'app, signalé « in-process ») : un plugin qui plante ne tue pas l'app en live. Vérifié avec AudioThing Dub Filter, iZotope Vinyl et TAL Reverb 4.
-- **Potards macros** : sur la page FX, les 6 potards du bus (5 pour le delay, dont le 6e reste DLY→REV, qui est du routage) deviennent des macros. Vides la première fois ; l'utilisateur affecte à chacun un paramètre du plugin (menu sous le potard). **Les affectations sont mémorisées par plugin** et reproposées dans tous les morceaux. Un réglage fait dans la fenêtre du plugin se reflète sur le potard (avec rattrapage du potard physique).
+- **Potards macros** : sur la page FX, les 6 potards du bus deviennent des macros (les renvois de bus à bus, en tranche 8, restent du routage). Vides la première fois ; l'utilisateur affecte à chacun un paramètre du plugin (menu sous le potard). **Les affectations sont mémorisées par plugin** et reproposées dans tous les morceaux. Un réglage fait dans la fenêtre du plugin se reflète sur le potard (avec rattrapage du potard physique).
 - Le projet enregistre, par bus : le plugin, **son état complet** (réglages, preset) et ses macros.
 - Plugin absent à l'ouverture d'un projet → l'effet intégré reste en place, un avertissement s'affiche, et le plugin **reste inscrit dans le projet** (il reviendra sur un Mac où il est installé) tant que l'utilisateur ne choisit pas autre chose pour ce bus.
 - Un plugin sur un bus d'envoi doit être réglé **100 % wet** (son « mix » à fond) : le signal direct passe déjà par la tranche.

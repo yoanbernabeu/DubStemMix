@@ -13,6 +13,8 @@
 - [x] **[toi]** Ligne DSP de la barre d'état — validée le 22/09 (le test de charge à 16 stems reste à faire, § 2).
 - [ ] **[toi]** Provoquer l'avertissement **« console not on factory mapping »** (par exemple en envoyant un CC depuis un autre contrôleur nommé « MIDI Mix », ou en reconfigurant un potard avec l'éditeur Akai) pour valider le message.
 
+- [x] **[toi]** **Renvois de bus à bus** (issue #1, branche `feature/bus-to-bus-sends`) — validés le 23/09 : menu « Send to » par bus, potards DLY→, REV→ et PHS→ en tranche 8 de la page FX, bus 3 nommé d'après son effet. Empiler plusieurs effets dans un bus reste écarté.
+
 ## 2. Promis dans le PRD, pas encore fait
 
 - [x] **Envois pré/post réglables par bus** (PRD § 3) — fait le 22/09 : réglage dans la fenêtre Réglages, étiquette PRE/POST vivante sur le rack.

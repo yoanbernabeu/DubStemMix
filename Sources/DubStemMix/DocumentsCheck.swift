@@ -55,6 +55,9 @@ enum DocumentsCheck {
             model.setReverbModel(.spring)
             model.setThrowTarget(.both)
             model.setBus3Model(.flanger)
+            model.setBusSend(from: .delay, to: .bus3)
+            model.setBusSend(from: .reverb, to: .delay)
+            check(model.engine.busRouting.target(of: .reverb) == .delay, "renvoi de la reverb vers le delay")
             model.setInsert(strip: 4, .sub)
             model.setInsertValue(strip: 4, index: 0, 0.9)
             check(model.engine.inserts[4] == .sub && model.mix.strips[4].insert == .sub, "insert intégré posé sur la tranche 5")
@@ -80,6 +83,8 @@ enum DocumentsCheck {
             check(model.reverbModel == .spring && model.engine.reverbModel == .spring, "réouverture : reverb à ressort restaurée")
             check(model.throwTarget == .both && model.engine.throwTarget == .both, "réouverture : cible du throw restaurée")
             check(model.bus3Model == .flanger && model.engine.bus3Model == .flanger, "réouverture : flanger sur le bus 3 restauré")
+            check(model.busRouting.target(of: .delay) == .bus3 && model.engine.busRouting.target(of: .reverb) == .delay,
+                  "réouverture : renvois de bus à bus restaurés")
             check(model.engine.inserts[4] == .sub && model.mix.strips[4].insertValues.first == 0.9, "réouverture : insert intégré et réglage restaurés")
             model.renameStrip(4, "")
             check(model.mix.strips[4].name == "BASS", "nom vidé : retour au nom du fichier")

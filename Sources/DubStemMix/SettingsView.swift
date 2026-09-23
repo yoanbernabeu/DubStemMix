@@ -80,7 +80,7 @@ struct SettingsView: View {
         SettingsSection(title: "SENDS") {
             ForEach(Bus.allCases, id: \.self) { bus in
                 let pre = model.sendPreFader[bus.rawValue]
-                SettingsRow(label: bus.label, labelColor: bus.color) {
+                SettingsRow(label: model.busLabel(SendBus(rawValue: bus.rawValue)!), labelColor: bus.color) {
                     HStack(spacing: 4) {
                         SettingsChip(text: "POST", active: !pre, color: bus.color) { model.setSendPreFader(SendBus(rawValue: bus.rawValue)!, false) }
                         SettingsChip(text: "PRE", active: pre, color: bus.color) { model.setSendPreFader(SendBus(rawValue: bus.rawValue)!, true) }

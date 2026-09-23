@@ -18,17 +18,20 @@ public enum FXParameter: String, CaseIterable, Sendable {
     case dubplate, crackle
     // Delay additions (PRD § 11.4), on the MASTER page too.
     case delayHeads, delayPingPong
+    // Bus-to-bus sends (issue #1), with the delay's (`delayToReverb`, old name kept for existing projects)
+    // on strip 8 of the FX page. Their targets live in `BusRouting`.
+    case reverbSend, bus3Send
 
     /// Page FX (BANK RIGHT) : potards des tranches 1 à 8, du haut vers le bas. PRD § 5.3.
     public static let layout: [[FXParameter?]] = [
         [.delayTime, .delayFeedback, .delayWow],
-        [.delayLowCut, .delayHighCut, .delayToReverb],
+        [.delayLowCut, .delayHighCut, nil],
         [.reverbDecay, .reverbDamping, .reverbPredelay],
         [.reverbLowCut, .reverbTone, nil],
         [.phaserRate, .phaserDepth, .phaserFeedback],
         [.phaserCenter, .phaserStereo, nil],
         [.delayReturn, .reverbReturn, .phaserReturn],
-        [nil, nil, nil],
+        [.delayToReverb, .reverbSend, .bus3Send],
     ]
 
     /// MASTER page (PRD § 11.2): strips 1 to 8, top to bottom. Strip 4 (delay heads, ping-pong) comes with M7.
@@ -54,10 +57,29 @@ public enum FXParameter: String, CaseIterable, Sendable {
         switch self {
         case .delayTime, .delayFeedback, .delayWow, .delayLowCut, .delayHighCut, .delayToReverb, .delayReturn,
              .delayHeads, .delayPingPong: .delay
-        case .reverbDecay, .reverbDamping, .reverbPredelay, .reverbLowCut, .reverbTone, .reverbReturn: .reverb
-        case .phaserRate, .phaserDepth, .phaserFeedback, .phaserCenter, .phaserStereo, .phaserReturn: .bus3
+        case .reverbDecay, .reverbDamping, .reverbPredelay, .reverbLowCut, .reverbTone, .reverbReturn, .reverbSend: .reverb
+        case .phaserRate, .phaserDepth, .phaserFeedback, .phaserCenter, .phaserStereo, .phaserReturn, .bus3Send: .bus3
         case .masterHighPass, .killBass, .killMid, .killTop, .dubplate, .crackle: nil
         }
+    }
+
+    /// A send from one bus's return into another bus (the knob's bus is the source).
+    public var isBusSend: Bool { [.delayToReverb, .reverbSend, .bus3Send].contains(self) }
+
+    /// The knob sending a bus's return to its chosen bus.
+    public static func busSend(from source: SendBus) -> FXParameter {
+        switch source {
+        case .delay: .delayToReverb
+        case .reverb: .reverbSend
+        case .bus3: .bus3Send
+        }
+    }
+
+    /// Label of a bus-send knob for its current target ("REV→—" when it feeds no bus), with the buses'
+    /// short names (bus 3's follows the effect it holds).
+    public func label(sendingTo target: SendBus?, names: (SendBus) -> String = \.shortName) -> String {
+        guard isBusSend, let source = bus else { return label }
+        return "\(names(source))→\(target.map(names) ?? "—")"
     }
 
     /// Master-page group title (PRD § 11.2), for the strip header.
@@ -99,6 +121,8 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .crackle: "CRACKLE"
         case .delayHeads: "HEADS"
         case .delayPingPong: "PING-PONG"
+        case .reverbSend: "REV→"
+        case .bus3Send: "B3→"
         }
     }
 
@@ -125,6 +149,8 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .phaserReturn: 1
         // Master chain: neutral until touched.
         case .masterHighPass, .dubplate, .crackle, .delayHeads, .delayPingPong: 0
+        // New bus-to-bus sends: closed, so existing projects sound the same.
+        case .reverbSend, .bus3Send: 0
         case .killBass, .killMid, .killTop: 1
         }
     }
@@ -147,7 +173,7 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .phaserFeedback: 0.95 * n
         case .phaserCenter: exp(200, 2000)
         case .delayWow, .phaserDepth, .phaserStereo: n
-        case .delayToReverb, .delayReturn, .reverbReturn, .phaserReturn: n * n // gain, 100 % = unité
+        case .delayToReverb, .reverbSend, .bus3Send, .delayReturn, .reverbReturn, .phaserReturn: n * n // gain, 100 % = unité
         case .masterHighPass: Self.highPassSteps[min(Self.highPassSteps.count - 1, Int(n * Double(Self.highPassSteps.count)))]
         case .killBass, .killMid, .killTop: n * n // kill gain, 100 % = unity
         case .dubplate, .crackle, .delayPingPong: n
@@ -167,7 +193,7 @@ public enum FXParameter: String, CaseIterable, Sendable {
             return String(format: "%.2f Hz", value)
         case .delayFeedback:
             return "\(Int((value * 100).rounded())) %"
-        case .delayToReverb, .delayReturn, .reverbReturn, .phaserReturn, .killBass, .killMid, .killTop:
+        case .delayToReverb, .reverbSend, .bus3Send, .delayReturn, .reverbReturn, .phaserReturn, .killBass, .killMid, .killTop:
             return value < 0.001 ? "−∞ dB" : String(format: "%+.0f dB", 20 * log10(value)).replacingOccurrences(of: "-", with: "−")
         case .masterHighPass:
             if value <= 20 { return "OFF" }
@@ -205,7 +231,7 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .crackle: (.master, DUB_MASTER_CRACKLE)
         case .delayHeads: (.delay, DUB_DELAY_HEADS)
         case .delayPingPong: (.delay, DUB_DELAY_PINGPONG)
-        case .delayToReverb, .delayReturn, .reverbReturn, .phaserReturn: nil
+        case .delayToReverb, .reverbSend, .bus3Send, .delayReturn, .reverbReturn, .phaserReturn: nil
         }
     }
 }
