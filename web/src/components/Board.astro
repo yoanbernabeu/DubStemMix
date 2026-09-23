@@ -8,6 +8,8 @@ import master from "../assets/screenshots/master.png";
 import inserts from "../assets/screenshots/inserts.png";
 
 // The four pages, in the order BANK RIGHT walks them. BANK LEFT always comes back to MIX.
+// The board opens on FX: the hero above already shows MIX.
+const initial = 1;
 const pages = [
   { id: "mix", label: "MIX", reach: "BANK LEFT", knobs: "sends to DELAY, REVERB, BUS 3", image: mix, alt: "MIX page: eight strips with sends to delay, reverb and phaser" },
   { id: "fx", label: "FX", reach: "BANK RIGHT", knobs: "delay time, feedback, wow, filters, reverb decay, damping, tone, phaser rate, depth… the three returns and the bus-to-bus sends", image: fx, alt: "FX page: the knobs drive the tape delay, the reverb and the phaser" },
@@ -25,7 +27,7 @@ const notes = [
 <Section id="board" index="03" title="The board" kicker="eight strips, mirrored on screen: what you touch is where you look">
   <p class="max-w-3xl text-lg leading-relaxed text-cream/90">
     Per strip: three knobs, MUTE, REC ARM, a fader. <strong>BANK LEFT / BANK RIGHT</strong> change what the knobs do;
-    the faders stay strip volumes on every page. Try the bank buttons below.
+    the faders stay strip volumes on every page. Four pages: flip through them below.
   </p>
 
   <div id="pages" class="mt-10 rounded border-[1.5px] border-border bg-surface">
@@ -39,24 +41,31 @@ const notes = [
             role="tab"
             id={`tab-${p.id}`}
             aria-controls={`panel-${p.id}`}
-            aria-selected={i === 0 ? "true" : "false"}
-            tabindex={i === 0 ? 0 : -1}
+            aria-selected={i === initial ? "true" : "false"}
+            tabindex={i === initial ? 0 : -1}
             data-page={i}
-            class="label flex items-center gap-2 rounded px-3 py-2 text-[11px] text-dim transition-colors hover:text-cream aria-selected:bg-cream aria-selected:text-bg"
+            class="label flex cursor-pointer items-center gap-2 rounded border-[1.5px] border-border px-3 py-2 text-[11px] text-dim transition-colors hover:border-cream hover:text-cream aria-selected:border-cream aria-selected:bg-cream aria-selected:text-bg"
           >
             <span class="led inline-block size-2 rounded-full bg-border" aria-hidden="true"></span>{p.label}
           </button>
         ))}
       </div>
+      <p class="mono ml-auto hidden text-[11px] text-dim md:block" aria-hidden="true">4 pages · click a tab, the arrows or ← →</p>
     </div>
 
     {pages.map((p, i) => (
-      <div role="tabpanel" id={`panel-${p.id}`} aria-labelledby={`tab-${p.id}`} data-page={i} hidden={i !== 0}>
-        <div class="grid gap-x-8 gap-y-1 px-4 py-3 sm:grid-cols-[auto_1fr]">
+      <div role="tabpanel" id={`panel-${p.id}`} aria-labelledby={`tab-${p.id}`} data-page={i} hidden={i !== initial}>
+        <div class="grid items-start gap-x-8 gap-y-1 px-4 py-3 sm:grid-cols-[auto_1fr_auto]">
           <p class="mono text-[11px] text-dim">Reach it: <span class="text-cream">{p.reach}</span></p>
           <p class="mono text-[11px] text-dim">The knobs are: <span class="text-cream">{p.knobs}</span></p>
+          <p class="label text-[11px] whitespace-nowrap text-cream">Page {i + 1} / {pages.length}</p>
         </div>
-        <Image src={p.image} alt={`DubStemMix, ${p.alt}`} widths={[720, 1100, 1440]} sizes="(min-width: 1152px) 1100px, 100vw" format="webp" loading={i === 0 ? "eager" : "lazy"} class="w-full border-t border-border" />
+        <div class="relative">
+          <Image src={p.image} alt={`DubStemMix, ${p.alt}`} widths={[720, 1100, 1440]} sizes="(min-width: 1152px) 1100px, 100vw" format="webp" loading={i === initial ? "eager" : "lazy"} class="w-full border-t border-border" />
+          <!-- Always-visible page flippers, so the four pages are obvious at a glance. -->
+          <button type="button" data-step="-1" aria-label="Previous page" class="absolute top-1/2 left-3 grid size-11 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-[1.5px] border-cream/70 bg-bg/85 text-lg text-cream transition-colors hover:bg-cream hover:text-bg sm:size-14 sm:text-xl">◀</button>
+          <button type="button" data-step="1" aria-label="Next page" class="absolute top-1/2 right-3 grid size-11 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-[1.5px] border-cream/70 bg-bg/85 text-lg text-cream transition-colors hover:bg-cream hover:text-bg sm:size-14 sm:text-xl">▶</button>
+        </div>
       </div>
     ))}
   </div>
@@ -96,6 +105,20 @@ const notes = [
       if (e.key === "ArrowRight") { show(current + 1); tabs[current].focus(); }
       if (e.key === "ArrowLeft") { show(current - 1); tabs[current].focus(); }
     });
-    show(0);
+    // The arrows on the screenshot browse in a loop, unlike the bank buttons, which mirror the console.
+    const step = (delta: number) => show((current + delta + tabs.length) % tabs.length);
+    root.querySelectorAll<HTMLButtonElement>("[data-step]").forEach((button) =>
+      button.addEventListener("click", () => step(Number(button.dataset.step))),
+    );
+    // Swipe on touch screens.
+    let startX: number | null = null;
+    root.addEventListener("touchstart", (e) => (startX = e.touches[0].clientX), { passive: true });
+    root.addEventListener("touchend", (e) => {
+      if (startX === null) return;
+      const dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1);
+      startX = null;
+    });
+    show(Number(tabs.findIndex((tab) => tab.getAttribute("aria-selected") === "true")));
   }
 </script>
