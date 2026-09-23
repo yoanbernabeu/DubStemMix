@@ -150,6 +150,57 @@ private func energy(_ samples: ArraySlice<Float>) -> Float { samples.reduce(0) {
     #expect(abs(output[peak]) > 0.05)
 }
 
+/// Energy reaching the master when a thrown impulse can only get out through bus 3 (issue #1).
+@MainActor private func bus3Energy(throwTo target: ThrowTarget, configure: (AudioEngine) -> Void) throws -> Float {
+    let engine = try AudioEngine(offline: true, effects: true)
+    let url = FileManager.default.temporaryDirectory.appending(path: "dsm-route-\(UUID().uuidString).wav")
+    let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)!
+    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 48_000)!
+    buffer.frameLength = 48_000
+    for channel in 0..<2 { buffer.floatChannelData![channel][1000] = 1 }
+    try AVAudioFile(forWriting: url, settings: format.settings, commonFormat: .pcmFormatFloat32, interleaved: false).write(from: buffer)
+
+    try engine.addStem(url: url, name: "impulse", strip: 0)
+    engine.setFaderGain(strip: 0, 0) // no direct signal: only the throw reaches the buses
+    engine.setMasterGain(1)
+    engine.setThrowTarget(target)
+    engine.setThrow(strip: 0, true)
+    engine.setFX(.delayFeedback, 0)
+    engine.setFX(.delayReturn, 0) // the delay and reverb returns are closed:
+    engine.setFX(.reverbReturn, 0) // anything heard went through bus 3
+    engine.setFX(.phaserReturn, 1)
+    configure(engine)
+    engine.loop = false
+    engine.play()
+    let output = try engine.renderOffline(frames: 48_000)
+    return energy(output[...])
+}
+
+@MainActor @Test func delayReturnCanFeedBus3() throws {
+    let closed = try bus3Energy(throwTo: .delay) { _ in }
+    let open = try bus3Energy(throwTo: .delay) { $0.setFX(.delayToBus3, 1) }
+    #expect(closed < 1e-6, "closed by default: \(closed)")
+    #expect(open > 1e-3, "DLY→BUS3 open: \(open)")
+}
+
+@MainActor @Test func reverbReturnCanFeedBus3EvenWithItsReturnClosed() throws {
+    let closed = try bus3Energy(throwTo: .reverb) { _ in }
+    let open = try bus3Energy(throwTo: .reverb) { $0.setFX(.reverbToBus3, 1) }
+    #expect(closed < 1e-6, "closed by default: \(closed)")
+    #expect(open > 1e-3, "REV→BUS3 open: \(open)")
+}
+
+@MainActor @Test func busSendsStayOnStrip8WhenBusesHostPlugins() {
+    let mix = MixController(engine: FakeEngine())
+    for bus in SendBus.allCases { mix.setHosted(bus, true) }
+    #expect(mix.cell(strip: 7, row: 0) == .parameter(.delayToBus3))
+    #expect(mix.cell(strip: 7, row: 1) == .parameter(.reverbToBus3))
+    #expect(mix.cell(strip: 7, row: 2) == nil)
+    #expect(mix.cell(strip: 3, row: 2) == .macro(.reverb, 5)) // the reverb keeps its 6 macros
+    #expect(mix.cell(strip: 5, row: 2) == .macro(.bus3, 5)) // and so does bus 3
+    #expect(FXParameter.delayToBus3.defaultValue == 0 && FXParameter.reverbToBus3.defaultValue == 0)
+}
+
 // MARK: - Page FX
 
 @MainActor @Test func fxPageRemapsKnobsWithPickup() {

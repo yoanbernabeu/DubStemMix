@@ -25,7 +25,9 @@ private func fxGroup(strip: Int, mix: MixController) -> (title: String, color: C
         let color = parameters.first?.bus.map { Bus(rawValue: $0.rawValue)!.color } ?? Theme.text
         return (title, color)
     case .fx:
-        let buses = Set(FXParameter.layout[strip].compactMap { $0?.bus })
+        let parameters = FXParameter.layout[strip].compactMap { $0 }
+        if !parameters.isEmpty, parameters.allSatisfy(\.isBusSend) { return ("ROUTING", Theme.text) }
+        let buses = Set(parameters.compactMap(\.bus))
         guard let first = buses.first else { return nil }
         if buses.count > 1 { return ("RETURNS", Theme.text) }
         let bus = Bus(rawValue: first.rawValue)!

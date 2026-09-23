@@ -111,7 +111,9 @@ Proposition de disposition (à valider à l'usage) :
 | 5 — Phaser | Rate | Depth | Feedback |
 | 6 — Phaser | Center | Stereo | — |
 | 7 — Retours | Retour Delay | Retour Reverb | Retour Bus 3 |
-| 8 | réservé | réservé | réservé |
+| 8 — Routage | Delay → Bus 3 | Reverb → Bus 3 | — |
+
+**Renvois de bus à bus** (issue #1, en essai) : le retour d'un bus peut partir dans un bus suivant, comme sur une console dub. Trois renvois, toujours vers l'avant : DLY→REV (tranche 2, à 20 % par défaut), **DLY→BUS3** et **REV→BUS3** (tranche 8, fermés par défaut). Aucun renvoi ne repart en arrière : le bus 3 ne renvoie que vers le master, donc aucune boucle n'est possible. On choisit l'ordre des effets en choisissant sur quel bus poser chaque effet (ex. Dub Filter sur le bus 3 + DLY→BUS3 = écho filtré). Chaque renvoi est indépendant du retour de son bus : retour reverb à zéro, REV→BUS3 passe quand même. Les potards de la tranche 8 restent du routage quand un bus héberge un plugin : les 6 macros de la reverb et du bus 3 ne bougent pas. Pas de chaînage dans les inserts de tranche. Écarté pour l'instant : empiler plusieurs effets dans un même bus (voir l'issue).
 
 **Lisibilité à l'écran** : chaque tranche a deux zones. En haut, les potards : sur la page FX leur en-tête annonce l'effet piloté (DELAY, REVERB, PHASER, RETURNS) et la zone prend la teinte du bus. En bas, ce qui appartient au stem sur les deux pages : son nom, MUTE, THROW et le fader — le nom ne bouge donc pas quand on change de page.
 

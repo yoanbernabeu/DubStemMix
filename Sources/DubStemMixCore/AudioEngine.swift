@@ -85,6 +85,10 @@ public protocol MixEngineControl: AnyObject {
 ///                                                       │               └─▶ 3 bus d'envoi (post-fader) ─▶ effet ─▶ retour ─▶ master
 ///                                                       └─▶ 3 send buses (before fader and mute: pre-fader sends, dub throw)
 ///                                                                       retour delay ─▶ bus reverb (DLY→REV)
+///                                                                       retour delay ─▶ bus 3 (DLY→BUS3)
+///                                                                       retour reverb ─▶ bus 3 (REV→BUS3)
+///
+/// Bus-to-bus sends only go forward (delay → reverb → bus 3): bus 3 never feeds another bus, so no loop can form.
 ///
 /// Per strip (PRD § 11.5): the stems sum in a mixer, go through the insert (between two fixed neutral nodes,
 /// so swapping it never touches a mixer), then a unity "pre" mixer takes the pre-fader sends and the throw,
@@ -211,6 +215,10 @@ public final class AudioEngine: MixEngineControl {
     /// Entrée du bus reverb réservée au renvoi du delay (les tranches occupent 0…7).
     private var delayToReverbBus: Int { Self.stripCount }
 
+    /// Bus 3 inputs taking the delay and reverb returns (strips use 0…7 post-fader, 8…15 pre-fader).
+    private var delayToBus3Bus: Int { Self.stripCount * 2 }
+    private var reverbToBus3Bus: Int { Self.stripCount * 2 + 1 }
+
     /// Input of a send bus taking strip `strip` before its fader (post-fader sends use inputs 0…7).
     private func preBus(_ bus: SendBus, strip: Int) -> Int { (bus == .reverb ? delayToReverbBus + 1 : Self.stripCount) + strip }
 
@@ -247,15 +255,21 @@ public final class AudioEngine: MixEngineControl {
                 engine.connect(input, to: returnMixers[b], format: format)
             }
         }
-        // Le retour du delay part aussi dans la reverb (DLY→REV), fermé par défaut.
+        // Returns also feed later buses (DLY→REV, DLY→BUS3, REV→BUS3), all closed by default.
+        let reverbInput = busInputs[SendBus.reverb.rawValue], bus3Input = busInputs[SendBus.bus3.rawValue]
         engine.connect(returnMixers[0], to: [
             AVAudioConnectionPoint(node: main, bus: returnBusBase),
-            AVAudioConnectionPoint(node: busInputs[SendBus.reverb.rawValue], bus: delayToReverbBus),
+            AVAudioConnectionPoint(node: reverbInput, bus: delayToReverbBus),
+            AVAudioConnectionPoint(node: bus3Input, bus: delayToBus3Bus),
         ], fromBus: 0, format: format)
-        returnMixers[0].destination(forMixer: busInputs[SendBus.reverb.rawValue], bus: delayToReverbBus)?.volume = 0
-        for b in 1..<returnMixers.count {
-            engine.connect(returnMixers[b], to: main, fromBus: 0, toBus: returnBusBase + b, format: format)
-        }
+        engine.connect(returnMixers[1], to: [
+            AVAudioConnectionPoint(node: main, bus: returnBusBase + 1),
+            AVAudioConnectionPoint(node: bus3Input, bus: reverbToBus3Bus),
+        ], fromBus: 0, format: format)
+        engine.connect(returnMixers[2], to: main, fromBus: 0, toBus: returnBusBase + 2, format: format)
+        returnMixers[0].destination(forMixer: reverbInput, bus: delayToReverbBus)?.volume = 0
+        returnMixers[0].destination(forMixer: bus3Input, bus: delayToBus3Bus)?.volume = 0
+        returnMixers[1].destination(forMixer: bus3Input, bus: reverbToBus3Bus)?.volume = 0
 
         // Master chain (PRD § 11.3): big knob → kills → dubplate, exact passthrough until touched.
         var tail: AVAudioNode = main
@@ -497,14 +511,19 @@ public final class AudioEngine: MixEngineControl {
             if kind == .phaser { effects[.flanger]?.set(index, value) } // so does the flanger with the phaser's
             return
         }
-        let reverbInput = busInputs[SendBus.reverb.rawValue]
+        let reverbInput = busInputs[SendBus.reverb.rawValue], bus3Input = busInputs[SendBus.bus3.rawValue]
         switch parameter {
         case .delayToReverb:
             returnMixers[0].destination(forMixer: reverbInput, bus: delayToReverbBus)?.volume = value
+        case .delayToBus3:
+            returnMixers[0].destination(forMixer: bus3Input, bus: delayToBus3Bus)?.volume = value
+        case .reverbToBus3:
+            returnMixers[1].destination(forMixer: bus3Input, bus: reverbToBus3Bus)?.volume = value
         case .delayReturn:
             returnMixers[0].destination(forMixer: engine.mainMixerNode, bus: returnBusBase)?.volume = value
         case .reverbReturn:
-            returnMixers[1].outputVolume = value
+            // Per destination, like the delay return: REV RETURN at zero must not close REV→BUS3.
+            returnMixers[1].destination(forMixer: engine.mainMixerNode, bus: returnBusBase + 1)?.volume = value
         case .phaserReturn:
             returnMixers[2].outputVolume = value
         default:

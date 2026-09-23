@@ -18,6 +18,8 @@ public enum FXParameter: String, CaseIterable, Sendable {
     case dubplate, crackle
     // Delay additions (PRD § 11.4), on the MASTER page too.
     case delayHeads, delayPingPong
+    // Bus-to-bus sends (issue #1), on strip 8 of the FX page. Always forward: delay → reverb → bus 3, never back.
+    case delayToBus3, reverbToBus3
 
     /// Page FX (BANK RIGHT) : potards des tranches 1 à 8, du haut vers le bas. PRD § 5.3.
     public static let layout: [[FXParameter?]] = [
@@ -28,7 +30,7 @@ public enum FXParameter: String, CaseIterable, Sendable {
         [.phaserRate, .phaserDepth, .phaserFeedback],
         [.phaserCenter, .phaserStereo, nil],
         [.delayReturn, .reverbReturn, .phaserReturn],
-        [nil, nil, nil],
+        [.delayToBus3, .reverbToBus3, nil],
     ]
 
     /// MASTER page (PRD § 11.2): strips 1 to 8, top to bottom. Strip 4 (delay heads, ping-pong) comes with M7.
@@ -53,12 +55,15 @@ public enum FXParameter: String, CaseIterable, Sendable {
     public var bus: SendBus? {
         switch self {
         case .delayTime, .delayFeedback, .delayWow, .delayLowCut, .delayHighCut, .delayToReverb, .delayReturn,
-             .delayHeads, .delayPingPong: .delay
-        case .reverbDecay, .reverbDamping, .reverbPredelay, .reverbLowCut, .reverbTone, .reverbReturn: .reverb
+             .delayHeads, .delayPingPong, .delayToBus3: .delay
+        case .reverbDecay, .reverbDamping, .reverbPredelay, .reverbLowCut, .reverbTone, .reverbReturn, .reverbToBus3: .reverb
         case .phaserRate, .phaserDepth, .phaserFeedback, .phaserCenter, .phaserStereo, .phaserReturn: .bus3
         case .masterHighPass, .killBass, .killMid, .killTop, .dubplate, .crackle: nil
         }
     }
+
+    /// A send from one bus's return into a later bus (the knob's bus is the source).
+    public var isBusSend: Bool { [.delayToReverb, .delayToBus3, .reverbToBus3].contains(self) }
 
     /// Master-page group title (PRD § 11.2), for the strip header.
     public var masterGroup: String? {
@@ -99,6 +104,8 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .crackle: "CRACKLE"
         case .delayHeads: "HEADS"
         case .delayPingPong: "PING-PONG"
+        case .delayToBus3: "DLY→BUS3"
+        case .reverbToBus3: "REV→BUS3"
         }
     }
 
@@ -125,6 +132,8 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .phaserReturn: 1
         // Master chain: neutral until touched.
         case .masterHighPass, .dubplate, .crackle, .delayHeads, .delayPingPong: 0
+        // New bus-to-bus sends: closed, so existing projects sound the same.
+        case .delayToBus3, .reverbToBus3: 0
         case .killBass, .killMid, .killTop: 1
         }
     }
@@ -147,7 +156,7 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .phaserFeedback: 0.95 * n
         case .phaserCenter: exp(200, 2000)
         case .delayWow, .phaserDepth, .phaserStereo: n
-        case .delayToReverb, .delayReturn, .reverbReturn, .phaserReturn: n * n // gain, 100 % = unité
+        case .delayToReverb, .delayToBus3, .reverbToBus3, .delayReturn, .reverbReturn, .phaserReturn: n * n // gain, 100 % = unité
         case .masterHighPass: Self.highPassSteps[min(Self.highPassSteps.count - 1, Int(n * Double(Self.highPassSteps.count)))]
         case .killBass, .killMid, .killTop: n * n // kill gain, 100 % = unity
         case .dubplate, .crackle, .delayPingPong: n
@@ -167,7 +176,7 @@ public enum FXParameter: String, CaseIterable, Sendable {
             return String(format: "%.2f Hz", value)
         case .delayFeedback:
             return "\(Int((value * 100).rounded())) %"
-        case .delayToReverb, .delayReturn, .reverbReturn, .phaserReturn, .killBass, .killMid, .killTop:
+        case .delayToReverb, .delayToBus3, .reverbToBus3, .delayReturn, .reverbReturn, .phaserReturn, .killBass, .killMid, .killTop:
             return value < 0.001 ? "−∞ dB" : String(format: "%+.0f dB", 20 * log10(value)).replacingOccurrences(of: "-", with: "−")
         case .masterHighPass:
             if value <= 20 { return "OFF" }
@@ -205,7 +214,7 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .crackle: (.master, DUB_MASTER_CRACKLE)
         case .delayHeads: (.delay, DUB_DELAY_HEADS)
         case .delayPingPong: (.delay, DUB_DELAY_PINGPONG)
-        case .delayToReverb, .delayReturn, .reverbReturn, .phaserReturn: nil
+        case .delayToReverb, .delayToBus3, .reverbToBus3, .delayReturn, .reverbReturn, .phaserReturn: nil
         }
     }
 }
