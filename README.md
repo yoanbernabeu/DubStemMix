@@ -135,8 +135,8 @@ Output device and buffer size (128 or 256 for the dance), recordings folder, pre
 git clone https://github.com/yoanbernabeu/DubStemMix.git
 cd DubStemMix
 swift run DubStemMix          # runs the app from the package
-tools/make-app.sh 0.3.0 dist  # builds dist/DubStemMix.app and the zip
-swift test                    # 70 tests, no model or audio device needed
+tools/make-app.sh 0.4.0 dist  # builds dist/DubStemMix.app and the zip
+swift test                    # 73 tests, no model or audio device needed
 ```
 
 Needs Xcode 26 (Swift 6.2). Useful self-checks without the UI: `--check-documents`, `--check-audio`, `--check-plugins`, `--check-plugin-crash`, `--download-models`, `--split <file>`. The screenshots above come from `--snapshot <file.png> [--fx | --master | --inserts | --settings]`, rendered with demo data.
