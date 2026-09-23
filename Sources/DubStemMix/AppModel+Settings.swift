@@ -9,6 +9,8 @@ enum Preference {
     static let recordingsFolder = "recording.folder"
     static let stemsFolder = "separation.stemsFolder"
     static let welcomeShown = "welcome.shown"
+    static let automaticUpdateChecks = "updates.automatic"
+    static let lastUpdateCheck = "updates.lastCheck"
 }
 
 extension AppModel {

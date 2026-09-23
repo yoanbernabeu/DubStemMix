@@ -114,6 +114,10 @@ private struct TopBar: View {
             if let error = model.errorMessage {
                 Text(error).font(Fonts.mono(11)).foregroundStyle(Theme.rec)
             }
+            // Never while playing or recording: an update waits for the stop.
+            if let update = model.availableUpdate, !model.isPlaying, !model.isRecording {
+                UpdateBanner(model: model, update: update)
+            }
             if let recording = model.lastRecording, !model.isRecording, model.errorMessage == nil {
                 Button { NSWorkspace.shared.activateFileViewerSelecting([recording]) } label: {
                     Text("Saved \(recording.lastPathComponent) — show in Finder")
@@ -251,6 +255,48 @@ private struct RecordButton: View {
     private var timecode: String {
         let seconds = Int(model.recordingTime)
         return String(format: "%02d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+/// A newer version is out: install it in one click, read its notes, or hide the banner until next launch.
+private struct UpdateBanner: View {
+    var model: AppModel
+    var update: ReleaseInfo
+
+    var body: some View {
+        HStack(spacing: 8) {
+            switch model.updateStatus {
+            case .downloading:
+                ProgressView().controlSize(.small)
+                Text("Downloading \(update.version)…").font(Fonts.mono(10.5)).foregroundStyle(Theme.text)
+            case let .failed(message):
+                Text("Update failed: \(message)").font(Fonts.mono(10.5)).foregroundStyle(Theme.rec).lineLimit(1)
+                Button("RETRY") { model.installUpdate() }.buttonStyle(.plain).font(Fonts.label(10.5, weight: 800)).foregroundStyle(Theme.text)
+            case .idle:
+                Text("\(update.version) available").font(Fonts.mono(10.5)).foregroundStyle(Theme.text)
+                Button("UPDATE") { model.installUpdate() }
+                    .buttonStyle(.plain)
+                    .font(Fonts.label(10.5, weight: 800))
+                    .foregroundStyle(Theme.bg)
+                    .padding(.horizontal, 8)
+                    .frame(height: 22)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(Theme.text))
+                Button("NOTES") { NSWorkspace.shared.open(update.pageURL) }
+                    .buttonStyle(.plain)
+                    .font(Fonts.label(10.5, weight: 800))
+                    .foregroundStyle(Theme.textDim)
+            }
+            if model.updateStatus != .downloading {
+                Button { model.dismissUpdate() } label: { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)) }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.textDim)
+                    .help("Hide for now: the next daily check shows it again")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 32)
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border, lineWidth: 1.5))
+        .fixedSize()
     }
 }
 
