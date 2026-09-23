@@ -226,9 +226,10 @@ private func energy(_ samples: ArraySlice<Float>) -> Float { samples.reduce(0) {
 @MainActor @Test func busSendsStayOnTheirKnobsWhenBusesHostPlugins() {
     let mix = MixController(engine: FakeEngine())
     for bus in SendBus.allCases { mix.setHosted(bus, true) }
-    #expect(mix.cell(strip: 1, row: 2) == .parameter(.delayToReverb))
-    #expect(mix.cell(strip: 7, row: 0) == .parameter(.reverbSend))
-    #expect(mix.cell(strip: 7, row: 1) == .parameter(.bus3Send))
+    #expect(mix.cell(strip: 7, row: 0) == .parameter(.delayToReverb))
+    #expect(mix.cell(strip: 7, row: 1) == .parameter(.reverbSend))
+    #expect(mix.cell(strip: 7, row: 2) == .parameter(.bus3Send))
+    #expect(mix.cell(strip: 1, row: 2) == .macro(.delay, 5)) // the delay gets its 6th macro back
     #expect(mix.cell(strip: 3, row: 2) == .macro(.reverb, 5)) // the reverb keeps its 6 macros
     #expect(mix.cell(strip: 5, row: 2) == .macro(.bus3, 5)) // and so does bus 3
     #expect(FXParameter.delayToReverb.label(sendingTo: .reverb) == "DLY→REV")
@@ -416,9 +417,9 @@ func tempoIsDetected(played: Double, expected: Double) {
     mix.handle(.knob(strip: 3, row: 1, value: 0.6))
     #expect(mix.macros[.reverb]?[4] == 0.6 && engine.macros["reverb-4"] == 0.6)
 
-    // Le delay garde DLY→REV sur son 6e potard, même avec un plugin.
+    // The delay has 6 macros too: its send lives on strip 8.
     mix.setHosted(.delay, true)
-    #expect(mix.cell(strip: 1, row: 2) == .parameter(.delayToReverb))
+    #expect(mix.cell(strip: 1, row: 2) == .macro(.delay, 5))
     #expect(mix.cell(strip: 1, row: 1) == .macro(.delay, 4))
 
     mix.syncMacro(bus: .reverb, index: 4, 0.1) // changé dans la fenêtre du plugin

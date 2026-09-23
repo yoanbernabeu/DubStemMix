@@ -18,20 +18,20 @@ public enum FXParameter: String, CaseIterable, Sendable {
     case dubplate, crackle
     // Delay additions (PRD § 11.4), on the MASTER page too.
     case delayHeads, delayPingPong
-    // Bus-to-bus sends (issue #1): the reverb's and bus 3's, on strip 8 of the FX page. The delay's is
-    // `delayToReverb`, kept on strip 2 under its old name for existing projects. Targets: `BusRouting`.
+    // Bus-to-bus sends (issue #1), with the delay's (`delayToReverb`, old name kept for existing projects)
+    // on strip 8 of the FX page. Their targets live in `BusRouting`.
     case reverbSend, bus3Send
 
     /// Page FX (BANK RIGHT) : potards des tranches 1 à 8, du haut vers le bas. PRD § 5.3.
     public static let layout: [[FXParameter?]] = [
         [.delayTime, .delayFeedback, .delayWow],
-        [.delayLowCut, .delayHighCut, .delayToReverb],
+        [.delayLowCut, .delayHighCut, nil],
         [.reverbDecay, .reverbDamping, .reverbPredelay],
         [.reverbLowCut, .reverbTone, nil],
         [.phaserRate, .phaserDepth, .phaserFeedback],
         [.phaserCenter, .phaserStereo, nil],
         [.delayReturn, .reverbReturn, .phaserReturn],
-        [.reverbSend, .bus3Send, nil],
+        [.delayToReverb, .reverbSend, .bus3Send],
     ]
 
     /// MASTER page (PRD § 11.2): strips 1 to 8, top to bottom. Strip 4 (delay heads, ping-pong) comes with M7.

@@ -332,11 +332,11 @@ public final class MixController {
 
     // MARK: Plugins et potards macros
 
-    /// Les 6 potards d'un bus sur la page FX (2 tranches × 3). Le 6e du delay reste DLY→REV : c'est du routage.
+    /// The 6 knobs of a bus on the FX page (2 strips × 3). Bus-to-bus sends live on strip 8, outside the macros.
     public static func macroSlot(strip: Int, row: Int) -> (bus: SendBus, index: Int)? {
         guard strip < 6, let bus = SendBus(rawValue: strip / 2) else { return nil }
         let index = (strip % 2) * 3 + row
-        return bus == .delay && index == 5 ? nil : (bus, index)
+        return (bus, index)
     }
 
     /// On the MASTER page, a master-chain parameter; on INSERTS, the strip's insert; otherwise the FX page's
