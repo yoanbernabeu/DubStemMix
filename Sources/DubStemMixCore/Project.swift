@@ -82,6 +82,8 @@ public struct Project: Codable, Equatable, Sendable {
     public var throwTarget: String?
     /// Built-in effect on bus 3 (`Bus3Model.rawValue`), PRD § 11.5.
     public var bus3Model: String?
+    /// Bus-to-bus sends (issue #1): source `SendBus.key` → target key or "none". Absent = DLY→REV only.
+    public var busSends: [String: String]?
 
     /// A strip insert (PRD § 11.5): a built-in insert with its normalized values, or a plugin with its state.
     public struct InsertEntry: Codable, Equatable, Sendable {

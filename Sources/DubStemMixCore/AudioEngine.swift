@@ -84,11 +84,10 @@ public protocol MixEngineControl: AnyObject {
 ///   lecteur ─▶ somme de tranche ─▶ insert ─▶ prise pré ─┬─▶ fader/mute ─┬─▶ master ─▶ chaîne master ─▶ varispeed ─▶ gain ─▶ limiteur ─▶ sortie
 ///                                                       │               └─▶ 3 bus d'envoi (post-fader) ─▶ effet ─▶ retour ─▶ master
 ///                                                       └─▶ 3 send buses (before fader and mute: pre-fader sends, dub throw)
-///                                                                       retour delay ─▶ bus reverb (DLY→REV)
-///                                                                       retour delay ─▶ bus 3 (DLY→BUS3)
-///                                                                       retour reverb ─▶ bus 3 (REV→BUS3)
+///                                                                       retour d'un bus ─▶ un autre bus (renvoi, issue #1)
 ///
-/// Bus-to-bus sends only go forward (delay → reverb → bus 3): bus 3 never feeds another bus, so no loop can form.
+/// Bus-to-bus sends: each return may also feed one other bus, chosen by the user (`BusRouting`, DLY→REV by
+/// default). The routing is always loop-free; changing a target rewires the graph, engine stopped.
 ///
 /// Per strip (PRD § 11.5): the stems sum in a mixer, go through the insert (between two fixed neutral nodes,
 /// so swapping it never touches a mixer), then a unity "pre" mixer takes the pre-fader sends and the throw,
@@ -212,15 +211,14 @@ public final class AudioEngine: MixEngineControl {
     private var returnBusBase: Int { Self.stripCount }
     private var masterOutput: AVAudioNode?
 
-    /// Entrée du bus reverb réservée au renvoi du delay (les tranches occupent 0…7).
-    private var delayToReverbBus: Int { Self.stripCount }
-
-    /// Bus 3 inputs taking the delay and reverb returns (strips use 0…7 post-fader, 8…15 pre-fader).
-    private var delayToBus3Bus: Int { Self.stripCount * 2 }
-    private var reverbToBus3Bus: Int { Self.stripCount * 2 + 1 }
-
     /// Input of a send bus taking strip `strip` before its fader (post-fader sends use inputs 0…7).
-    private func preBus(_ bus: SendBus, strip: Int) -> Int { (bus == .reverb ? delayToReverbBus + 1 : Self.stripCount) + strip }
+    private func preBus(_ bus: SendBus, strip: Int) -> Int { Self.stripCount + strip }
+
+    /// Input of any send bus taking the return of `source` (strips use 0…15).
+    private func sendInput(from source: SendBus) -> Int { Self.stripCount * 2 + source.rawValue }
+
+    /// Where each bus's return is sent besides the master (issue #1).
+    public private(set) var busRouting = BusRouting.standard
 
     private func buildGraph(withEffects: Bool) {
         let main = engine.mainMixerNode
@@ -255,21 +253,8 @@ public final class AudioEngine: MixEngineControl {
                 engine.connect(input, to: returnMixers[b], format: format)
             }
         }
-        // Returns also feed later buses (DLY→REV, DLY→BUS3, REV→BUS3), all closed by default.
-        let reverbInput = busInputs[SendBus.reverb.rawValue], bus3Input = busInputs[SendBus.bus3.rawValue]
-        engine.connect(returnMixers[0], to: [
-            AVAudioConnectionPoint(node: main, bus: returnBusBase),
-            AVAudioConnectionPoint(node: reverbInput, bus: delayToReverbBus),
-            AVAudioConnectionPoint(node: bus3Input, bus: delayToBus3Bus),
-        ], fromBus: 0, format: format)
-        engine.connect(returnMixers[1], to: [
-            AVAudioConnectionPoint(node: main, bus: returnBusBase + 1),
-            AVAudioConnectionPoint(node: bus3Input, bus: reverbToBus3Bus),
-        ], fromBus: 0, format: format)
-        engine.connect(returnMixers[2], to: main, fromBus: 0, toBus: returnBusBase + 2, format: format)
-        returnMixers[0].destination(forMixer: reverbInput, bus: delayToReverbBus)?.volume = 0
-        returnMixers[0].destination(forMixer: bus3Input, bus: delayToBus3Bus)?.volume = 0
-        returnMixers[1].destination(forMixer: bus3Input, bus: reverbToBus3Bus)?.volume = 0
+        // Each return goes to the master and, if routed, to one other bus (closed until its knob is set).
+        for source in SendBus.allCases { connectReturn(of: source) }
 
         // Master chain (PRD § 11.3): big knob → kills → dubplate, exact passthrough until touched.
         var tail: AVAudioNode = main
@@ -511,24 +496,59 @@ public final class AudioEngine: MixEngineControl {
             if kind == .phaser { effects[.flanger]?.set(index, value) } // so does the flanger with the phaser's
             return
         }
-        let reverbInput = busInputs[SendBus.reverb.rawValue], bus3Input = busInputs[SendBus.bus3.rawValue]
-        switch parameter {
-        case .delayToReverb:
-            returnMixers[0].destination(forMixer: reverbInput, bus: delayToReverbBus)?.volume = value
-        case .delayToBus3:
-            returnMixers[0].destination(forMixer: bus3Input, bus: delayToBus3Bus)?.volume = value
-        case .reverbToBus3:
-            returnMixers[1].destination(forMixer: bus3Input, bus: reverbToBus3Bus)?.volume = value
-        case .delayReturn:
-            returnMixers[0].destination(forMixer: engine.mainMixerNode, bus: returnBusBase)?.volume = value
-        case .reverbReturn:
-            // Per destination, like the delay return: REV RETURN at zero must not close REV→BUS3.
-            returnMixers[1].destination(forMixer: engine.mainMixerNode, bus: returnBusBase + 1)?.volume = value
-        case .phaserReturn:
-            returnMixers[2].outputVolume = value
-        default:
-            break
+        // Returns and sends are per destination: a return at zero never closes the bus's send, and back.
+        if parameter.isBusSend, let source = parameter.bus {
+            if let target = busRouting.target(of: source) {
+                returnMixers[source.rawValue].destination(forMixer: busInputs[target.rawValue], bus: sendInput(from: source))?.volume = value
+            }
+            return
         }
+        let source: SendBus
+        switch parameter {
+        case .delayReturn: source = .delay
+        case .reverbReturn: source = .reverb
+        case .phaserReturn: source = .bus3
+        default: return
+        }
+        returnMixers[source.rawValue].destination(forMixer: engine.mainMixerNode, bus: returnBusBase + source.rawValue)?.volume = value
+    }
+
+    // MARK: Bus-to-bus sends (issue #1)
+
+    /// Sends a bus's return to another bus (nil = none). Refused when it would close a loop.
+    /// Rewiring needs the engine stopped for a moment, like swapping an effect: effect tails are cut.
+    @discardableResult
+    public func setBusSend(from source: SendBus, to target: SendBus?) -> Bool {
+        guard let routing = busRouting.setting(source, to: target) else { return false }
+        setBusRouting(routing)
+        return true
+    }
+
+    /// Applies a whole routing at once (a project being opened); ignored if it has a loop.
+    public func setBusRouting(_ routing: BusRouting) {
+        guard routing != busRouting, routing.isLoopFree else { return }
+        let changed = SendBus.allCases.filter { routing.target(of: $0) != busRouting.target(of: $0) }
+        restructure {
+            engine.stop()
+            busRouting = routing
+            for source in changed { connectReturn(of: source) }
+            try? engine.start()
+        }
+    }
+
+    /// Wires a return to the master and to its routed bus, with the current return and send levels.
+    private func connectReturn(of source: SendBus) {
+        let b = source.rawValue
+        var points = [AVAudioConnectionPoint(node: engine.mainMixerNode, bus: returnBusBase + b)]
+        if let target = busRouting.target(of: source) {
+            points.append(AVAudioConnectionPoint(node: busInputs[target.rawValue], bus: sendInput(from: source)))
+        }
+        engine.connect(returnMixers[b], to: points, fromBus: 0, format: format)
+        let returnParameter: FXParameter = [.delayReturn, .reverbReturn, .phaserReturn][b]
+        let send = FXParameter.busSend(from: source)
+        // New connections open at full volume: restore the levels (a never-set send stays closed).
+        setFX(returnParameter, lastFX[returnParameter] ?? 1)
+        setFX(send, lastFX[send] ?? 0)
     }
 
     // MARK: Delay and reverb gestures (PRD § 11.4)

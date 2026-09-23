@@ -150,8 +150,11 @@ private func energy(_ samples: ArraySlice<Float>) -> Float { samples.reduce(0) {
     #expect(abs(output[peak]) > 0.05)
 }
 
-/// Energy reaching the master when a thrown impulse can only get out through bus 3 (issue #1).
-@MainActor private func bus3Energy(throwTo target: ThrowTarget, configure: (AudioEngine) -> Void) throws -> Float {
+/// Energy reaching the master when a thrown impulse can only get out through `exit` (issue #1):
+/// the other returns are closed, so anything heard came through a bus-to-bus send.
+@MainActor private func energyThrough(
+    _ exit: SendBus, throwTo target: ThrowTarget, configure: (AudioEngine) -> Void
+) throws -> Float {
     let engine = try AudioEngine(offline: true, effects: true)
     let url = FileManager.default.temporaryDirectory.appending(path: "dsm-route-\(UUID().uuidString).wav")
     let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)!
@@ -166,9 +169,10 @@ private func energy(_ samples: ArraySlice<Float>) -> Float { samples.reduce(0) {
     engine.setThrowTarget(target)
     engine.setThrow(strip: 0, true)
     engine.setFX(.delayFeedback, 0)
-    engine.setFX(.delayReturn, 0) // the delay and reverb returns are closed:
-    engine.setFX(.reverbReturn, 0) // anything heard went through bus 3
-    engine.setFX(.phaserReturn, 1)
+    engine.setFX(.delayToReverb, 0)
+    for (bus, parameter) in zip(SendBus.allCases, [FXParameter.delayReturn, .reverbReturn, .phaserReturn]) {
+        engine.setFX(parameter, bus == exit ? 1 : 0)
+    }
     configure(engine)
     engine.loop = false
     engine.play()
@@ -176,29 +180,59 @@ private func energy(_ samples: ArraySlice<Float>) -> Float { samples.reduce(0) {
     return energy(output[...])
 }
 
-@MainActor @Test func delayReturnCanFeedBus3() throws {
-    let closed = try bus3Energy(throwTo: .delay) { _ in }
-    let open = try bus3Energy(throwTo: .delay) { $0.setFX(.delayToBus3, 1) }
-    #expect(closed < 1e-6, "closed by default: \(closed)")
-    #expect(open > 1e-3, "DLY→BUS3 open: \(open)")
+@MainActor @Test func delayCanBeSentToBus3Instead() throws {
+    let closed = try energyThrough(.bus3, throwTo: .delay) { _ in }
+    let open = try energyThrough(.bus3, throwTo: .delay) {
+        #expect($0.setBusSend(from: .delay, to: .bus3))
+        $0.setFX(.delayToReverb, 1)
+    }
+    #expect(closed < 1e-6, "no send to bus 3 by default: \(closed)")
+    #expect(open > 1e-3, "delay sent to bus 3: \(open)")
 }
 
-@MainActor @Test func reverbReturnCanFeedBus3EvenWithItsReturnClosed() throws {
-    let closed = try bus3Energy(throwTo: .reverb) { _ in }
-    let open = try bus3Energy(throwTo: .reverb) { $0.setFX(.reverbToBus3, 1) }
-    #expect(closed < 1e-6, "closed by default: \(closed)")
-    #expect(open > 1e-3, "REV→BUS3 open: \(open)")
+@MainActor @Test func reverbCanBeSentBackToTheDelay() throws {
+    let open = try energyThrough(.delay, throwTo: .reverb) {
+        #expect(!$0.setBusSend(from: .reverb, to: .delay)) // DLY→REV exists: that would close a loop
+        #expect($0.setBusSend(from: .delay, to: nil))
+        #expect($0.setBusSend(from: .reverb, to: .delay))
+        $0.setFX(.reverbSend, 1)
+    }
+    #expect(open > 1e-3, "reverb sent to the delay: \(open)")
 }
 
-@MainActor @Test func busSendsStayOnStrip8WhenBusesHostPlugins() {
+@MainActor @Test func rewiringSendsRepeatedlyWhilePlayingKeepsTheEngineAlive() throws {
+    let engine = try AudioEngine(offline: true, effects: true)
+    engine.play()
+    let targets: [SendBus?] = [.bus3, nil, .reverb, .bus3, nil, .reverb]
+    for target in targets {
+        #expect(engine.setBusSend(from: .delay, to: target))
+        _ = try engine.renderOffline(frames: 1024)
+    }
+    #expect(engine.busRouting == .standard)
+}
+
+@Test func busRoutingNeverClosesALoop() {
+    var routing = BusRouting.standard // delay → reverb
+    #expect(!routing.allows(.reverb, to: .delay))
+    #expect(!routing.allows(.delay, to: .delay))
+    routing = routing.setting(.reverb, to: .bus3)! // delay → reverb → bus 3
+    #expect(!routing.allows(.bus3, to: .delay) && !routing.allows(.bus3, to: .reverb))
+    #expect(routing.allows(.delay, to: .bus3)) // replacing the delay's own target is fine
+    #expect(BusRouting(projectValue: ["delay": "reverb", "reverb": "delay"]) == .standard) // a looped file falls back
+    #expect(BusRouting(projectValue: routing.projectValue) == routing)
+    #expect(BusRouting.standard.projectValue == nil)
+}
+
+@MainActor @Test func busSendsStayOnTheirKnobsWhenBusesHostPlugins() {
     let mix = MixController(engine: FakeEngine())
     for bus in SendBus.allCases { mix.setHosted(bus, true) }
-    #expect(mix.cell(strip: 7, row: 0) == .parameter(.delayToBus3))
-    #expect(mix.cell(strip: 7, row: 1) == .parameter(.reverbToBus3))
-    #expect(mix.cell(strip: 7, row: 2) == nil)
+    #expect(mix.cell(strip: 1, row: 2) == .parameter(.delayToReverb))
+    #expect(mix.cell(strip: 7, row: 0) == .parameter(.reverbSend))
+    #expect(mix.cell(strip: 7, row: 1) == .parameter(.bus3Send))
     #expect(mix.cell(strip: 3, row: 2) == .macro(.reverb, 5)) // the reverb keeps its 6 macros
     #expect(mix.cell(strip: 5, row: 2) == .macro(.bus3, 5)) // and so does bus 3
-    #expect(FXParameter.delayToBus3.defaultValue == 0 && FXParameter.reverbToBus3.defaultValue == 0)
+    #expect(FXParameter.delayToReverb.label(sendingTo: .reverb) == "DLY→REV")
+    #expect(FXParameter.reverbSend.label(sendingTo: nil) == "REV→—")
 }
 
 // MARK: - Page FX

@@ -286,7 +286,7 @@ private struct StripView: View {
                 ghost: model.mix.fxGhost(parameter),
                 size: 54
             )
-            Text(parameter.label)
+            Text(model.fxLabel(parameter))
                 .font(Fonts.label(9.5, weight: 800))
                 .tracking(0.6)
                 .foregroundStyle(color)

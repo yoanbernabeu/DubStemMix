@@ -421,6 +421,16 @@ private struct FXSlotCard: View {
             if plugin != nil {
                 Button("Open plugin window") { model.openPluginWindow(on: sendBus) }
             }
+            // Bus-to-bus send (issue #1): targets that would close a loop are disabled.
+            Menu("Send to · \(model.busRouting.target(of: sendBus).map { Bus(rawValue: $0.rawValue)!.label.capitalized } ?? "None")") {
+                Button((model.busRouting.target(of: sendBus) == nil ? "✓ " : "") + "None") { model.setBusSend(from: sendBus, to: nil) }
+                ForEach(SendBus.allCases.filter { $0 != sendBus }, id: \.self) { target in
+                    Button((model.busRouting.target(of: sendBus) == target ? "✓ " : "") + Bus(rawValue: target.rawValue)!.label.capitalized) {
+                        model.setBusSend(from: sendBus, to: target)
+                    }
+                    .disabled(!model.busRouting.allows(sendBus, to: target))
+                }
+            }
             if bus == .delay {
                 // Where REC ARM / THROW sends the strip (PRD § 11.4).
                 Menu("Dub throw goes to · \(model.throwTarget.label)") {

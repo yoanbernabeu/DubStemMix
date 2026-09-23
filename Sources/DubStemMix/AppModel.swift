@@ -74,6 +74,8 @@ final class AppModel {
     // Delay and reverb (PRD § 11.4): mirrors of the engine's state, for the interface and the project.
     var reverbModel = ReverbModel.plate
     var throwTarget = ThrowTarget.delay
+    /// Where each bus's return is sent besides the master (issue #1).
+    var busRouting = BusRouting.standard
     /// HOLD held (H): the delay loops on itself.
     var holding = false
 
@@ -382,6 +384,22 @@ final class AppModel {
     func setThrowTarget(_ target: ThrowTarget) {
         throwTarget = target
         engine.setThrowTarget(target)
+    }
+
+    func setBusSend(from source: SendBus, to target: SendBus?) {
+        guard engine.setBusSend(from: source, to: target) else { return }
+        busRouting = engine.busRouting
+    }
+
+    func setBusRouting(_ routing: BusRouting) {
+        engine.setBusRouting(routing)
+        busRouting = engine.busRouting
+    }
+
+    /// FX-page knob label; a bus-send knob names its current target.
+    func fxLabel(_ parameter: FXParameter) -> String {
+        guard parameter.isBusSend, let source = parameter.bus else { return parameter.label }
+        return parameter.label(sendingTo: busRouting.target(of: source))
     }
 
     func dismissWelcome() {
