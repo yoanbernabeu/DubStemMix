@@ -14,6 +14,7 @@ struct SettingsView: View {
             recording
             plugins
             separation
+            updates
         }
         .padding(26)
         .frame(width: 480, alignment: .leading)
@@ -127,6 +128,22 @@ struct SettingsView: View {
                 }
             }
             SettingsNote("Set a plugin 100 % wet: each bus is a send, the dry signal already goes to the master.")
+        }
+    }
+
+    // MARK: Updates
+
+    private var updates: some View {
+        SettingsSection(title: "UPDATES") {
+            SettingsRow(label: "CHECK") {
+                HStack(spacing: 4) {
+                    SettingsChip(text: "DAILY", active: model.automaticUpdateChecks) { model.setAutomaticUpdateChecks(true) }
+                    SettingsChip(text: "OFF", active: !model.automaticUpdateChecks) { model.setAutomaticUpdateChecks(false) }
+                    SettingsChip(text: "CHECK NOW", active: false) { model.checkForUpdates(manual: true) }
+                        .padding(.leading, 6)
+                }
+            }
+            SettingsNote("Version \(model.currentVersion?.description ?? "dev"). DAILY asks GitHub for the latest release at launch, at most once a day; nothing else is sent. A new version shows a banner when playback is stopped: one click installs it and reopens the app.")
         }
     }
 

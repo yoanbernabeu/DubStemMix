@@ -93,6 +93,11 @@ final class AppModel {
     /// Dernier enregistrement terminé (pour le retrouver dans le Finder).
     var lastRecording: URL?
 
+    /// A newer release found on GitHub, and where installing it stands (AppModel+Updates).
+    var availableUpdate: ReleaseInfo?
+    var updateStatus = UpdateStatus.idle
+    var automaticUpdateChecks = UserDefaults.standard.object(forKey: Preference.automaticUpdateChecks) as? Bool ?? true
+
     // Rafraîchis 30 fois par seconde.
     var isPlaying = false
     var looping = true

@@ -15,6 +15,8 @@
 
 - [x] **[toi]** **Renvois de bus à bus** (issue #1, branche `feature/bus-to-bus-sends`) — validés le 23/09 : menu « Send to » par bus, potards DLY→, REV→ et PHS→ en tranche 8 de la page FX, bus 3 nommé d'après son effet. Empiler plusieurs effets dans un bus reste écarté.
 
+- [x] **Mise à jour en un clic** — validée le 23/09 : une app de test 0.2.9 a affiché le bandeau, UPDATE l'a remplacée par la 0.3.0 et rouverte (quarantaine retirée, signature valide, aucun fichier temporaire laissé).
+
 ## 2. Promis dans le PRD, pas encore fait
 
 - [x] **Envois pré/post réglables par bus** (PRD § 3) — fait le 22/09 : réglage dans la fenêtre Réglages, étiquette PRE/POST vivante sur le rack.

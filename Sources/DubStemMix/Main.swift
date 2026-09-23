@@ -8,6 +8,7 @@ import SwiftUI
 //   swift run DubStemMix --check-documents               auto-contrôle projets + setlist, sans interface ni son
 //   swift run DubStemMix --check-audio                   carte son, buffer, charge DSP et décrochages sur le vrai moteur
 //   swift run DubStemMix --check-plugin-crash            tue le processus d'un plugin hors processus et vérifie la bascule
+//   swift run DubStemMix --check-update [version]        interroge GitHub, télécharge et vérifie la dernière release, sans rien remplacer
 //   swift run DubStemMix --download-models               télécharge les 4 réseaux htdemucs_ft (663 Mo) dans le dossier de l'app
 //   swift run DubStemMix --split <fichier> [--out dir] [--provider cpu|coreml-…]   sépare un morceau avec les vrais modèles et rapporte Σ stems vs mix
 //   swift run DubStemMix --snapshot out.png [--fx | --master | --inserts | --settings]   rend l'interface (données de démo) dans un PNG
@@ -31,6 +32,8 @@ enum Main {
             AudioCheck.run()
         } else if args.contains("--check-plugin-crash") {
             PluginCrashCheck.run()
+        } else if let i = args.firstIndex(of: "--check-update") {
+            AppModel.runCheck(pretending: i + 1 < args.count ? args[i + 1] : "0.0.1")
         } else if args.contains("--download-models") {
             SplitCheck.downloadModels()
         } else if let i = args.firstIndex(of: "--split"), i + 1 < args.count {
@@ -80,6 +83,7 @@ struct DubStemMixApp: App {
                     .frame(minWidth: 1280, minHeight: 820)
                     .onAppear {
                         delegate.model = model
+                        model.checkForUpdatesIfDue()
                         // Dossiers ou fichiers passés en argument au lancement.
                         let paths = CommandLine.arguments.dropFirst().filter { FileManager.default.fileExists(atPath: $0) }
                         if !paths.isEmpty, model.title.isEmpty {
@@ -112,6 +116,7 @@ struct DubStemMixApp: App {
             }
             CommandGroup(replacing: .help) {
                 Button("Welcome to DubStemMix") { model?.showWelcome = true }
+                Button("Check for Updates…") { model?.checkForUpdates(manual: true) }
                 Button("DubStemMix on GitHub") { NSWorkspace.shared.open(URL(string: "https://github.com/yoanbernabeu/DubStemMix")!) }
             }
         }
