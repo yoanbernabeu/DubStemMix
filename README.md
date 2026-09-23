@@ -25,6 +25,8 @@ Or by hand: download `DubStemMix-<version>.zip` from the [releases](https://gith
 - System Settings ▸ Privacy & Security, scroll down, **Open Anyway**;
 - or, in a terminal: `xattr -dr com.apple.quarantine /Applications/DubStemMix.app` (this is what the install script does).
 
+**Updates.** At launch, at most once a day, the app asks GitHub for the latest release; nothing else is sent. When a newer version is out, a banner shows in the top bar, only while playback is stopped: **UPDATE** downloads it, replaces the app where it is installed and reopens it. Turn the check off in Settings, or use Help ▸ Check for Updates… by hand.
+
 ## The first riddim
 
 1. **Plug in the MIDImix**, on its factory mapping. If you ever changed it with the Akai MIDImix Editor: File ▸ New, then Send to Hardware. The status line at the bottom left says "connected", and warns you if the console sends something the factory mapping does not know.
@@ -97,7 +99,7 @@ The separation runs on the CPU with [htdemucs_ft](https://github.com/facebookres
 
 ## Settings (⌘,)
 
-Output device and buffer size (128 or 256 for the dance), recordings folder, pre/post-fader per bus, Audio Unit rescan, separation engine (download, delete) and stems folder. The status bar shows the device, the audio-thread load and the dropouts reported by the device.
+Output device and buffer size (128 or 256 for the dance), recordings folder, pre/post-fader per bus, Audio Unit rescan, separation engine (download, delete) and stems folder, daily update check on or off. The status bar shows the device, the audio-thread load and the dropouts reported by the device.
 
 <p align="center"><img src="docs/screenshots/settings.png" width="480" alt="DubStemMix settings"></p>
 
