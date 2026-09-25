@@ -165,7 +165,7 @@ extension AppModel {
         guard confirmDiscardingUnsavedSession() else { return }
         engine.stop()
         clear()
-        resetEffects()
+        resetToLaunchState()
     }
 
     /// Seule une session jamais enregistrée peut se perdre : un projet enregistré se sauvegarde tout seul.

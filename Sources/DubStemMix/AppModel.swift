@@ -304,11 +304,16 @@ final class AppModel {
         refreshNames()
     }
 
-    /// A new session starts like a fresh launch: effect settings and bus routing back to their defaults.
+    /// A new session starts like a fresh launch: effect settings and bus routing back to their defaults, no strip
+    /// muted or soloed. Faders and sends stay where the hardware holds them.
     /// Not part of `clear()`, which also runs when a project opens: rewiring the buses there would cut the tails.
-    func resetEffects() {
+    func resetToLaunchState() {
         setBusRouting(.standard)
         for parameter in FXParameter.allCases { mix.setFX(parameter, parameter.defaultValue) }
+        for strip in mix.strips.indices {
+            if mix.strips[strip].mute { mix.toggleMute(strip: strip) }
+            if mix.strips[strip].solo { mix.toggleSolo(strip: strip) }
+        }
     }
 
     func dropStem(_ id: UUID) {
