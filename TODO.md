@@ -54,6 +54,17 @@ Tout est livré le 25/09 (branche `todo/live-use`) : 90 tests, `--check-document
 - [x] **Patch des bus à chaud, sans coupure** (demandé à l'essai : le refus en lecture était un contresens, patcher est un geste de jeu) : les renvois de bus à bus ne passent plus par le graphe mais par la mémoire (`dub_portal.c`, `BusPortal.swift`) : chaque retour s'écrit dans un tampon, chaque entrée de bus lit les autres avec un tampon audio de retard (3 à 11 ms). Les 6 sens existent en permanence, patcher = ouvrir un niveau (fondu de 10 ms). Toutes les combinaisons sans boucle sont possibles, chaînes comprises ; les boucles restent grisées (elles s'emballeraient). Testé : les 6 sens, une chaîne delay → bus 3 → reverb, et un re-patch répété en plein écho qui ne perd pas un échantillon.
 - [ ] **[toi]** Essayer en vrai : patcher le delay dans la reverb, le phaser, etc. en plein morceau ; écran qui reste allumé (`pmset -g assertions` pendant la lecture), Échap et BANK LEFT + RIGHT sur la console, plate ↔ ressort en plein écho, sub / wah en jouant, armer puis Espace et R entre deux morceaux d'une setlist (les queues doivent passer), fermeture de la fenêtre et ⌘Q en lecture, clic sur la forme d'onde.
 
+## 3 ter. Gestion de la setlist (cadrée le 25/09, PRD § 5.8)
+
+Livré le 25/09 (branche `setlist/export-rename`), un commit par point : 88 tests (+ 8 StemSplit), `--check-documents` étendu (renommage, Save As, glisser des projets, export complet puis réouverture du morceau exporté).
+
+- [x] **Renommer un morceau** : double-clic sur le titre en haut, « Rename… » au clic droit sur une ligne. Le titre enregistré fait foi à la réouverture.
+- [x] **Durée totale** sous le nom de la setlist.
+- [x] **New Setlist… / Save Setlist As…** (menu File, clic droit sur « SETLIST »).
+- [x] **Glisser des `.dubstem` depuis le Finder** sur la setlist : ajoutés à la fin, sans les ouvrir.
+- [x] **Export pour un autre Mac** (menu File « Export Setlist… », clic droit « Export for Another Mac… ») : dossier neuf, un sous-dossier par morceau, `PLUGINS.txt`. Essayé sur `LIVE/Setlist.dubset` (2 morceaux, 9 fichiers, 447 Mo).
+- [ ] **[toi]** Essayer en vrai : glisser deux `.dubstem` du Finder sur la setlist ; exporter vers une clé USB (vraie copie, le pourcentage doit avancer), puis ouvrir la setlist exportée depuis la clé (ou sur l'autre Mac).
+
 ## 4. M5 — Publication
 
 - [x] Vraie **app `.app`** — fait le 22/09 : `tools/make-app.sh <version> dist` (release, signature ad hoc, Info.plist avec types .dubstem/.dubset, zip 9,4 Mo). Icône : `Design/AppIcon.icns` (source `tools/make-icon.swift`).
