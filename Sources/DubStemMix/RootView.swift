@@ -999,7 +999,14 @@ private struct SetlistSection: View {
                         .lineLimit(1)
                         .contentShape(Rectangle())
                         .onTapGesture(count: 2) { if model.setlist != nil { renaming = true } }
-                        .contextMenu { if model.setlist != nil { Button("Rename…") { renaming = true } } }
+                        .contextMenu {
+                            if model.setlist != nil {
+                                Button("Rename…") { renaming = true }
+                                Button("Save As…") { model.saveSetlistAs() }
+                                Divider()
+                            }
+                            Button("New Setlist…") { model.newSetlist() }
+                        }
                         .help(model.setlist == nil ? "" : "Double-click to rename the setlist")
                 }
                 Spacer()

@@ -335,27 +335,54 @@ extension AppModel {
 
     /// Enregistre la setlist ; la première fois, demande où.
     func saveSetlist() {
-        guard var setlist else { return }
         if setlistURL == nil {
-            guard !isPreview else { return }
-            let panel = NSSavePanel()
-            panel.allowedContentTypes = [UTType(filenameExtension: Setlist.fileExtension) ?? .json]
-            panel.nameFieldStringValue = "Setlist." + Setlist.fileExtension
-            panel.directoryURL = projectURL?.deletingLastPathComponent()
-            guard panel.runModal() == .OK, let chosen = panel.url else { return }
-            // Les chemins relatifs se calculent par rapport à l'emplacement définitif de la setlist.
-            setlist.projects = setlistEntries.map { entry in
-                entry.url.map { FileReference($0, relativeTo: chosen) } ?? entry.reference
-            }
-            setlist.name = chosen.deletingPathExtension().lastPathComponent.uppercased()
-            setlistURL = chosen
-            self.setlist = setlist
+            guard let chosen = chooseSetlistLocation() else { return }
+            move(setlistTo: chosen)
         }
-        guard let setlistURL else { return }
+        guard let setlist, let setlistURL else { return }
         do { try setlist.save(to: setlistURL) } catch {
             errorMessage = "Can't save the setlist: \(error.localizedDescription)"
         }
         refreshSetlistEntries()
+    }
+
+    /// An empty setlist, saved where the user chooses (none if they cancel).
+    func newSetlist() {
+        guard !isPreview, let chosen = chooseSetlistLocation(named: "Setlist") else { return }
+        closeSetlist()
+        setlist = Setlist()
+        move(setlistTo: chosen)
+        saveSetlist()
+    }
+
+    /// A copy of the setlist elsewhere, under another name: it becomes the open setlist, the first one is left as is.
+    func saveSetlistAs() {
+        guard setlist != nil, let chosen = chooseSetlistLocation() else { return }
+        move(setlistTo: chosen)
+        saveSetlist()
+    }
+
+    private func chooseSetlistLocation(named name: String? = nil) -> URL? {
+        guard !isPreview else { return nil }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: Setlist.fileExtension) ?? .json]
+        let current = setlistURL?.deletingPathExtension().lastPathComponent
+        panel.nameFieldStringValue = (name ?? current ?? "Setlist") + "." + Setlist.fileExtension
+        panel.directoryURL = setlistURL?.deletingLastPathComponent() ?? projectURL?.deletingLastPathComponent()
+        guard panel.runModal() == .OK else { return nil }
+        return panel.url
+    }
+
+    /// The setlist now lives at `document`, named after it; nothing is written yet.
+    func move(setlistTo document: URL) {
+        guard var setlist else { return }
+        // Les chemins relatifs se calculent par rapport à l'emplacement définitif de la setlist.
+        setlist.projects = setlistEntries.map { entry in
+            entry.url.map { FileReference($0, relativeTo: document) } ?? entry.reference
+        }
+        setlist.name = document.deletingPathExtension().lastPathComponent.uppercased()
+        setlistURL = document
+        self.setlist = setlist
     }
 
     func refreshSetlistEntries() {

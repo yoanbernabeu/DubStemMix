@@ -110,6 +110,8 @@ struct DubStemMixApp: App {
                 Button("Save Project") { model?.saveProject() }.keyboardShortcut("s")
                 Button("Save Project As…") { model?.saveProject(askLocation: true) }.keyboardShortcut("s", modifiers: [.command, .shift])
                 Divider()
+                Button("New Setlist…") { model?.newSetlist() }
+                Button("Save Setlist As…") { model?.saveSetlistAs() }.disabled(model?.setlist == nil)
                 Button("Add Song to Setlist") { model?.addCurrentProjectToSetlist() }
                 Button("Next Song") { model?.openNextInSetlist() }
                 Button("Previous Song") { model?.openNextInSetlist(offset: -1) }

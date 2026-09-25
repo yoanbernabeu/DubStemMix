@@ -268,6 +268,19 @@ enum DocumentsCheck {
             check(!model.setlistHasMissingStems, "stems retrouvés pour toute la setlist dans un dossier et ses sous-dossiers")
             check((try? Project.load(from: movedDocument))?.stems.allSatisfy { $0.file.resolve(relativeTo: movedDocument) != nil } == true,
                   "le morceau est enregistré avec le fichier retrouvé")
+
+            print("Setlist : Save As")
+            let copyFolder = moved.appending(path: "copies")
+            try FileManager.default.createDirectory(at: copyFolder, withIntermediateDirectories: true)
+            let copyFile = copyFolder.appending(path: "Short Set.dubset")
+            let songsBefore = model.setlistEntries.compactMap(\.url)
+            model.move(setlistTo: copyFile)
+            model.saveSetlist()
+            let copy = try? Setlist.load(from: copyFile)
+            check(model.setlistURL == copyFile && copy?.name == "SHORT SET", "copie enregistrée, nommée d'après son fichier, devenue la setlist ouverte")
+            check(copy?.projects.map { $0.resolve(relativeTo: copyFile) } == songsBefore && copy?.projects.first?.relativePath.hasPrefix("../") == true,
+                  "copie : les morceaux sont retrouvés depuis son nouvel emplacement")
+            check(copy?.rack != nil && (try? Setlist.load(from: setlistFile))?.name == "FRIDAY", "copie : rack gardé, l'originale n'a pas bougé")
         } catch {
             print("  ❌ erreur inattendue : \(error)")
             failures += 1
