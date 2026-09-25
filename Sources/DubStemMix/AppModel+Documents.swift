@@ -272,6 +272,21 @@ extension AppModel {
         saveSetlist()
     }
 
+    /// Projects dropped from the Finder onto the setlist: added at the end, without being opened (setlist created if
+    /// needed). Songs already in the setlist are not added twice.
+    func addToSetlist(_ urls: [URL]) {
+        let documents = urls.filter { $0.pathExtension == Project.fileExtension }
+        guard let first = documents.first else { return }
+        if setlist == nil { setlist = Setlist(name: "SETLIST") }
+        let anchor = setlistURL ?? first
+        for document in documents where !isInSetlist(document) && !(setlist?.projects.contains { $0.resolve(relativeTo: anchor) == document } ?? false) {
+            setlist?.projects.append(FileReference(document, relativeTo: anchor))
+        }
+        refreshSetlistEntries()
+        adoptSetlistRackForOpenSong()
+        saveSetlist()
+    }
+
     /// The open song just joined the setlist (the setlist was opened, or the song added to it): it keeps its own
     /// rack in its file and plays through the setlist's, put in place now unless that would cut the music.
     private func adoptSetlistRackForOpenSong() {

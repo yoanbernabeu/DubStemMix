@@ -281,6 +281,16 @@ enum DocumentsCheck {
             check(copy?.projects.map { $0.resolve(relativeTo: copyFile) } == songsBefore && copy?.projects.first?.relativePath.hasPrefix("../") == true,
                   "copie : les morceaux sont retrouvés depuis son nouvel emplacement")
             check(copy?.rack != nil && (try? Setlist.load(from: setlistFile))?.name == "FRIDAY", "copie : rack gardé, l'originale n'a pas bougé")
+
+            print("Setlist : projets glissés depuis le Finder")
+            let third = moved.appending(path: "third.dubstem")
+            try FileManager.default.copyItem(at: second, to: third)
+            let openBefore = model.projectURL
+            model.addToSetlist([third, second, moved.appending(path: "bass.wav")])
+            let saved = try? Setlist.load(from: copyFile)
+            check(model.setlistEntries.count == 3 && model.setlistEntries.last?.url?.lastPathComponent == "third.dubstem",
+                  "ajouté à la fin, une seule fois (déjà présent et non-projet ignorés)")
+            check(saved?.projects.count == 3 && model.projectURL == openBefore, "setlist enregistrée, morceau ouvert inchangé")
         } catch {
             print("  ❌ erreur inattendue : \(error)")
             failures += 1

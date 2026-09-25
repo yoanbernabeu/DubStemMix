@@ -977,6 +977,7 @@ private struct SetlistSection: View {
     @State private var renaming = false
     @State private var draftName = ""
     @State private var renamingEntry: UUID?
+    @State private var dropTargeted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1031,6 +1032,14 @@ private struct SetlistSection: View {
             if !model.title.isEmpty, model.setlistIndex == nil {
                 SmallButton(title: "+ ADD THIS SONG", color: Theme.textDim) { model.addCurrentProjectToSetlist() }
             }
+        }
+        .padding(4)
+        .background(RoundedRectangle(cornerRadius: 7).stroke(dropTargeted ? Theme.reverb : .clear, lineWidth: 1.5))
+        .padding(-4)
+        .stemDrop(enabled: !model.isPreview, isTargeted: $dropTargeted) { urls in
+            // Projects join the setlist; anything else (stems, a setlist) opens as it would anywhere in the window.
+            let projects = urls.filter { $0.pathExtension == Project.fileExtension }
+            if projects.isEmpty { model.open(urls) } else { model.addToSetlist(projects) }
         }
     }
 
@@ -1116,7 +1125,12 @@ extension View {
         } else {
             draggable(entry.id.uuidString)
                 .dropDestination(for: String.self) { ids, _ in
-                    guard let id = ids.first, let dragged = model.setlistEntries.first(where: { $0.id.uuidString == id }) else { return false }
+                    guard let id = ids.first, let dragged = model.setlistEntries.first(where: { $0.id.uuidString == id }) else {
+                        // Projects dragged from the Finder can arrive here as text.
+                        let urls = ids.compactMap(URL.init(string:)).filter(\.isFileURL)
+                        model.addToSetlist(urls)
+                        return !urls.isEmpty
+                    }
                     model.moveInSetlist(dragged, onto: entry)
                     return true
                 }
