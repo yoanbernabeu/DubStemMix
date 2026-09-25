@@ -7,7 +7,7 @@ public enum ReverbModel: String, CaseIterable, Sendable {
     case plate, spring
 
     public var label: String { self == .plate ? "Plate" : "Spring" }
-    var kind: BuiltInEffect.Kind { self == .plate ? .plate : .spring }
+    var switchSelect: Float { self == .plate ? 0 : 1 }
 }
 
 /// Where the dub throw goes (PRD § 11.4). Raw values are stored in projects.
@@ -87,7 +87,11 @@ public protocol MixEngineControl: AnyObject {
 ///                                                                       retour d'un bus ─▶ un autre bus (renvoi, issue #1)
 ///
 /// Bus-to-bus sends: each return may also feed one other bus, chosen by the user (`BusRouting`, none by
-/// default). The routing is always loop-free; changing a target rewires the graph, engine stopped.
+/// default), always loop-free (a loop would run away). They go through memory, not the graph (`BusPortal`): every
+/// pair exists at all times, so patching is a gain change, while playing, without a cut.
+///
+/// Plate / spring, phaser / flanger and the built-in strip inserts are switches (dub_switch.c): one unit holding
+/// both kernels, so changing them never rewires the graph and never cuts a tail. Only plugins are swapped in.
 ///
 /// Per strip (PRD § 11.5): the stems sum in a mixer, go through the insert (between two fixed neutral nodes,
 /// so swapping it never touches a mixer), then a unity "pre" mixer takes the pre-fader sends and the throw,
@@ -151,12 +155,15 @@ public final class AudioEngine: MixEngineControl {
     /// The node currently in each strip's insert (nil = straight through).
     private var insertNodes: [AVAudioNode?] = Array(repeating: nil, count: AudioEngine.stripCount)
     public private(set) var inserts: [InsertKind?] = Array(repeating: nil, count: AudioEngine.stripCount)
-    private var insertEffects: [Int: BuiltInEffect] = [:]
+    /// Per strip: straight through, sub or auto-wah, in one unit that stays wired (engines with effects only).
+    private var insertSwitches: [BuiltInEffect] = []
     public private(set) var insertPlugins: [Int: HostedPlugin] = [:]
     public private(set) var insertMacroTargets: [Int: [PluginParameter?]] = [:]
     public static let insertMacroCount = 3
     private let busInputs: [AVAudioMixerNode]
     private let returnMixers: [AVAudioMixerNode]
+    /// Bus-to-bus sends: a pass-through writer on each return, a reader on each bus input.
+    private let portal = BusPortal()
     private var effects: [BuiltInEffect.Kind: BuiltInEffect] = [:]
     /// Le nœud d'effet actuellement branché sur chaque bus (effet intégré ou plugin).
     private var effectNodes: [AVAudioNode?] = [nil, nil, nil]
@@ -182,6 +189,9 @@ public final class AudioEngine: MixEngineControl {
     private var pullUpStart: Date?
     private var masterVolume: Float = headroom
     public var isPullingUp: Bool { pullUpStart != nil }
+    /// What the pull-up lands on, when set: called at the bottom of the brake, engine stopped, instead of playing the
+    /// song again from the top (a setlist's armed song). Used once.
+    public var pullUpLanding: (() -> Void)?
     private static let pullUpDuration = 1.3
     private var basePosition = 0.0
 
@@ -218,8 +228,8 @@ public final class AudioEngine: MixEngineControl {
     /// Input of a send bus taking strip `strip` before its fader (post-fader sends use inputs 0…7).
     private func preBus(_ bus: SendBus, strip: Int) -> Int { Self.stripCount + strip }
 
-    /// Input of any send bus taking the return of `source` (strips use 0…15).
-    private func sendInput(from source: SendBus) -> Int { Self.stripCount * 2 + source.rawValue }
+    /// Input of each send bus taking what the other buses send it (strips use 0…15).
+    private var portalInput: Int { Self.stripCount * 2 }
 
     /// Where each bus's return is sent besides the master (issue #1).
     public private(set) var busRouting = BusRouting.standard
@@ -231,7 +241,16 @@ public final class AudioEngine: MixEngineControl {
 
         for i in 0..<Self.stripCount {
             engine.connect(stripMixers[i], to: insertInlets[i], format: format)
-            engine.connect(insertInlets[i], to: insertOutlets[i], format: format) // no insert yet: straight through
+            if withEffects {
+                let insert = BuiltInEffect(.insert) // straight through until an insert is chosen
+                insertSwitches.append(insert)
+                insertNodes[i] = insert.node
+                engine.attach(insert.node)
+                engine.connect(insertInlets[i], to: insert.node, format: format)
+                engine.connect(insert.node, to: insertOutlets[i], format: format)
+            } else {
+                engine.connect(insertInlets[i], to: insertOutlets[i], format: format)
+            }
             engine.connect(insertOutlets[i], to: preMixers[i], format: format)
             let preTakes = SendBus.allCases.map { AVAudioConnectionPoint(node: busInputs[$0.rawValue], bus: preBus($0, strip: i)) }
             engine.connect(preMixers[i], to: [AVAudioConnectionPoint(node: faderMixers[i], bus: 0)] + preTakes, fromBus: 0, format: format)
@@ -241,9 +260,12 @@ public final class AudioEngine: MixEngineControl {
             for bus in SendBus.allCases { applySend(bus, strip: i) } // new connections open at full volume
         }
 
-        // Bus d'envoi ─▶ effet intégré ─▶ mixeur de retour ─▶ master.
-        let kinds: [BuiltInEffect.Kind] = [.delay, .plate, .phaser]
+        // Bus d'envoi ─▶ effet intégré ─▶ émetteur vers les autres bus ─▶ mixeur de retour ─▶ master.
+        let kinds = Self.builtInKinds
         for (b, input) in busInputs.enumerated() {
+            let bus = SendBus(rawValue: b)!
+            let sender = portal.sender(for: bus)
+            engine.attach(sender)
             if withEffects {
                 let effect = BuiltInEffect(kinds[b])
                 effects[kinds[b]] = effect
@@ -252,12 +274,15 @@ public final class AudioEngine: MixEngineControl {
                 engine.connect(input, to: effectInlets[b], format: format)
                 engine.connect(effectInlets[b], to: effect.node, format: format)
                 engine.connect(effect.node, to: effectOutlets[b], format: format)
-                engine.connect(effectOutlets[b], to: returnMixers[b], format: format)
+                engine.connect(effectOutlets[b], to: sender, format: format)
             } else {
-                engine.connect(input, to: returnMixers[b], format: format)
+                engine.connect(input, to: sender, format: format)
             }
+            engine.connect(sender, to: returnMixers[b], format: format)
+            let receiver = portal.receiver(for: bus, format: format)
+            engine.attach(receiver)
+            engine.connect(receiver, to: input, fromBus: 0, toBus: portalInput, format: format)
         }
-        // Each return goes to the master and, if routed, to one other bus (closed until its knob is set).
         for source in SendBus.allCases { connectReturn(of: source) }
 
         // Master chain (PRD § 11.3): big knob → kills → dubplate, exact passthrough until touched.
@@ -498,22 +523,23 @@ public final class AudioEngine: MixEngineControl {
         varispeed.rate = 1
         varispeed.auAudioUnit.shouldBypassEffect = true
         engine.mainMixerNode.outputVolume = masterVolume
-        play()
+        if let landing = pullUpLanding {
+            pullUpLanding = nil
+            landing()
+        } else {
+            play()
+        }
     }
 
     public func setFX(_ parameter: FXParameter, _ value: Float) {
         lastFX[parameter] = value
         if let (kind, index) = parameter.kernelParameter {
             effects[kind]?.set(index, value)
-            if kind == .plate { effects[.spring]?.set(index, value) } // the spring shares the plate's knobs
-            if kind == .phaser { effects[.flanger]?.set(index, value) } // so does the flanger with the phaser's
             return
         }
-        // Returns and sends are per destination: a return at zero never closes the bus's send, and back.
+        // The return and the bus-to-bus send are separate: a return at zero never closes the send, and back.
         if parameter.isBusSend, let source = parameter.bus {
-            if let target = busRouting.target(of: source) {
-                returnMixers[source.rawValue].destination(forMixer: busInputs[target.rawValue], bus: sendInput(from: source))?.volume = value
-            }
+            applyBusSends(from: source)
             return
         }
         let source: SendBus
@@ -528,8 +554,7 @@ public final class AudioEngine: MixEngineControl {
 
     // MARK: Bus-to-bus sends (issue #1)
 
-    /// Sends a bus's return to another bus (nil = none). Refused when it would close a loop.
-    /// Rewiring needs the engine stopped for a moment, like swapping an effect: effect tails are cut.
+    /// Sends a bus's return to another bus (nil = none), while playing, without a cut. Refused when it would close a loop.
     @discardableResult
     public func setBusSend(from source: SendBus, to target: SendBus?) -> Bool {
         guard let routing = busRouting.setting(source, to: target) else { return false }
@@ -537,31 +562,30 @@ public final class AudioEngine: MixEngineControl {
         return true
     }
 
-    /// Applies a whole routing at once (a project being opened); ignored if it has a loop.
+    /// Applies a whole routing at once (a project being opened); ignored if it has a loop. Nothing is rewired.
     public func setBusRouting(_ routing: BusRouting) {
         guard routing != busRouting, routing.isLoopFree else { return }
-        let changed = SendBus.allCases.filter { routing.target(of: $0) != busRouting.target(of: $0) }
-        restructure {
-            engine.stop()
-            busRouting = routing
-            for source in changed { connectReturn(of: source) }
-            try? engine.start()
+        busRouting = routing
+        for source in SendBus.allCases { applyBusSends(from: source) }
+    }
+
+    /// The source's send knob opens the pair towards its target; every other pair from it stays closed.
+    private func applyBusSends(from source: SendBus, muted: Bool = false) {
+        let level = muted ? 0 : lastFX[FXParameter.busSend(from: source)] ?? 0
+        for target in SendBus.allCases where target != source {
+            portal.setGain(from: source, to: target, busRouting.target(of: source) == target ? level : 0)
         }
     }
 
-    /// Wires a return to the master and to its routed bus, with the current return and send levels.
+    /// Wires a return to the master, with the current return level; its bus-to-bus send goes through the portal.
     private func connectReturn(of source: SendBus) {
         let b = source.rawValue
-        var points = [AVAudioConnectionPoint(node: engine.mainMixerNode, bus: returnBusBase + b)]
-        if let target = busRouting.target(of: source) {
-            points.append(AVAudioConnectionPoint(node: busInputs[target.rawValue], bus: sendInput(from: source)))
-        }
-        engine.connect(returnMixers[b], to: points, fromBus: 0, format: format)
+        engine.connect(returnMixers[b], to: [AVAudioConnectionPoint(node: engine.mainMixerNode, bus: returnBusBase + b)],
+                       fromBus: 0, format: format)
         let returnParameter: FXParameter = [.delayReturn, .reverbReturn, .phaserReturn][b]
-        let send = FXParameter.busSend(from: source)
-        // New connections open at full volume: restore the levels (a never-set send stays closed).
+        // A new connection opens at full volume: restore the level.
         setFX(returnParameter, lastFX[returnParameter] ?? 1)
-        setFX(send, lastFX[send] ?? 0)
+        applyBusSends(from: source)
     }
 
     // MARK: Delay and reverb gestures (PRD § 11.4)
@@ -573,24 +597,46 @@ public final class AudioEngine: MixEngineControl {
 
     /// CRASH: hits the spring. Does nothing on the plate (the caller tells the user).
     public func crash() {
-        guard reverbModel == .spring else { return }
-        effects[.spring]?.set(DUB_SPRING_CRASH, 1)
+        guard reverbModel == .spring, plugins[.reverb] == nil else { return }
+        effects[.reverbBus]?.set(DUB_SPRING_CRASH, 1)
     }
 
-    /// Plate or spring on the REVERB bus. With a plugin on the bus, the choice waits for the built-in effect.
+    /// Plate or spring on the REVERB bus, while playing: the new one takes the input, the old one rings out.
+    /// With a plugin on the bus, the choice waits for the built-in effect.
     public func setReverbModel(_ model: ReverbModel) {
         guard model != reverbModel, effectNodes[SendBus.reverb.rawValue] != nil else { return }
         reverbModel = model
-        if effects[.spring] == nil {
-            let spring = BuiltInEffect(.spring)
-            effects[.spring] = spring
-            // Same knobs as the plate: start from its current settings.
-            for parameter in FXParameter.allCases {
-                if let (kind, index) = parameter.kernelParameter, kind == .plate { spring.set(index, lastFX[parameter] ?? parameter.value(parameter.defaultValue)) }
+        effects[.reverbBus]?.set(DUB_SWITCH_SELECT, model.switchSelect)
+    }
+
+    // MARK: PANIC
+
+    /// Empties the three buses at once (echoes, tails, the held loop): each return fades out in 60 ms, the effect is
+    /// reset, and it takes its input again. Strips, mutes, knobs and playback are left alone.
+    public func clearEffects() {
+        setHold(false)
+        for bus in SendBus.allCases {
+            if let plugin = plugins[bus] {
+                clearPlugin(plugin, on: bus)
+            } else {
+                effects[builtInKind(for: bus)]?.set(DUB_EFFECT_CLEAR, 1)
             }
         }
-        guard plugins[.reverb] == nil, let node = effects[model.kind]?.node else { return }
-        swapEffectNode(node, on: .reverb)
+    }
+
+    /// A plugin cannot fade itself: its return closes (the mixer glides it), it is reset, and the return reopens.
+    private func clearPlugin(_ plugin: HostedPlugin, on bus: SendBus) {
+        let b = bus.rawValue
+        returnMixers[b].destination(forMixer: engine.mainMixerNode, bus: returnBusBase + b)?.volume = 0
+        applyBusSends(from: bus, muted: true)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(80))
+            guard let self else { return }
+            if self.plugins[bus] === plugin { plugin.unit.reset() }
+            let returnParameter: FXParameter = [.delayReturn, .reverbReturn, .phaserReturn][b]
+            self.setFX(returnParameter, self.lastFX[returnParameter] ?? 1)
+            self.applyBusSends(from: bus)
+        }
     }
 
     public func setThrowTarget(_ target: ThrowTarget) {
@@ -601,34 +647,23 @@ public final class AudioEngine: MixEngineControl {
         }
     }
 
-    /// Bi-Phaser or tape flanger on BUS 3. With a plugin on the bus, the choice waits for the built-in effect.
+    /// Bi-Phaser or tape flanger on BUS 3, while playing, as for the reverb. With a plugin on the bus, the choice
+    /// waits for the built-in effect.
     public func setBus3Model(_ model: Bus3Model) {
         guard model != bus3Model, effectNodes[SendBus.bus3.rawValue] != nil else { return }
         bus3Model = model
-        if effects[.flanger] == nil {
-            let flanger = BuiltInEffect(.flanger)
-            effects[.flanger] = flanger
-            for parameter in FXParameter.allCases {
-                if let (kind, index) = parameter.kernelParameter, kind == .phaser { flanger.set(index, lastFX[parameter] ?? parameter.value(parameter.defaultValue)) }
-            }
-        }
-        guard plugins[.bus3] == nil, let node = effects[model.kind]?.node else { return }
-        swapEffectNode(node, on: .bus3)
+        effects[.bus3]?.set(DUB_SWITCH_SELECT, model.switchSelect)
     }
 
     // MARK: Strip inserts (PRD § 11.5)
 
-    /// A built-in insert on a strip (nil = straight through). Replaces a plugin insert if any.
+    /// A built-in insert on a strip (nil = straight through), crossfaded while playing. Replaces a plugin insert
+    /// if any (that one needs the graph rewired).
     public func setInsert(strip: Int, _ kind: InsertKind?) {
-        guard !stripInsertUnavailable, kind != nil || insertNodes[strip] != nil else { return } // nothing to swap
-        if let kind {
-            let effect = BuiltInEffect(kind.effectKind)
-            insertEffects[strip] = effect
-            swapInsertNode(effect.node, strip: strip)
-        } else {
-            insertEffects[strip] = nil
-            swapInsertNode(nil, strip: strip)
-        }
+        guard !stripInsertUnavailable else { return }
+        let insert = insertSwitches[strip]
+        if insertNodes[strip] !== insert.node { swapInsertNode(insert.node, strip: strip) }
+        insert.set(DUB_SWITCH_SELECT, kind?.switchSelect ?? 0)
         inserts[strip] = kind
         insertPlugins[strip] = nil
         insertMacroTargets[strip] = nil
@@ -636,9 +671,9 @@ public final class AudioEngine: MixEngineControl {
 
     /// Insert parameter, normalized 0…1 (see `InsertKind.parameters`).
     public func setInsertParameter(strip: Int, index: Int, _ normalized: Double) {
-        guard let kind = inserts[strip], kind.parameters.indices.contains(index) else { return }
+        guard !stripInsertUnavailable, let kind = inserts[strip], kind.parameters.indices.contains(index) else { return }
         let parameter = kind.parameters[index]
-        insertEffects[strip]?.set(parameter.kernelIndex, parameter.value(normalized))
+        insertSwitches[strip].set(kind.switchOffset + parameter.kernelIndex, parameter.value(normalized))
     }
 
     /// An Audio Unit in a strip's insert. Set its mix as wanted: it sits in the direct path.
@@ -647,9 +682,9 @@ public final class AudioEngine: MixEngineControl {
         guard !stripInsertUnavailable else { throw PluginError.noEffectChain }
         let plugin = try await HostedPlugin.load(info, format: format)
         if let state { plugin.restore(state) }
+        insertSwitches[strip].set(DUB_SWITCH_SELECT, 0) // back straight through, for when the plugin goes
         swapInsertNode(plugin.unit, strip: strip)
         inserts[strip] = nil
-        insertEffects[strip] = nil
         insertPlugins[strip] = plugin
         insertMacroTargets[strip] = Array(repeating: nil, count: Self.insertMacroCount)
         return plugin
@@ -668,7 +703,8 @@ public final class AudioEngine: MixEngineControl {
     /// Engines built without effects (some tests) have no insert chain to swap.
     private var stripInsertUnavailable: Bool { effects.isEmpty }
 
-    private func swapInsertNode(_ node: AVAudioNode?, strip: Int) {
+    /// Puts a plugin, or the strip's switch back, between the insert's fixed nodes. Engine stopped: tails are cut.
+    private func swapInsertNode(_ node: AVAudioNode, strip: Int) {
         let inlet = insertInlets[strip], outlet = insertOutlets[strip]
         restructure {
             engine.stop()
@@ -677,13 +713,9 @@ public final class AudioEngine: MixEngineControl {
                 engine.disconnectNodeOutput(old)
                 engine.detach(old)
             }
-            if let node {
-                engine.attach(node)
-                engine.connect(inlet, to: node, format: format)
-                engine.connect(node, to: outlet, format: format)
-            } else {
-                engine.connect(inlet, to: outlet, format: format)
-            }
+            engine.attach(node)
+            engine.connect(inlet, to: node, format: format)
+            engine.connect(node, to: outlet, format: format)
             insertNodes[strip] = node
             try? engine.start()
         }
@@ -691,16 +723,11 @@ public final class AudioEngine: MixEngineControl {
 
     // MARK: Slots d'effets (effet intégré ou plugin Audio Unit)
 
-    private static let builtInKinds: [BuiltInEffect.Kind] = [.delay, .plate, .phaser]
+    /// Per bus: the delay, then the plate / spring and phaser / flanger switches.
+    private static let builtInKinds: [BuiltInEffect.Kind] = [.delay, .reverbBus, .bus3]
 
-    /// The built-in effect a bus falls back to (reverb and bus 3 follow their chosen model).
-    private func builtInKind(for bus: SendBus) -> BuiltInEffect.Kind {
-        switch bus {
-        case .delay: .delay
-        case .reverb: reverbModel.kind
-        case .bus3: bus3Model.kind
-        }
-    }
+    /// The built-in effect a bus falls back to.
+    private func builtInKind(for bus: SendBus) -> BuiltInEffect.Kind { Self.builtInKinds[bus.rawValue] }
 
     /// Charge un plugin AU sur un bus, à la place de l'effet intégré (ou du plugin précédent). À chaud.
     @discardableResult

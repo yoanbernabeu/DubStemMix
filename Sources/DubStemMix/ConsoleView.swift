@@ -143,7 +143,7 @@ private struct StripView: View {
                 .stroke(borderColor, lineWidth: strip.throwing || dropTargeted ? 2 : 1)
         )
         .opacity(isEmpty && !dropTargeted ? 0.45 : 1)
-        .stemDrop(enabled: !model.isPreview, isTargeted: $dropTargeted) { model.assign($0, toStrip: index) }
+        .stemDrop(enabled: !model.isPreview, isTargeted: $dropTargeted) { model.placeStems($0, onStrip: index) }
     }
 
     private var borderColor: Color {
@@ -421,9 +421,9 @@ private struct StripView: View {
     @ViewBuilder
     private var insertMenuItems: some View {
         let hosted = strip.insertHosted
-        Button((!hosted && strip.insert == nil ? "✓ " : "") + "None") { model.setInsert(strip: index, nil) }
+        Button((!hosted && strip.insert == nil ? "✓ " : "") + "None") { model.pickInsert(strip: index, nil) }
         ForEach(InsertKind.allCases, id: \.self) { kind in
-            Button((!hosted && strip.insert == kind ? "✓ " : "") + "Built-in · \(kind.label)") { model.setInsert(strip: index, kind) }
+            Button((!hosted && strip.insert == kind ? "✓ " : "") + "Built-in · \(kind.label)") { model.pickInsert(strip: index, kind) }
         }
         if strip.insert == .autoWah, strip.insertValues.count > 3 {
             let down = strip.insertValues[3] >= 0.5
@@ -437,7 +437,7 @@ private struct StripView: View {
             Menu(manufacturer) {
                 ForEach(model.installedPlugins.filter { $0.manufacturer == manufacturer }) { info in
                     let current = hosted && model.engine.insertPlugins[index]?.info.id == info.id
-                    Button((current ? "✓ " : "") + info.name) { model.loadInsertPlugin(info, strip: index) }
+                    Button((current ? "✓ " : "") + info.name) { model.pickInsertPlugin(info, strip: index) }
                 }
             }
         }
@@ -476,12 +476,12 @@ private struct StripView: View {
                         Menu("Move to strip") {
                             ForEach(0..<AudioEngine.stripCount, id: \.self) { target in
                                 if target != index, let url = model.url(ofStem: stem.id) {
-                                    Button("\(target + 1)") { model.assign([url], toStrip: target) }
+                                    Button("\(target + 1)") { model.placeStems([url], onStrip: target) }
                                 }
                             }
                         }
-                        Button("Back to the stem list") { model.unassign(stem.id) }
-                        Button("Remove", role: .destructive) { model.removeStem(stem.id) }
+                        Button("Back to the stem list") { model.takeOffStrip(stem.id, remove: false) }
+                        Button("Remove", role: .destructive) { model.takeOffStrip(stem.id, remove: true) }
                     }
             }
             if isEmpty {

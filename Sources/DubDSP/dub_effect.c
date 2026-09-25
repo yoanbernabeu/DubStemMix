@@ -14,6 +14,9 @@ DubEffect *dub_effect_create(DubEffectKind kind) {
         case DUB_EFFECT_SUB: dub_sub_install(effect); break;
         case DUB_EFFECT_WAH: dub_wah_install(effect); break;
         case DUB_EFFECT_FLANGER: dub_flanger_install(effect); break;
+        case DUB_EFFECT_REVERB_BUS:
+        case DUB_EFFECT_BUS3:
+        case DUB_EFFECT_INSERT: dub_switch_install(effect); break;
     }
     if (!effect->state) { free(effect); return NULL; }
     effect->prepare(effect);
@@ -39,6 +42,25 @@ float dub_effect_get(const DubEffect *effect, int param) {
     return (param >= 0 && param < DUB_EFFECT_MAX_PARAMS) ? dub_param(effect, param) : 0.0f;
 }
 
+#define DUB_CLEAR_SECONDS 0.06
+
 void dub_effect_process(DubEffect *effect, const float *inL, const float *inR, float *outL, float *outR, int frames) {
+    if (effect->clearLeft == 0 && dub_param(effect, DUB_EFFECT_CLEAR) >= 0.5f) {
+        atomic_store_explicit(&effect->params[DUB_EFFECT_CLEAR], 0.0f, memory_order_relaxed);
+        effect->clearLength = effect->clearLeft = (int)(DUB_CLEAR_SECONDS * effect->sampleRate);
+    }
     effect->process(effect, inL, inR, outL, outR, frames);
+    if (effect->clearLeft == 0) return;
+    // PANIC: fade the output out (no click), empty the effect, and stay silent for the rest of the block.
+    for (int n = 0; n < frames; n++) {
+        if (effect->clearLeft > 0) {
+            float gain = (float)effect->clearLeft / (float)effect->clearLength;
+            gain *= gain;
+            outL[n] *= gain;
+            outR[n] *= gain;
+            if (--effect->clearLeft == 0) effect->prepare(effect);
+        } else {
+            outL[n] = outR[n] = 0.0f;
+        }
+    }
 }

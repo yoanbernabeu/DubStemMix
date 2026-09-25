@@ -65,7 +65,8 @@ Keyboard or the buttons in the master column. They never touch your mutes: relea
 | **H** (hold) | **HOLD**: the delay closes on itself, input shut, feedback at unity. Cut all the rest, the echo keeps turning |
 | **C** | **CRASH**: hit the spring. Perry's thunder, Tubby's spring shot (select Built-in · Spring on the REVERB card) |
 | **R** | **Pull-up**: the selector's rewind. Tape brake on the whole master, back to the top, play |
-| **T** | tap tempo · **N / P** next and previous tune of the setlist · **⌘R** record the master |
+| **Esc** | **PANIC**: the three buses emptied at once, echoes, tails and HOLD included, while the tune plays on. On the console: **BANK LEFT + BANK RIGHT** together |
+| **T** | tap tempo · **N / P** next and previous tune of the setlist (while playing, they arm it: see [Playing live](#playing-live)) · **⌘R** record the master |
 
 <p align="center"><img src="docs/screenshots/master.png" width="100%" alt="DubStemMix, MASTER page: big knob, kills, dubplate, delay heads"></p>
 
@@ -93,7 +94,9 @@ On a dub board you patch a return into a send, and the effects start feeding eac
 - **Delay into the phaser or the flanger**: the repeats start to turn.
 - **A filter plugin on bus 3, the delay sent into it**: a filtered echo. The order of your effects is which bus holds which.
 
-Out of the box every bus stands on its own and feeds only the master. Pick a target in the bus card's **Send to** menu, then dose it with the three send knobs on strip 8 of the FX page (DLY→, REV→ and the bus 3 one, labelled with their target). Targets that would close a loop are greyed out, so feedback between effects cannot run away.
+Out of the box every bus stands on its own and feeds only the master. Pick a target in the bus card's **Send to** menu, then dose it with the three send knobs on strip 8 of the FX page (DLY→, REV→ and the bus 3 one, labelled with their target). Every bus can be sent into every other, and chains work (delay → phaser → reverb). Only targets that would close a loop are greyed out, so feedback between effects cannot run away.
+
+Patching is a gesture: do it while playing, nothing is cut. The buses are never wired to one another in the audio graph; each return is handed to the other buses through memory, one audio buffer later (3 to 11 ms, lost in an echo or a reverb), so a patch is only a level that opens.
 
 You see what you patched: a cable runs between the bus cards, dashed while its knob is at zero, with the signal travelling along it. Each card lights up in its colour while its effect sounds, tails included, and its colour bar shows what enters the bus.
 
@@ -108,8 +111,18 @@ The separation runs on the CPU with [htdemucs_ft](https://github.com/facebookres
 ## Projects, setlists, recording
 
 - **Save** (⌘S) writes a `.dubstem` project: which stems on which strips, effect settings, plugins and their state, inserts, KEEP marks, tempo. Fader and knob positions are not restored: the console is the truth. Once saved, changes are saved automatically. Files are referenced by absolute and relative path, so a moved folder still opens.
-- **Setlist** (`.dubset`): the sidebar lists the tunes of the set; N / P load the next or previous one, stopped at the top, while the effect tails of the previous tune keep going. Drag rows to reorder, double-click the title to rename.
+- **Setlist** (`.dubset`): the sidebar lists the tunes of the set. Stopped, N / P (or a click on a row) load the next or previous one, at the top. While playing they arm it instead, see [Playing live](#playing-live). Drag rows to reorder, double-click the title to rename.
+- **The setlist's rack.** In a setlist, what is patched on the buses (the reverb and bus 3 effects, the bus-to-bus sends, the plugins on the buses) belongs to the setlist, not to each tune: the echo and the spring stay wired all night, like on a sound system. Each tune brings its stems, its effect settings, its tempo, its KEEP marks and its inserts, never a rewiring, so the tails of one tune ring into the next. The first tune opened gives the setlist its rack; change it while playing and the setlist keeps it. A tune prepared with another rack keeps it in its own file (shown `≠ RACK` in the list) and is played through the setlist's.
 - **REC** (⌘R) records the master, after the limiter, as 24-bit WAV in `~/Music/DubStemMix` (changeable in Settings): your version, ready to cut.
+
+## Playing live
+
+- **The next tune, armed.** While a tune plays, N / P (or a click on a row of the setlist) arm the next one: it blinks on the waveform, nothing is cut. **Space** drops it: the current tune stops dead, the armed one starts from the top, the effect tails go on. **R** pulls up into it: tape brake, then the next tune. N / P again arm another one; a click on the current tune cancels.
+- **Effects change while playing.** Plate ↔ spring and phaser ↔ flanger switch without a gap: the new effect takes the input, the old one rings out its tail. Built-in strip inserts (sub, auto-wah) crossfade in 10 ms.
+- **Effects change while playing.** Re-patching the buses (the **Send to** menus) is live too, without a cut.
+- **Nothing cuts the sound by mistake.** While playing, what would stop the engine or leave a gap is refused, with a word in the top bar: loading or removing a plugin, putting a stem on a strip or taking one off. A plain click on the waveform no longer jumps (double-click or ⌥-click does). Quitting, closing the window, New Session or opening another project ask first.
+- **Checked before the set.** The setlist looks for every tune's stems and plugins when it opens and each time you come back to the app (a disk plugged in meanwhile): a tune with a problem is marked ⚠, its tooltip says what. **LOCATE MISSING STEMS…** takes one folder for the whole setlist and finds the stems by name in it and its subfolders.
+- **The screen stays on** while playing, even when only the console is touched.
 
 ## Settings (⌘,)
 
@@ -120,8 +133,8 @@ Output device and buffer size (128 or 256 for the dance), recordings folder, pre
 ## Known limits
 
 - Plugin latency is not compensated. Fine on send buses (100 % wet), audible in an insert with a plugin that adds latency.
-- Changing the effect of a bus or an insert stops the engine for a fraction of a second (effect tails are cut), then playback resumes where it was: AVAudioEngine cannot rewire while running.
-- Dropping or removing a stem during playback causes a short gap; MUTE takes about 25 ms to close (the mixer's own ramp).
+- Loading or removing a plugin, on a bus or in an insert, stops the engine for a fraction of a second (effect tails are cut): AVAudioEngine cannot rewire while running. So it waits for playback to stop. Moving from one tune to the next still cuts the tails when either tune has a plugin in an insert (the armed tune says so).
+- Putting a stem on a strip or taking one off leaves a short gap, so it waits for the stop too. MUTE takes about 25 ms to close (the mixer's own ramp).
 - macOS 14 is out: the engine uses the `Synchronization` module (macOS 15). Only macOS 26 has actually been tested.
 - The MIDImix is the only controller in this version; the mapping lives in one file, other controllers can follow.
 
@@ -149,8 +162,8 @@ Output device and buffer size (128 or 256 for the dance), recordings folder, pre
 git clone https://github.com/yoanbernabeu/DubStemMix.git
 cd DubStemMix
 swift run DubStemMix          # runs the app from the package
-tools/make-app.sh 0.5.0 dist  # builds dist/DubStemMix.app and the zip
-swift test                    # 73 tests, no model or audio device needed
+tools/make-app.sh 0.6.0 dist  # builds dist/DubStemMix.app and the zip
+swift test                    # 95 tests, no model or audio device needed
 ```
 
 Needs Xcode 26 (Swift 6.2). Useful self-checks without the UI: `--check-documents`, `--check-audio`, `--check-plugins`, `--check-plugin-crash`, `--download-models`, `--split <file>`. The screenshots above come from `--snapshot <file.png> [--fx | --master | --inserts | --settings]`, rendered with demo data.

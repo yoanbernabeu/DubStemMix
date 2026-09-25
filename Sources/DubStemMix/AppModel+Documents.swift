@@ -10,6 +10,11 @@ struct SetlistEntry: Identifiable, Equatable {
     var title: String
     var bpm: Double?
     var duration: Double
+    /// Found before the set (see `AppModel.problems`): stems not found, plugins not installed.
+    var problems: [String] = []
+    var missingStems = false
+    /// Prepared with another rack than the setlist's (which is the one played).
+    var ownRack = false
 
     static func == (a: SetlistEntry, b: SetlistEntry) -> Bool { a.id == b.id }
 }
@@ -21,6 +26,7 @@ extension AppModel {
         if let setlistFile = urls.first(where: { $0.pathExtension == Setlist.fileExtension }) {
             openSetlist(setlistFile)
         } else if let projectFile = urls.first(where: { $0.pathExtension == Project.fileExtension }) {
+            guard confirmWhilePlaying("Open \(projectFile.deletingPathExtension().lastPathComponent)") else { return }
             openProject(projectFile)
         } else {
             addToPool(urls)
@@ -64,6 +70,8 @@ extension AppModel {
         project.bus3Model = bus3Model == .phaser ? nil : bus3Model.rawValue
         let inserts = currentInserts()
         project.inserts = inserts.isEmpty ? nil : inserts
+        // Played through the setlist's rack, the song keeps its own in its file.
+        if let songRack, setlistIndex != nil { project.rack = songRack }
         return project
     }
 
@@ -102,9 +110,11 @@ extension AppModel {
         guard autosaveCountdown <= 0 else { return }
         autosaveCountdown = 15 // toutes les demi-secondes
         if let projectURL, currentProject(for: projectURL) != savedProject { write(to: projectURL) }
+        saveSetlistRackIfNeeded()
     }
 
     /// Le morceau est chargé à l'arrêt, au début. Les queues d'écho et de reverb du précédent continuent.
+    /// A song of the open setlist plays through the setlist's rack: nothing is rewired between two songs.
     func openProject(_ document: URL) {
         guard confirmDiscardingUnsavedSession() else { return }
         let project: Project
@@ -112,16 +122,28 @@ extension AppModel {
             errorMessage = "Can't open \(document.lastPathComponent)"
             return
         }
+        let throughSetlist = setlist != nil && isInSetlist(document)
         engine.stop()
-        clear()
+        clear(keepingRack: throughSetlist)
         mix.setTempo(project.bpm) // avant de poser les stems : un tempo enregistré n'est pas re-détecté
         mix.setDelaySync(project.delaySync)
         stripNames = Dictionary(uniqueKeysWithValues: (project.stripNames ?? [:]).compactMap { key, name in Int(key).map { ($0, name) } })
         for strip in project.keep ?? [] where mix.strips.indices.contains(strip) { mix.setKeep(strip: strip, true) }
-        setReverbModel(project.reverbModel.flatMap(ReverbModel.init) ?? .plate)
+        var missingPlugins: [String] = []
+        if throughSetlist {
+            songRack = project.rack
+            if setlist?.rack == nil { // the first song opened gives the setlist its rack
+                setlist?.rack = project.rack
+                if let setlist, let setlistURL { try? setlist.save(to: setlistURL) }
+            }
+            missingPlugins = applyRack(setlist?.rack ?? project.rack)
+        } else {
+            songRack = nil
+            setReverbModel(project.reverbModel.flatMap(ReverbModel.init) ?? .plate)
+            setBusRouting(BusRouting(projectValue: project.busSends))
+            setBus3Model(project.bus3Model.flatMap(Bus3Model.init) ?? .phaser)
+        }
         setThrowTarget(project.throwTarget.flatMap(ThrowTarget.init) ?? .delay)
-        setBusRouting(BusRouting(projectValue: project.busSends))
-        setBus3Model(project.bus3Model.flatMap(Bus3Model.init) ?? .phaser)
         unresolvedInserts = project.inserts ?? [:]
         for entry in project.stems {
             if let url = entry.file.resolve(relativeTo: document) {
@@ -136,10 +158,13 @@ extension AppModel {
         }
         looping = project.loop
         engine.loop = project.loop
-        unresolvedSlots = project.slots ?? [:] // chargés en tâche de fond ; d'ici là ils restent inscrits dans le projet
+        if !throughSetlist {
+            unresolvedSlots = project.slots ?? [:] // chargés en tâche de fond ; d'ici là ils restent inscrits dans le projet
+            missingPlugins = restoreSlots()
+        }
         projectURL = document
         savedProject = currentProject(for: document)
-        var warnings = restoreSlots().map { "\($0) is not installed (built-in effect used instead)" }
+        var warnings = missingPlugins.map { "\($0) is not installed (built-in effect used instead)" }
         warnings += restoreInserts().map { "\($0) is not installed (insert bypassed)" }
         if !unresolvedStems.isEmpty { warnings.insert("\(unresolvedStems.count) stem(s) not found", at: 0) }
         errorMessage = warnings.isEmpty ? nil : warnings.joined(separator: " · ")
@@ -147,6 +172,7 @@ extension AppModel {
 
     /// Cherche les stems introuvables, par nom de fichier, dans un dossier choisi par l'utilisateur.
     func locateMissingStems() {
+        guard !refusedWhilePlaying("relink stems") else { return }
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -162,7 +188,8 @@ extension AppModel {
     }
 
     func newSession() {
-        guard confirmDiscardingUnsavedSession() else { return }
+        guard confirmWhilePlaying("New Session"), confirmDiscardingUnsavedSession() else { return }
+        disarm()
         engine.stop()
         clear()
         resetToLaunchState()
@@ -199,7 +226,9 @@ extension AppModel {
         do {
             setlist = try Setlist.load(from: document)
             setlistURL = document
+            disarm()
             refreshSetlistEntries()
+            adoptSetlistRackForOpenSong()
         } catch {
             errorMessage = "Can't open \(document.lastPathComponent)"
         }
@@ -213,10 +242,29 @@ extension AppModel {
         let anchor = setlistURL ?? projectURL
         setlist?.projects.append(FileReference(projectURL, relativeTo: anchor))
         refreshSetlistEntries()
+        adoptSetlistRackForOpenSong()
         saveSetlist()
     }
 
+    /// The open song just joined the setlist (the setlist was opened, or the song added to it): it keeps its own
+    /// rack in its file and plays through the setlist's, put in place now unless that would cut the music.
+    private func adoptSetlistRackForOpenSong() {
+        guard setlistIndex != nil else { return }
+        songRack = savedProject?.rack ?? currentRack
+        guard let rack = setlist?.rack else {
+            setlist?.rack = currentRack // a setlist without a rack yet takes the one as it is
+            if let setlist, let setlistURL { try? setlist.save(to: setlistURL) }
+            refreshSetlistEntries()
+            return
+        }
+        guard !rack.isWiredLike(currentRack), !engine.isPlaying else { return }
+        let missing = applyRack(rack)
+        if !missing.isEmpty { errorMessage = missing.map { "\($0) is not installed (built-in effect used instead)" }.joined(separator: " · ") }
+    }
+
     func removeFromSetlist(_ entry: SetlistEntry) {
+        if entry.reference == armedSong { disarm() }
+        if entry.url?.standardizedFileURL == projectURL?.standardizedFileURL { songRack = nil } // back on its own
         setlist?.projects.removeAll { $0 == entry.reference }
         refreshSetlistEntries()
         saveSetlist()
@@ -250,7 +298,10 @@ extension AppModel {
         saveSetlist()
     }
 
+    /// The open song stays as it sounds: from now on, the rack it plays through is its own.
     func closeSetlist() {
+        disarm()
+        songRack = nil
         setlist = nil
         setlistURL = nil
         setlistEntries = []
@@ -288,21 +339,37 @@ extension AppModel {
             let url = reference.resolve(relativeTo: anchor)
             let project = url.flatMap { try? Project.load(from: $0) }
             let fallback = URL(fileURLWithPath: reference.path).deletingPathExtension().lastPathComponent
-            return SetlistEntry(
+            var entry = SetlistEntry(
                 reference: reference, url: url,
                 title: project.map { $0.title.isEmpty ? fallback : $0.title } ?? fallback,
                 bpm: project?.bpm, duration: project?.duration ?? 0
             )
+            if let project, let url {
+                entry.problems = problems(of: project, at: url)
+                entry.missingStems = project.stems.contains { $0.file.resolve(relativeTo: url) == nil }
+                entry.ownRack = setlist.rack.map { !project.rack.isWiredLike($0) } ?? false
+            }
+            return entry
         }
     }
 
+    /// Stopped: opens the song. Playing: arms it, Space launches it (a click on the current one disarms).
     func openSetlistEntry(at index: Int) {
         guard setlistEntries.indices.contains(index), let url = setlistEntries[index].url else { return }
+        if engine.isPlaying {
+            arm(at: index)
+            return
+        }
+        disarm()
         openProject(url)
     }
 
     func openNextInSetlist(offset: Int = 1) {
         guard !setlistEntries.isEmpty else { return }
+        if engine.isPlaying {
+            armSong(offset: offset)
+            return
+        }
         openSetlistEntry(at: (setlistIndex ?? (offset > 0 ? -1 : setlistEntries.count)) + offset)
     }
 }

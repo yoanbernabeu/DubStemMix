@@ -17,6 +17,9 @@ struct RootView: View {
                 TopBar(model: model)
                 WaveformOverview(model: model)
                     .frame(height: 78)
+                    .overlay(alignment: .topTrailing) {
+                        if let index = model.armedIndex { ArmedSong(model: model, index: index).padding(8) }
+                    }
                 FXRack(model: model)
                     .frame(height: FXRackLayout.height)
                 ConsoleView(model: model)
@@ -29,6 +32,7 @@ struct RootView: View {
         )
         .stemDrop(enabled: !model.isPreview, isTargeted: $dropTargeted) { model.open($0) }
         .background(Shortcuts(model: model))
+        .background { if !model.isPreview { CloseGuard(model: model) } }
         .environment(\.colorScheme, .dark)
         .sheet(isPresented: Binding(get: { model.showWelcome && !model.isPreview }, set: { if !$0 { model.dismissWelcome() } })) {
             WelcomeView(model: model) { model.dismissWelcome() }
@@ -56,6 +60,35 @@ extension View {
     @ViewBuilder
     func draggableStem(_ url: URL?, enabled: Bool) -> some View {
         if enabled, let url { draggable(url) } else { self }
+    }
+}
+
+/// Puts `WindowCloseGuard` in front of the window's delegate, once the view is in its window.
+private struct CloseGuard: NSViewRepresentable {
+    var model: AppModel
+
+    final class Coordinator {
+        var guardian: WindowCloseGuard?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { install(on: view.window, context.coordinator) }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async { install(on: view.window, context.coordinator) }
+    }
+
+    private func install(on window: NSWindow?, _ coordinator: Coordinator) {
+        guard let window, coordinator.guardian == nil || window.delegate !== coordinator.guardian else { return }
+        let model = model
+        let guardian = WindowCloseGuard(original: window.delegate) { model.confirmWhilePlaying("Quit") }
+        coordinator.guardian = guardian // the window holds its delegate weakly
+        window.delegate = guardian
     }
 }
 
@@ -109,6 +142,10 @@ private struct TopBar: View {
 
             Spacer()
 
+            if let notice = model.notice {
+                Text(notice).font(Fonts.mono(11)).foregroundStyle(Theme.delay).lineLimit(1)
+            }
+
             if !model.title.isEmpty { TempoBlock(model: model).fixedSize().layoutPriority(1) }
 
             if let error = model.errorMessage {
@@ -143,6 +180,35 @@ private struct TopBar: View {
         let minutes = Int(seconds) / 60
         let rest = seconds - Double(minutes * 60)
         return tenths ? String(format: "%d:%04.1f", minutes, rest) : String(format: "%d:%02d", minutes, Int(rest))
+    }
+}
+
+/// The song armed while this one plays, blinking: Space (or the pull-up) launches it.
+private struct ArmedSong: View {
+    var model: AppModel
+    var index: Int
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { context in
+            let on = Int(context.date.timeIntervalSinceReferenceDate * 2) % 2 == 0
+            VStack(alignment: .leading, spacing: 1) {
+                Text("NEXT ▸ \(model.setlistEntries[index].title.uppercased())")
+                    .font(Fonts.label(12, weight: 850))
+                    .tracking(0.8)
+                    .foregroundStyle(on ? Theme.bg : Theme.delay)
+                    .lineLimit(1)
+                Text(model.armWarning.map { "SPACE · \($0)" } ?? "SPACE to drop · R to pull up")
+                    .font(Fonts.mono(9))
+                    .foregroundStyle(on ? Theme.bg.opacity(0.75) : (model.armWarning == nil ? Theme.textDim : Theme.rec))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 38)
+            .background(RoundedRectangle(cornerRadius: 6).fill(on ? Theme.delay : Theme.bg))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.delay, lineWidth: 1.5))
+        }
+        .fixedSize()
+        .help("Space drops it now (the effect tails go on) · R pulls up into it · N / P arm another · click the current song to cancel")
     }
 }
 
@@ -320,10 +386,12 @@ private struct TextButton: View {
     }
 }
 
-// MARK: - Forme d'onde (clic ou glissé = déplacement)
+// MARK: - Forme d'onde (clic ou glissé = déplacement ; en lecture, double-clic ou ⌥-clic)
 
 private struct WaveformOverview: View {
     var model: AppModel
+
+    @State private var lastClick: Date?
 
     var body: some View {
         GeometryReader { geo in
@@ -361,8 +429,12 @@ private struct WaveformOverview: View {
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0).onEnded { drag in
-                    guard model.duration > 0 else { return }
-                    model.seek(fraction: min(1, max(0, drag.location.x / geo.size.width)))
+                    // While playing, a stray click must not jump: a double-click or an ⌥-click does.
+                    let now = Date.now
+                    let double = lastClick.map { now.timeIntervalSince($0) < NSEvent.doubleClickInterval } ?? false
+                    lastClick = now
+                    model.seekFromWaveform(fraction: min(1, max(0, drag.location.x / geo.size.width)),
+                                           deliberate: double || NSEvent.modifierFlags.contains(.option))
                 }
             )
         }
@@ -521,29 +593,27 @@ private struct FXSlotCard: View {
             if bus == .reverb {
                 ForEach(ReverbModel.allCases, id: \.self) { reverb in
                     Button((plugin == nil && reverb == model.reverbModel ? "✓ " : "") + "Built-in · \(reverb.label)") {
-                        model.setReverbModel(reverb)
-                        model.useBuiltInEffect(on: sendBus)
+                        model.pickBuiltInEffect(on: sendBus, reverb: reverb)
                     }
                 }
             } else if bus == .bus3 {
                 ForEach(Bus3Model.allCases, id: \.self) { effect in
                     Button((plugin == nil && effect == model.bus3Model ? "✓ " : "") + "Built-in · \(effect.label)") {
-                        model.setBus3Model(effect)
-                        model.useBuiltInEffect(on: sendBus)
+                        model.pickBuiltInEffect(on: sendBus, bus3: effect)
                     }
                 }
             } else {
-                Button((plugin == nil ? "✓ " : "") + "Built-in · \(builtInName)") { model.useBuiltInEffect(on: sendBus) }
+                Button((plugin == nil ? "✓ " : "") + "Built-in · \(builtInName)") { model.pickBuiltInEffect(on: sendBus) }
             }
             if plugin != nil {
                 Button("Open plugin window") { model.openPluginWindow(on: sendBus) }
             }
             // Bus-to-bus send (issue #1): targets that would close a loop are disabled.
             Menu("Send to · \(model.busRouting.target(of: sendBus).map { model.busMenuName($0) } ?? "None")") {
-                Button((model.busRouting.target(of: sendBus) == nil ? "✓ " : "") + "None") { model.setBusSend(from: sendBus, to: nil) }
+                Button((model.busRouting.target(of: sendBus) == nil ? "✓ " : "") + "None") { model.pickBusSend(from: sendBus, to: nil) }
                 ForEach(SendBus.allCases.filter { $0 != sendBus }, id: \.self) { target in
                     Button((model.busRouting.target(of: sendBus) == target ? "✓ " : "") + model.busMenuName(target)) {
-                        model.setBusSend(from: sendBus, to: target)
+                        model.pickBusSend(from: sendBus, to: target)
                     }
                     .disabled(!model.busRouting.allows(sendBus, to: target))
                 }
@@ -560,7 +630,7 @@ private struct FXSlotCard: View {
             ForEach(manufacturers, id: \.self) { manufacturer in
                 Menu(manufacturer) {
                     ForEach(model.installedPlugins.filter { $0.manufacturer == manufacturer }) { info in
-                        Button((plugin?.info.id == info.id ? "✓ " : "") + info.name) { model.loadPlugin(info, on: sendBus) }
+                        Button((plugin?.info.id == info.id ? "✓ " : "") + info.name) { model.pickPlugin(info, on: sendBus) }
                     }
                 }
             }
@@ -624,11 +694,13 @@ private struct BusGlow: View {
     var body: some View {
         let color = Bus(rawValue: bus.rawValue)!.color
         let glow = model.activity(AudioEngine.busReturnMeter(bus))
+        // PANIC: one white flash, fading out in half a second.
+        let flash = model.panicFlash.map { max(0, 1 - Date.now.timeIntervalSince($0) / 0.5) } ?? 0
         let shape = RoundedRectangle(cornerRadius: 8)
         Group {
             switch part {
-            case .fill: shape.fill(color.opacity(0.1 * glow))
-            case .border: shape.stroke(color.opacity(0.85 * glow), lineWidth: 1.5)
+            case .fill: shape.fill(color.opacity(0.1 * glow)).overlay(shape.fill(Theme.text.opacity(0.25 * flash)))
+            case .border: shape.stroke(flash > 0 ? Theme.text.opacity(flash) : color.opacity(0.85 * glow), lineWidth: 1.5)
             }
         }
         .allowsHitTesting(false)
@@ -710,8 +782,9 @@ private struct Sidebar: View {
                     Hint(key: "SPACE · RETURN · L", text: "play / back to start / loop")
                     Hint(key: "D (hold) · R", text: "drop all but KEEP strips / pull-up rewind")
                     Hint(key: "H (hold) · C", text: "hold the echo / crash the spring")
+                    Hint(key: "ESC · BANK LEFT + RIGHT", text: "panic: empty the effects")
                     Hint(key: "T", text: "tap tempo")
-                    Hint(key: "N · P", text: "next / previous song of the setlist")
+                    Hint(key: "N · P", text: "next / previous song (armed while playing)")
                     Hint(key: "⌘R", text: "record the master (24-bit WAV)")
                 }
                 .padding(.top, 22)
@@ -877,7 +950,7 @@ private struct StemPool: View {
                 .contextMenu {
                     Menu("Place on strip") {
                         ForEach(0..<AudioEngine.stripCount, id: \.self) { strip in
-                            Button("\(strip + 1)") { model.assign([item.url], toStrip: strip) }
+                            Button("\(strip + 1)") { model.placeStems([item.url], onStrip: strip) }
                         }
                     }
                     Button("Remove", role: .destructive) { model.removeFromPool(item.url) }
@@ -928,6 +1001,10 @@ private struct SetlistSection: View {
                 }
             }
             if model.isPreview { rows } else { ScrollView { rows }.frame(maxHeight: 260) }
+            if model.setlistHasMissingStems {
+                SmallButton(title: "LOCATE MISSING STEMS…", color: Theme.rec) { model.locateMissingStemsInSetlist() }
+                    .help("One folder for the whole setlist: missing stems are looked for by name in it and its subfolders")
+            }
             if !model.title.isEmpty, model.setlistIndex == nil {
                 SmallButton(title: "+ ADD THIS SONG", color: Theme.textDim) { model.addCurrentProjectToSetlist() }
             }
@@ -938,19 +1015,20 @@ private struct SetlistSection: View {
         VStack(spacing: 3) {
             ForEach(Array(model.setlistEntries.enumerated()), id: \.element.id) { index, entry in
                 let current = index == model.setlistIndex
-                let next = model.setlistIndex.map { index == $0 + 1 } ?? false
+                let armed = index == model.armedIndex
+                let next = !armed && model.armedIndex == nil && (model.setlistIndex.map { index == $0 + 1 } ?? false)
                 HStack(spacing: 9) {
                     Text(String(format: "%02d", index + 1))
                         .font(Fonts.mono(10))
                         .foregroundStyle(current ? Theme.bg.opacity(0.6) : Theme.textDim)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(entry.title)
+                        Text((entry.problems.isEmpty ? "" : "⚠ ") + entry.title)
                             .font(Fonts.label(12.5, weight: current ? 800 : 600, width: 104))
-                            .foregroundStyle(current ? Theme.bg : (entry.url == nil ? Theme.rec : Theme.text))
+                            .foregroundStyle(current ? Theme.bg : (entry.url == nil || !entry.problems.isEmpty ? Theme.rec : Theme.text))
                             .lineLimit(1)
-                        Text(details(entry, next: next))
+                        Text(details(entry, next: next, armed: armed))
                             .font(Fonts.mono(9))
-                            .foregroundStyle(current ? Theme.bg.opacity(0.6) : (next ? Theme.reverb : Theme.textDim))
+                            .foregroundStyle(current ? Theme.bg.opacity(0.6) : (armed ? Theme.delay : (next ? Theme.reverb : Theme.textDim)))
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
@@ -958,7 +1036,9 @@ private struct SetlistSection: View {
                 .padding(.horizontal, 9)
                 .padding(.vertical, 6)
                 .background(RoundedRectangle(cornerRadius: 6).fill(current ? Theme.text : .clear))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(armed ? Theme.delay : .clear, lineWidth: 1.5))
                 .contentShape(Rectangle())
+                .help(help(entry))
                 .onTapGesture { model.openSetlistEntry(at: index) }
                 .setlistDrag(entry, model: model)
                 .contextMenu {
@@ -970,13 +1050,20 @@ private struct SetlistSection: View {
         }
     }
 
-    private func details(_ entry: SetlistEntry, next: Bool) -> String {
+    private func details(_ entry: SetlistEntry, next: Bool, armed: Bool) -> String {
         guard entry.url != nil else { return "project not found" }
         var parts: [String] = []
         if let bpm = entry.bpm { parts.append("\(Int(bpm.rounded())) BPM") }
         parts.append(String(format: "%d:%02d", Int(entry.duration) / 60, Int(entry.duration) % 60))
-        if next { parts.append("NEXT (N)") }
+        if entry.ownRack { parts.append("≠ RACK") }
+        if armed { parts.append("ARMED") } else if next { parts.append("NEXT (N)") }
         return parts.joined(separator: " · ")
+    }
+
+    private func help(_ entry: SetlistEntry) -> String {
+        var lines = entry.problems
+        if entry.ownRack { lines.append("Rack differs, setlist rack used") }
+        return lines.joined(separator: "\n")
     }
 }
 

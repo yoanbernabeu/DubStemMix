@@ -101,6 +101,13 @@ public final class MixController {
 
     @ObservationIgnored private let engine: MixEngineControl
     @ObservationIgnored private let surface: ControlSurface?
+    /// PANIC from the console: BANK LEFT and BANK RIGHT pressed together.
+    @ObservationIgnored public var onPanic: (() -> Void)?
+    /// When each bank button went down (nil = up), and the page shown before the first one did (the combo goes
+    /// back to it). A button held longer than `panicWindow` no longer counts: a lost Note Off can't arm PANIC.
+    @ObservationIgnored private var bankDown: (left: Date?, right: Date?) = (nil, nil)
+    @ObservationIgnored private var pageBeforeBank: Page?
+    private static let panicWindow = 1.5
     private var knobs = [[Physical]](repeating: [Physical](repeating: Physical(), count: 3), count: AudioEngine.stripCount)
     private var faders = [Physical](repeating: Physical(), count: AudioEngine.stripCount)
     private var masterFader = Physical()
@@ -164,12 +171,31 @@ public final class MixController {
         case let .button(.recArm, strip, pressed):
             setThrow(strip: strip, pressed)
         case let .button(.bankLeft, _, pressed):
-            if pressed { setPage(.mix) }
+            bank(left: true, pressed)
         case let .button(.bankRight, _, pressed):
-            if pressed { setPage(page.next) }
+            bank(left: false, pressed)
         case .button(.soloMode, _, _):
             break // SOLO maintenu : la console envoie alors elle-même les notes de solo
         }
+    }
+
+    /// Each bank button changes the page as it goes down. The second one pressed while the first is held is PANIC:
+    /// the page goes back to where it was before the combo, and the buses are emptied.
+    private func bank(left: Bool, _ pressed: Bool) {
+        let now = Date.now
+        let otherDown = left ? bankDown.right : bankDown.left
+        if left { bankDown.left = pressed ? now : nil } else { bankDown.right = pressed ? now : nil }
+        guard pressed else {
+            if bankDown.left == nil, bankDown.right == nil { pageBeforeBank = nil }
+            return
+        }
+        if let otherDown, now.timeIntervalSince(otherDown) < Self.panicWindow {
+            if let before = pageBeforeBank, before != page { setPage(before) }
+            onPanic?()
+            return
+        }
+        pageBeforeBank = page
+        setPage(left ? .mix : page.next)
     }
 
     /// Un contrôle qui ne « tient » pas la valeur n'agit qu'après l'avoir rejointe ou croisée.

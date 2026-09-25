@@ -15,7 +15,9 @@ public enum InsertKind: String, CaseIterable, Sendable {
     /// For the strip header, where the strip number must stay visible.
     public var shortLabel: String { self == .sub ? "SUB" : "WAH" }
 
-    var effectKind: BuiltInEffect.Kind { self == .sub ? .sub : .wah }
+    /// Position of this insert in the strip's switch (0 = straight through), and where its parameters start there.
+    var switchSelect: Float { self == .sub ? 1 : 2 }
+    var switchOffset: Int { self == .sub ? DUB_INSERT_SUB : DUB_INSERT_WAH }
 
     /// The knobs of the INSERTS page for this insert (up to 3), then any screen-only parameters.
     public var parameters: [InsertParameter] {
@@ -68,5 +70,5 @@ public enum Bus3Model: String, CaseIterable, Sendable {
     case phaser, flanger
 
     public var label: String { self == .phaser ? "Bi-Phaser" : "Tape Flanger" }
-    var kind: BuiltInEffect.Kind { self == .phaser ? .phaser : .flanger }
+    var switchSelect: Float { self == .phaser ? 0 : 1 }
 }
