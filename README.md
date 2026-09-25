@@ -51,7 +51,7 @@ Eight strips, mirrored on screen so what you touch is where you look. Per strip:
 - **REC ARM held** is the **dub throw**: the strip goes at full into the delay (or the reverb, or both, from the delay card's menu), taken before the fader and the mute. Throw a cut vocal, hear only its echo.
 - Effects sit on shared buses, like the sends of a real board: cutting a strip never kills an echo or a reverb tail already on its way. That is the whole point.
 - Sends are post-fader by default; Settings (⌘,) switch any bus to pre-fader for the classic move: fader down, echo still running.
-- **Bus to bus**: each bus return can also feed one other bus, like patching a return into a send on a real board. Pick the target in the bus card's **Send to** menu, dose it with the three send knobs on strip 8 of the FX page. The order of your effects is which bus holds which: a filter plugin on bus 3 with the delay sent into it is a filtered echo. Targets that would close a loop are greyed out.
+- **Bus to bus**: each bus return can also feed one other bus, like patching a return into a send on a real board. Out of the box every bus stands on its own; pick the target in the bus card's **Send to** menu, dose it with the three send knobs on strip 8 of the FX page. The order of your effects is which bus holds which: a filter plugin on bus 3 with the delay sent into it is a filtered echo. Targets that would close a loop are greyed out.
 
 <p align="center"><img src="docs/screenshots/fx.png" width="100%" alt="DubStemMix, FX page: the knobs drive the tape delay, the reverb and the phaser"></p>
 

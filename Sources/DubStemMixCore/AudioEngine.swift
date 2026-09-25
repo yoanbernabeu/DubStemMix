@@ -86,7 +86,7 @@ public protocol MixEngineControl: AnyObject {
 ///                                                       └─▶ 3 send buses (before fader and mute: pre-fader sends, dub throw)
 ///                                                                       retour d'un bus ─▶ un autre bus (renvoi, issue #1)
 ///
-/// Bus-to-bus sends: each return may also feed one other bus, chosen by the user (`BusRouting`, DLY→REV by
+/// Bus-to-bus sends: each return may also feed one other bus, chosen by the user (`BusRouting`, none by
 /// default). The routing is always loop-free; changing a target rewires the graph, engine stopped.
 ///
 /// Per strip (PRD § 11.5): the stems sum in a mixer, go through the insert (between two fixed neutral nodes,

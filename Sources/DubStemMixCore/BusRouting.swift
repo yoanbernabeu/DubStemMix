@@ -6,8 +6,11 @@ import Foundation
 public struct BusRouting: Equatable, Sendable {
     public private(set) var targets: [SendBus: SendBus]
 
-    /// Today's console: the delay feeds the reverb (DLY→REV), the other buses feed no bus.
-    public static let standard = BusRouting(targets: [.delay: .reverb])
+    /// A new session: every bus stands on its own, feeding only the master. Chaining buses is a choice.
+    public static let standard = BusRouting()
+
+    /// The routing of projects saved before the buses stood on their own: the delay fed the reverb (DLY→REV).
+    public static let legacy = BusRouting(targets: [.delay: .reverb])
 
     public init(targets: [SendBus: SendBus] = [:]) {
         self.targets = targets.filter { $0.key != $0.value }
@@ -49,14 +52,13 @@ public struct BusRouting: Equatable, Sendable {
         }
     }
 
-    /// Stored in projects as `SendBus.key` → `SendBus.key`, only when it differs from the standard routing.
-    public var projectValue: [String: String]? {
-        guard self != .standard else { return nil }
-        return Dictionary(uniqueKeysWithValues: SendBus.allCases.map { ($0.key, targets[$0]?.key ?? "none") })
+    /// Stored in projects as `SendBus.key` → `SendBus.key` or "none", always: an absent value means `legacy`.
+    public var projectValue: [String: String] {
+        Dictionary(uniqueKeysWithValues: SendBus.allCases.map { ($0.key, targets[$0]?.key ?? "none") })
     }
 
     public init(projectValue: [String: String]?) {
-        guard let projectValue else { self = .standard; return }
+        guard let projectValue else { self = .legacy; return }
         var targets: [SendBus: SendBus] = [:]
         for source in SendBus.allCases {
             if let key = projectValue[source.key], let target = SendBus.allCases.first(where: { $0.key == key }) {

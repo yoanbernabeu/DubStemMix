@@ -133,7 +133,6 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .delayWow: 0.25
         case .delayLowCut: 0.45
         case .delayHighCut: 0.55
-        case .delayToReverb: 0.2
         case .reverbDecay: 0.7
         case .reverbDamping: 0.4
         case .reverbPredelay: 0.1
@@ -149,8 +148,8 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .phaserReturn: 1
         // Master chain: neutral until touched.
         case .masterHighPass, .dubplate, .crackle, .delayHeads, .delayPingPong: 0
-        // New bus-to-bus sends: closed, so existing projects sound the same.
-        case .reverbSend, .bus3Send: 0
+        // Bus-to-bus sends: closed, every bus stands on its own until the user chains them.
+        case .delayToReverb, .reverbSend, .bus3Send: 0
         case .killBass, .killMid, .killTop: 1
         }
     }
