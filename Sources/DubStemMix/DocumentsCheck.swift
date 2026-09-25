@@ -196,6 +196,19 @@ enum DocumentsCheck {
             check(model.setlistEntries.map(\.title) == ["second", "song"] || model.setlistIndex == 1, "glisser-déposer : morceau courant passé en 2e position")
             model.renameSetlist(" friday ")
             check((try? Setlist.load(from: setlistFile))?.name == "FRIDAY", "setlist renommée et enregistrée")
+            if let other = model.setlistEntries.first(where: { $0.url?.standardizedFileURL != model.projectURL?.standardizedFileURL }),
+               let otherURL = other.url, let openURL = model.projectURL {
+                model.renameSetlistEntry(other, to: " dub version ")
+                check((try? Project.load(from: otherURL))?.title == "DUB VERSION"
+                      && model.setlistEntries.contains { $0.title == "DUB VERSION" }, "morceau de la setlist renommé dans son fichier")
+                model.renameSong("riddim")
+                model.autosaveCountdown = 0
+                model.autosaveIfNeeded()
+                check((try? Project.load(from: openURL))?.title == "RIDDIM", "morceau ouvert renommé et enregistré")
+                model.openProject(otherURL)
+                model.openProject(openURL)
+                check(model.title == "RIDDIM", "le titre saisi revient à la réouverture")
+            }
 
             print("Usage live : rack de setlist")
             check(model.setlist?.rack != nil, "la setlist a pris le rack du morceau ouvert")

@@ -114,6 +114,8 @@ private struct Shortcuts: View {
 private struct TopBar: View {
     var model: AppModel
 
+    @State private var renaming = false
+
     var body: some View {
         HStack(spacing: 18) {
             HStack(spacing: 8) {
@@ -125,11 +127,19 @@ private struct TopBar: View {
             }
 
             VStack(alignment: .leading, spacing: 0) {
-                Text(model.title.isEmpty ? "NO STEMS LOADED" : model.title)
+                if model.title.isEmpty {
+                    Text("NO STEMS LOADED")
+                        .font(Fonts.label(17, weight: 850, width: 118))
+                        .tracking(0.8)
+                        .foregroundStyle(Theme.textDim)
+                } else {
+                    EditableTitle(text: model.title, editing: $renaming, onCommit: model.renameSong) {
+                        Text(model.title).lineLimit(1).help("Double-click to rename the song")
+                    }
                     .font(Fonts.label(17, weight: 850, width: 118))
                     .tracking(0.8)
-                    .foregroundStyle(model.title.isEmpty ? Theme.textDim : Theme.text)
-                    .lineLimit(1)
+                    .foregroundStyle(Theme.text)
+                }
                 HStack(spacing: 6) {
                     Text(timecode(model.position, tenths: true))
                         .font(Fonts.mono(13, weight: 700))
@@ -966,6 +976,7 @@ private struct SetlistSection: View {
 
     @State private var renaming = false
     @State private var draftName = ""
+    @State private var renamingEntry: UUID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1022,10 +1033,12 @@ private struct SetlistSection: View {
                         .font(Fonts.mono(10))
                         .foregroundStyle(current ? Theme.bg.opacity(0.6) : Theme.textDim)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text((entry.problems.isEmpty ? "" : "⚠ ") + entry.title)
-                            .font(Fonts.label(12.5, weight: current ? 800 : 600, width: 104))
-                            .foregroundStyle(current ? Theme.bg : (entry.url == nil || !entry.problems.isEmpty ? Theme.rec : Theme.text))
-                            .lineLimit(1)
+                        EditableTitle(text: entry.title, editing: renamingBinding(entry), doubleClick: false,
+                                      onCommit: { model.renameSetlistEntry(entry, to: $0) }) {
+                            Text((entry.problems.isEmpty ? "" : "⚠ ") + entry.title).lineLimit(1)
+                        }
+                        .font(Fonts.label(12.5, weight: current ? 800 : 600, width: 104))
+                        .foregroundStyle(current ? Theme.bg : (entry.url == nil || !entry.problems.isEmpty ? Theme.rec : Theme.text))
                         Text(details(entry, next: next, armed: armed))
                             .font(Fonts.mono(9))
                             .foregroundStyle(current ? Theme.bg.opacity(0.6) : (armed ? Theme.delay : (next ? Theme.reverb : Theme.textDim)))
@@ -1042,12 +1055,17 @@ private struct SetlistSection: View {
                 .onTapGesture { model.openSetlistEntry(at: index) }
                 .setlistDrag(entry, model: model)
                 .contextMenu {
+                    Button("Rename…") { renamingEntry = entry.id }.disabled(entry.url == nil)
                     Button("Move up") { model.moveInSetlist(entry, by: -1) }
                     Button("Move down") { model.moveInSetlist(entry, by: 1) }
                     Button("Remove from setlist", role: .destructive) { model.removeFromSetlist(entry) }
                 }
             }
         }
+    }
+
+    private func renamingBinding(_ entry: SetlistEntry) -> Binding<Bool> {
+        Binding(get: { renamingEntry == entry.id }, set: { renamingEntry = $0 ? entry.id : nil })
     }
 
     private func details(_ entry: SetlistEntry, next: Bool, armed: Bool) -> String {
@@ -1080,6 +1098,40 @@ extension View {
                     model.moveInSetlist(dragged, onto: entry)
                     return true
                 }
+        }
+    }
+}
+
+/// A title that turns into a text field on double-click (or when `editing` is set, e.g. from a context menu).
+/// Return commits, Escape cancels.
+private struct EditableTitle<Label: View>: View {
+    var text: String
+    @Binding var editing: Bool
+    var doubleClick = true
+    var onCommit: (String) -> Void
+    @ViewBuilder var label: () -> Label
+
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        if editing {
+            TextField("", text: $draft)
+                .textFieldStyle(.plain)
+                .focused($focused)
+                .onSubmit {
+                    onCommit(draft)
+                    editing = false
+                }
+                .onExitCommand { editing = false }
+                .onAppear {
+                    draft = text
+                    focused = true
+                }
+        } else if doubleClick {
+            label().contentShape(Rectangle()).onTapGesture(count: 2) { editing = true }
+        } else {
+            label()
         }
     }
 }

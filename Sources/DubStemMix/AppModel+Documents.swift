@@ -125,6 +125,8 @@ extension AppModel {
         let throughSetlist = setlist != nil && isInSetlist(document)
         engine.stop()
         clear(keepingRack: throughSetlist)
+        // The saved title wins over the one derived from the stems' names (it may have been typed by the user).
+        if !project.title.isEmpty { titleOverride = project.title }
         mix.setTempo(project.bpm) // avant de poser les stems : un tempo enregistré n'est pas re-détecté
         mix.setDelaySync(project.delaySync)
         stripNames = Dictionary(uniqueKeysWithValues: (project.stripNames ?? [:]).compactMap { key, name in Int(key).map { ($0, name) } })
@@ -168,6 +170,30 @@ extension AppModel {
         warnings += restoreInserts().map { "\($0) is not installed (insert bypassed)" }
         if !unresolvedStems.isEmpty { warnings.insert("\(unresolvedStems.count) stem(s) not found", at: 0) }
         errorMessage = warnings.isEmpty ? nil : warnings.joined(separator: " · ")
+    }
+
+    /// The song's title, typed by the user; an empty name goes back to the one derived from the stems' names.
+    func renameSong(_ name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        titleOverride = name.isEmpty ? nil : name
+        refreshNames()
+    }
+
+    /// Renames a song of the setlist: the open one live (the autosave writes it), another one in its file.
+    func renameSetlistEntry(_ entry: SetlistEntry, to name: String) {
+        guard let url = entry.url else { return }
+        if url.standardizedFileURL == projectURL?.standardizedFileURL {
+            renameSong(name)
+            if let projectURL { write(to: projectURL) }
+            return
+        }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard !name.isEmpty, var project = try? Project.load(from: url) else { return }
+        project.title = name
+        do { try project.save(to: url) } catch {
+            errorMessage = "Can't rename \(url.lastPathComponent): \(error.localizedDescription)"
+        }
+        refreshSetlistEntries()
     }
 
     /// Cherche les stems introuvables, par nom de fichier, dans un dossier choisi par l'utilisateur.
