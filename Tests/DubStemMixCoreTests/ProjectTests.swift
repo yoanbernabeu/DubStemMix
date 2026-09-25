@@ -123,3 +123,64 @@ private func temporaryFolder() throws -> URL {
     let drums = FileReference(URL(fileURLWithPath: "/old/set/Roots/drums.wav"), relativeTo: document)
     #expect(drums.bestMatch(in: found) == nil) // two, neither in a "Roots" folder: no guess
 }
+
+@Test func setlistExportCopiesEverySongWithItsFiles() throws {
+    let root = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = FileManager.default
+    // Two songs in different folders, both with a "bass.wav"; the second has a stem that no longer exists.
+    func song(_ name: String, stems: [String], missing: String? = nil) throws -> URL {
+        let folder = root.appending(path: "library/\(name)")
+        try files.createDirectory(at: folder, withIntermediateDirectories: true)
+        let document = folder.appending(path: "\(name).dubstem")
+        var project = Project()
+        project.title = name.uppercased()
+        for (strip, stem) in stems.enumerated() {
+            try Data(stem.utf8).write(to: folder.appending(path: stem))
+            project.stems.append(.init(file: FileReference(folder.appending(path: stem), relativeTo: document), strip: strip))
+        }
+        project.stems.append(.init(file: FileReference(folder.appending(path: stems[0]), relativeTo: document), strip: 7)) // same file twice
+        if let missing { project.pool = [FileReference(folder.appending(path: missing), relativeTo: document)] }
+        try project.save(to: document)
+        return document
+    }
+    let first = try song("Roots Steppa", stems: ["bass.wav", "drums.wav"])
+    let second = try song("Zion Gate", stems: ["bass.wav"], missing: "gone.wav")
+    var withInsert = try Project.load(from: second)
+    let plugin = PluginInfo(name: "Dub Filter", manufacturer: "AudioThing", type: 0x61756678, subType: 1, manufacturerCode: 2)
+    withInsert.inserts = ["2": .init(plugin: plugin, state: nil, macros: [])]
+    try withInsert.save(to: second)
+
+    let setlistURL = root.appending(path: "sets/Sunday.dubset")
+    try files.createDirectory(at: setlistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    var setlist = Setlist(name: "SUNDAY")
+    setlist.projects = [first, second, root.appending(path: "nowhere.dubstem")].map { FileReference($0, relativeTo: setlistURL) }
+    setlist.rack = Rack(reverbModel: "spring")
+    try setlist.save(to: setlistURL)
+
+    let target = root.appending(path: "usb/SUNDAY")
+    let export = SetlistExport(setlist: setlist, at: setlistURL, to: target)
+    #expect(export.report.songs == 2)
+    #expect(export.report.files == 3)
+    #expect(export.report.missing == ["Zion Gate: gone.wav", "nowhere.dubstem"])
+    #expect(export.report.plugins == ["Dub Filter (AudioThing) — used by: ZION GATE (insert, strip 3)"])
+    try export.run()
+    #expect(throws: SetlistExport.ExportError.self) { try export.run() } // never over an existing folder
+
+    // On the other Mac: the folder has moved, nothing of the original library exists.
+    try files.removeItem(at: root.appending(path: "library"))
+    let moved = root.appending(path: "elsewhere")
+    try files.moveItem(at: target, to: moved)
+    let exported = try Setlist.load(from: moved.appending(path: "Sunday.dubset"))
+    #expect(exported.name == "SUNDAY" && exported.rack == setlist.rack)
+    let songs = exported.projects.compactMap { $0.resolve(relativeTo: moved.appending(path: "Sunday.dubset")) }
+    #expect(songs.map { $0.lastPathComponent } == ["Roots Steppa.dubstem", "Zion Gate.dubstem"])
+    for document in songs {
+        let project = try Project.load(from: document)
+        #expect(project.stems.allSatisfy { $0.file.resolve(relativeTo: document) != nil })
+    }
+    let zion = try Project.load(from: songs[1])
+    #expect(zion.pool.first?.fileName == "gone.wav" && zion.pool.first?.resolve(relativeTo: songs[1]) == nil) // still listed as missing
+    #expect(zion.inserts?["2"]?.plugin == plugin)
+    #expect(try String(contentsOf: moved.appending(path: "PLUGINS.txt"), encoding: .utf8).contains("Dub Filter (AudioThing)"))
+}

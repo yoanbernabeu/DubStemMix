@@ -196,6 +196,19 @@ enum DocumentsCheck {
             check(model.setlistEntries.map(\.title) == ["second", "song"] || model.setlistIndex == 1, "glisser-déposer : morceau courant passé en 2e position")
             model.renameSetlist(" friday ")
             check((try? Setlist.load(from: setlistFile))?.name == "FRIDAY", "setlist renommée et enregistrée")
+            if let other = model.setlistEntries.first(where: { $0.url?.standardizedFileURL != model.projectURL?.standardizedFileURL }),
+               let otherURL = other.url, let openURL = model.projectURL {
+                model.renameSetlistEntry(other, to: " dub version ")
+                check((try? Project.load(from: otherURL))?.title == "DUB VERSION"
+                      && model.setlistEntries.contains { $0.title == "DUB VERSION" }, "morceau de la setlist renommé dans son fichier")
+                model.renameSong("riddim")
+                model.autosaveCountdown = 0
+                model.autosaveIfNeeded()
+                check((try? Project.load(from: openURL))?.title == "RIDDIM", "morceau ouvert renommé et enregistré")
+                model.openProject(otherURL)
+                model.openProject(openURL)
+                check(model.title == "RIDDIM", "le titre saisi revient à la réouverture")
+            }
 
             print("Usage live : rack de setlist")
             check(model.setlist?.rack != nil, "la setlist a pris le rack du morceau ouvert")
@@ -255,6 +268,50 @@ enum DocumentsCheck {
             check(!model.setlistHasMissingStems, "stems retrouvés pour toute la setlist dans un dossier et ses sous-dossiers")
             check((try? Project.load(from: movedDocument))?.stems.allSatisfy { $0.file.resolve(relativeTo: movedDocument) != nil } == true,
                   "le morceau est enregistré avec le fichier retrouvé")
+
+            print("Setlist : Save As")
+            let copyFolder = moved.appending(path: "copies")
+            try FileManager.default.createDirectory(at: copyFolder, withIntermediateDirectories: true)
+            let copyFile = copyFolder.appending(path: "Short Set.dubset")
+            let songsBefore = model.setlistEntries.compactMap(\.url)
+            model.move(setlistTo: copyFile)
+            model.saveSetlist()
+            let copy = try? Setlist.load(from: copyFile)
+            check(model.setlistURL == copyFile && copy?.name == "SHORT SET", "copie enregistrée, nommée d'après son fichier, devenue la setlist ouverte")
+            check(copy?.projects.map { $0.resolve(relativeTo: copyFile) } == songsBefore && copy?.projects.first?.relativePath.hasPrefix("../") == true,
+                  "copie : les morceaux sont retrouvés depuis son nouvel emplacement")
+            check(copy?.rack != nil && (try? Setlist.load(from: setlistFile))?.name == "FRIDAY", "copie : rack gardé, l'originale n'a pas bougé")
+
+            print("Setlist : projets glissés depuis le Finder")
+            let third = moved.appending(path: "third.dubstem")
+            try FileManager.default.copyItem(at: second, to: third)
+            let openBefore = model.projectURL
+            model.addToSetlist([third, second, moved.appending(path: "bass.wav")])
+            let saved = try? Setlist.load(from: copyFile)
+            check(model.setlistEntries.count == 3 && model.setlistEntries.last?.url?.lastPathComponent == "third.dubstem",
+                  "ajouté à la fin, une seule fois (déjà présent et non-projet ignorés)")
+            check(saved?.projects.count == 3 && model.projectURL == openBefore, "setlist enregistrée, morceau ouvert inchangé")
+
+            print("Setlist : export pour un autre Mac")
+            let exportFolder = work.appending(path: "export/SHORT SET")
+            model.export(model.setlist!, at: copyFile, to: exportFolder)
+            wait { model.exportTask == nil }
+            let exportedSet = exportFolder.appending(path: "Short Set.dubset")
+            if case let .done(_, songs, missing, _) = model.setlistExport {
+                check(songs == 3 && missing.isEmpty, "3 morceaux exportés, rien d'introuvable")
+            } else {
+                check(false, "export terminé")
+            }
+            let exportedSongs = (try? Setlist.load(from: exportedSet))?.projects.compactMap { $0.resolve(relativeTo: exportedSet) } ?? []
+            check(exportedSongs.count == 3 && exportedSongs.allSatisfy { $0.path.hasPrefix(exportFolder.path) },
+                  "la setlist exportée pointe sur les morceaux copiés")
+            model.open([exportedSet])
+            model.openSetlistEntry(at: 0)
+            check(model.projectURL?.path.hasPrefix(exportFolder.path) == true && model.unresolvedStems.isEmpty
+                  && model.engine.stems.allSatisfy { $0.url.path.hasPrefix(exportFolder.path) }, "morceau exporté ouvert avec ses propres stems")
+            model.export(model.setlist!, at: exportedSet, to: exportFolder)
+            wait { model.exportTask == nil }
+            check(model.setlistExport == .failed("\"SHORT SET\" already exists, choose another name"), "jamais d'export par-dessus un dossier existant")
         } catch {
             print("  ❌ erreur inattendue : \(error)")
             failures += 1

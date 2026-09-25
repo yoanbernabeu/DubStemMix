@@ -19,6 +19,15 @@ struct SetlistEntry: Identifiable, Equatable {
     static func == (a: SetlistEntry, b: SetlistEntry) -> Bool { a.id == b.id }
 }
 
+enum SetlistExportState: Equatable {
+    case idle
+    case exporting(fraction: Double)
+    /// `missing`: files (or songs) not found, hence not exported.
+    case done(folder: URL, songs: Int, missing: [String], plugins: Int)
+    /// Kept by the setlist rather than in the top bar, where the next autosave would wipe it.
+    case failed(String)
+}
+
 extension AppModel {
     // MARK: Ouverture (projet, setlist, stems : un seul point d'entrée pour le sélecteur et le glisser-déposer)
 
@@ -125,6 +134,8 @@ extension AppModel {
         let throughSetlist = setlist != nil && isInSetlist(document)
         engine.stop()
         clear(keepingRack: throughSetlist)
+        // The saved title wins over the one derived from the stems' names (it may have been typed by the user).
+        if !project.title.isEmpty { titleOverride = project.title }
         mix.setTempo(project.bpm) // avant de poser les stems : un tempo enregistré n'est pas re-détecté
         mix.setDelaySync(project.delaySync)
         stripNames = Dictionary(uniqueKeysWithValues: (project.stripNames ?? [:]).compactMap { key, name in Int(key).map { ($0, name) } })
@@ -168,6 +179,30 @@ extension AppModel {
         warnings += restoreInserts().map { "\($0) is not installed (insert bypassed)" }
         if !unresolvedStems.isEmpty { warnings.insert("\(unresolvedStems.count) stem(s) not found", at: 0) }
         errorMessage = warnings.isEmpty ? nil : warnings.joined(separator: " · ")
+    }
+
+    /// The song's title, typed by the user; an empty name goes back to the one derived from the stems' names.
+    func renameSong(_ name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        titleOverride = name.isEmpty ? nil : name
+        refreshNames()
+    }
+
+    /// Renames a song of the setlist: the open one live (the autosave writes it), another one in its file.
+    func renameSetlistEntry(_ entry: SetlistEntry, to name: String) {
+        guard let url = entry.url else { return }
+        if url.standardizedFileURL == projectURL?.standardizedFileURL {
+            renameSong(name)
+            if let projectURL { write(to: projectURL) }
+            return
+        }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard !name.isEmpty, var project = try? Project.load(from: url) else { return }
+        project.title = name
+        do { try project.save(to: url) } catch {
+            errorMessage = "Can't rename \(url.lastPathComponent): \(error.localizedDescription)"
+        }
+        refreshSetlistEntries()
     }
 
     /// Cherche les stems introuvables, par nom de fichier, dans un dossier choisi par l'utilisateur.
@@ -246,6 +281,21 @@ extension AppModel {
         saveSetlist()
     }
 
+    /// Projects dropped from the Finder onto the setlist: added at the end, without being opened (setlist created if
+    /// needed). Songs already in the setlist are not added twice.
+    func addToSetlist(_ urls: [URL]) {
+        let documents = urls.filter { $0.pathExtension == Project.fileExtension }
+        guard let first = documents.first else { return }
+        if setlist == nil { setlist = Setlist(name: "SETLIST") }
+        let anchor = setlistURL ?? first
+        for document in documents where !isInSetlist(document) && !(setlist?.projects.contains { $0.resolve(relativeTo: anchor) == document } ?? false) {
+            setlist?.projects.append(FileReference(document, relativeTo: anchor))
+        }
+        refreshSetlistEntries()
+        adoptSetlistRackForOpenSong()
+        saveSetlist()
+    }
+
     /// The open song just joined the setlist (the setlist was opened, or the song added to it): it keeps its own
     /// rack in its file and plays through the setlist's, put in place now unless that would cut the music.
     private func adoptSetlistRackForOpenSong() {
@@ -301,6 +351,7 @@ extension AppModel {
     /// The open song stays as it sounds: from now on, the rack it plays through is its own.
     func closeSetlist() {
         disarm()
+        if exportTask == nil { setlistExport = .idle }
         songRack = nil
         setlist = nil
         setlistURL = nil
@@ -309,27 +360,97 @@ extension AppModel {
 
     /// Enregistre la setlist ; la première fois, demande où.
     func saveSetlist() {
-        guard var setlist else { return }
         if setlistURL == nil {
-            guard !isPreview else { return }
-            let panel = NSSavePanel()
-            panel.allowedContentTypes = [UTType(filenameExtension: Setlist.fileExtension) ?? .json]
-            panel.nameFieldStringValue = "Setlist." + Setlist.fileExtension
-            panel.directoryURL = projectURL?.deletingLastPathComponent()
-            guard panel.runModal() == .OK, let chosen = panel.url else { return }
-            // Les chemins relatifs se calculent par rapport à l'emplacement définitif de la setlist.
-            setlist.projects = setlistEntries.map { entry in
-                entry.url.map { FileReference($0, relativeTo: chosen) } ?? entry.reference
-            }
-            setlist.name = chosen.deletingPathExtension().lastPathComponent.uppercased()
-            setlistURL = chosen
-            self.setlist = setlist
+            guard let chosen = chooseSetlistLocation() else { return }
+            move(setlistTo: chosen)
         }
-        guard let setlistURL else { return }
+        guard let setlist, let setlistURL else { return }
         do { try setlist.save(to: setlistURL) } catch {
             errorMessage = "Can't save the setlist: \(error.localizedDescription)"
         }
         refreshSetlistEntries()
+    }
+
+    /// An empty setlist, saved where the user chooses (none if they cancel).
+    func newSetlist() {
+        guard !isPreview, let chosen = chooseSetlistLocation(named: "Setlist") else { return }
+        closeSetlist()
+        setlist = Setlist()
+        move(setlistTo: chosen)
+        saveSetlist()
+    }
+
+    /// A copy of the setlist elsewhere, under another name: it becomes the open setlist, the first one is left as is.
+    func saveSetlistAs() {
+        guard setlist != nil, let chosen = chooseSetlistLocation() else { return }
+        move(setlistTo: chosen)
+        saveSetlist()
+    }
+
+    private func chooseSetlistLocation(named name: String? = nil) -> URL? {
+        guard !isPreview else { return nil }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: Setlist.fileExtension) ?? .json]
+        let current = setlistURL?.deletingPathExtension().lastPathComponent
+        panel.nameFieldStringValue = (name ?? current ?? "Setlist") + "." + Setlist.fileExtension
+        panel.directoryURL = setlistURL?.deletingLastPathComponent() ?? projectURL?.deletingLastPathComponent()
+        guard panel.runModal() == .OK else { return nil }
+        return panel.url
+    }
+
+    /// The setlist now lives at `document`, named after it; nothing is written yet.
+    func move(setlistTo document: URL) {
+        guard var setlist else { return }
+        // Les chemins relatifs se calculent par rapport à l'emplacement définitif de la setlist.
+        setlist.projects = setlistEntries.map { entry in
+            entry.url.map { FileReference($0, relativeTo: document) } ?? entry.reference
+        }
+        setlist.name = document.deletingPathExtension().lastPathComponent.uppercased()
+        setlistURL = document
+        self.setlist = setlist
+    }
+
+    // MARK: Export
+
+    /// The setlist and every file its songs need, copied into a new folder, to play the set on another Mac.
+    func exportSetlist() {
+        if setlistURL == nil { saveSetlist() }
+        guard !isPreview, let setlistURL, let setlist, exportTask == nil else { return }
+        autosaveCountdown = 0
+        autosaveIfNeeded() // the open song and the rack as they are now
+        let panel = NSSavePanel()
+        panel.title = "Export Setlist"
+        panel.message = "A new folder with the setlist, its songs and all their files, to play the set on another Mac"
+        panel.prompt = "Export"
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = setlistURL.deletingPathExtension().lastPathComponent
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        export(self.setlist ?? setlist, at: setlistURL, to: folder)
+    }
+
+    func export(_ setlist: Setlist, at setlistURL: URL, to folder: URL) {
+        let export = SetlistExport(setlist: setlist, at: setlistURL, to: folder)
+        setlistExport = .exporting(fraction: 0)
+        exportTask = Task { [weak self] in
+            let result = await Task.detached {
+                Result {
+                    try export.run { fraction in
+                        Task { @MainActor in
+                            if case .exporting = self?.setlistExport { self?.setlistExport = .exporting(fraction: fraction) }
+                        }
+                    }
+                }
+            }.value
+            guard let self else { return }
+            exportTask = nil
+            switch result {
+            case .success:
+                setlistExport = .done(folder: folder, songs: export.report.songs, missing: export.report.missing,
+                                      plugins: export.report.plugins.count)
+            case let .failure(error):
+                setlistExport = .failed(error.localizedDescription)
+            }
+        }
     }
 
     func refreshSetlistEntries() {

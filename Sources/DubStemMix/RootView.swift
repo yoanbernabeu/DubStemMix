@@ -114,6 +114,8 @@ private struct Shortcuts: View {
 private struct TopBar: View {
     var model: AppModel
 
+    @State private var renaming = false
+
     var body: some View {
         HStack(spacing: 18) {
             HStack(spacing: 8) {
@@ -125,11 +127,19 @@ private struct TopBar: View {
             }
 
             VStack(alignment: .leading, spacing: 0) {
-                Text(model.title.isEmpty ? "NO STEMS LOADED" : model.title)
+                if model.title.isEmpty {
+                    Text("NO STEMS LOADED")
+                        .font(Fonts.label(17, weight: 850, width: 118))
+                        .tracking(0.8)
+                        .foregroundStyle(Theme.textDim)
+                } else {
+                    EditableTitle(text: model.title, editing: $renaming, onCommit: model.renameSong) {
+                        Text(model.title).lineLimit(1).help("Double-click to rename the song")
+                    }
                     .font(Fonts.label(17, weight: 850, width: 118))
                     .tracking(0.8)
-                    .foregroundStyle(model.title.isEmpty ? Theme.textDim : Theme.text)
-                    .lineLimit(1)
+                    .foregroundStyle(Theme.text)
+                }
                 HStack(spacing: 6) {
                     Text(timecode(model.position, tenths: true))
                         .font(Fonts.mono(13, weight: 700))
@@ -966,6 +976,8 @@ private struct SetlistSection: View {
 
     @State private var renaming = false
     @State private var draftName = ""
+    @State private var renamingEntry: UUID?
+    @State private var dropTargeted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -988,7 +1000,15 @@ private struct SetlistSection: View {
                         .lineLimit(1)
                         .contentShape(Rectangle())
                         .onTapGesture(count: 2) { if model.setlist != nil { renaming = true } }
-                        .contextMenu { if model.setlist != nil { Button("Rename…") { renaming = true } } }
+                        .contextMenu {
+                            if model.setlist != nil {
+                                Button("Rename…") { renaming = true }
+                                Button("Save As…") { model.saveSetlistAs() }
+                                Button("Export for Another Mac…") { model.exportSetlist() }.disabled(model.exportTask != nil)
+                                Divider()
+                            }
+                            Button("New Setlist…") { model.newSetlist() }
+                        }
                         .help(model.setlist == nil ? "" : "Double-click to rename the setlist")
                 }
                 Spacer()
@@ -1000,7 +1020,13 @@ private struct SetlistSection: View {
                     .help("Close the setlist")
                 }
             }
+            if !model.setlistEntries.isEmpty {
+                Text(totalLine)
+                    .font(Fonts.mono(9))
+                    .foregroundStyle(Theme.textDim)
+            }
             if model.isPreview { rows } else { ScrollView { rows }.frame(maxHeight: 260) }
+            exportStatus
             if model.setlistHasMissingStems {
                 SmallButton(title: "LOCATE MISSING STEMS…", color: Theme.rec) { model.locateMissingStemsInSetlist() }
                     .help("One folder for the whole setlist: missing stems are looked for by name in it and its subfolders")
@@ -1008,6 +1034,14 @@ private struct SetlistSection: View {
             if !model.title.isEmpty, model.setlistIndex == nil {
                 SmallButton(title: "+ ADD THIS SONG", color: Theme.textDim) { model.addCurrentProjectToSetlist() }
             }
+        }
+        .padding(4)
+        .background(RoundedRectangle(cornerRadius: 7).stroke(dropTargeted ? Theme.reverb : .clear, lineWidth: 1.5))
+        .padding(-4)
+        .stemDrop(enabled: !model.isPreview, isTargeted: $dropTargeted) { urls in
+            // Projects join the setlist; anything else (stems, a setlist) opens as it would anywhere in the window.
+            let projects = urls.filter { $0.pathExtension == Project.fileExtension }
+            if projects.isEmpty { model.open(urls) } else { model.addToSetlist(projects) }
         }
     }
 
@@ -1022,10 +1056,12 @@ private struct SetlistSection: View {
                         .font(Fonts.mono(10))
                         .foregroundStyle(current ? Theme.bg.opacity(0.6) : Theme.textDim)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text((entry.problems.isEmpty ? "" : "⚠ ") + entry.title)
-                            .font(Fonts.label(12.5, weight: current ? 800 : 600, width: 104))
-                            .foregroundStyle(current ? Theme.bg : (entry.url == nil || !entry.problems.isEmpty ? Theme.rec : Theme.text))
-                            .lineLimit(1)
+                        EditableTitle(text: entry.title, editing: renamingBinding(entry), doubleClick: false,
+                                      onCommit: { model.renameSetlistEntry(entry, to: $0) }) {
+                            Text((entry.problems.isEmpty ? "" : "⚠ ") + entry.title).lineLimit(1)
+                        }
+                        .font(Fonts.label(12.5, weight: current ? 800 : 600, width: 104))
+                        .foregroundStyle(current ? Theme.bg : (entry.url == nil || !entry.problems.isEmpty ? Theme.rec : Theme.text))
                         Text(details(entry, next: next, armed: armed))
                             .font(Fonts.mono(9))
                             .foregroundStyle(current ? Theme.bg.opacity(0.6) : (armed ? Theme.delay : (next ? Theme.reverb : Theme.textDim)))
@@ -1042,12 +1078,55 @@ private struct SetlistSection: View {
                 .onTapGesture { model.openSetlistEntry(at: index) }
                 .setlistDrag(entry, model: model)
                 .contextMenu {
+                    Button("Rename…") { renamingEntry = entry.id }.disabled(entry.url == nil)
                     Button("Move up") { model.moveInSetlist(entry, by: -1) }
                     Button("Move down") { model.moveInSetlist(entry, by: 1) }
                     Button("Remove from setlist", role: .destructive) { model.removeFromSetlist(entry) }
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var exportStatus: some View {
+        switch model.setlistExport {
+        case .idle:
+            EmptyView()
+        case let .exporting(fraction):
+            Text("EXPORTING… \(Int(fraction * 100)) %")
+                .font(Fonts.mono(9.5, weight: 700))
+                .foregroundStyle(Theme.delay)
+        case let .done(folder, songs, missing, plugins):
+            SmallButton(title: "EXPORTED \(songs) SONG\(songs == 1 ? "" : "S") — SHOW IN FINDER", color: Theme.reverb) {
+                NSWorkspace.shared.activateFileViewerSelecting([folder])
+            }
+            .help(plugins > 0 ? "PLUGINS.txt lists the Audio Unit plugins to install on the other Mac" : "")
+            if !missing.isEmpty {
+                Text("⚠ \(missing.count) NOT FOUND, NOT EXPORTED")
+                    .font(Fonts.mono(9))
+                    .foregroundStyle(Theme.rec)
+                    .help(missing.joined(separator: "\n"))
+            }
+        case let .failed(message):
+            Text("EXPORT FAILED: \(message)")
+                .font(Fonts.mono(9))
+                .foregroundStyle(Theme.rec)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// "7 SONGS · 48:12": the length of the set, to fit a slot.
+    private var totalLine: String {
+        let count = model.setlistEntries.count
+        let seconds = Int(model.setlistEntries.map(\.duration).reduce(0, +))
+        let length = seconds >= 3600
+            ? String(format: "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+            : String(format: "%d:%02d", seconds / 60, seconds % 60)
+        return "\(count) SONG\(count == 1 ? "" : "S") · \(length)"
+    }
+
+    private func renamingBinding(_ entry: SetlistEntry) -> Binding<Bool> {
+        Binding(get: { renamingEntry == entry.id }, set: { renamingEntry = $0 ? entry.id : nil })
     }
 
     private func details(_ entry: SetlistEntry, next: Bool, armed: Bool) -> String {
@@ -1076,10 +1155,49 @@ extension View {
         } else {
             draggable(entry.id.uuidString)
                 .dropDestination(for: String.self) { ids, _ in
-                    guard let id = ids.first, let dragged = model.setlistEntries.first(where: { $0.id.uuidString == id }) else { return false }
+                    guard let id = ids.first, let dragged = model.setlistEntries.first(where: { $0.id.uuidString == id }) else {
+                        // Projects dragged from the Finder can arrive here as text.
+                        let urls = ids.compactMap(URL.init(string:)).filter(\.isFileURL)
+                        model.addToSetlist(urls)
+                        return !urls.isEmpty
+                    }
                     model.moveInSetlist(dragged, onto: entry)
                     return true
                 }
+        }
+    }
+}
+
+/// A title that turns into a text field on double-click (or when `editing` is set, e.g. from a context menu).
+/// Return commits, Escape cancels.
+private struct EditableTitle<Label: View>: View {
+    var text: String
+    @Binding var editing: Bool
+    var doubleClick = true
+    var onCommit: (String) -> Void
+    @ViewBuilder var label: () -> Label
+
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        if editing {
+            TextField("", text: $draft)
+                .textFieldStyle(.plain)
+                .focused($focused)
+                .onSubmit {
+                    onCommit(draft)
+                    editing = false
+                }
+                .onExitCommand { editing = false }
+                .onAppear {
+                    draft = text
+                    focused = true
+                }
+        } else if doubleClick {
+            label().contentShape(Rectangle()).onTapGesture(count: 2) { editing = true }
+        } else {
+            label()
         }
     }
 }
