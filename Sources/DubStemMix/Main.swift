@@ -153,6 +153,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
+    /// ⌘Q while playing asks first (the window's close button does too, see `WindowCloseGuard`).
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        MainActor.assumeIsolated { model?.confirmWhilePlaying("Quit") ?? true } ? .terminateNow : .terminateCancel
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated { model?.shutDown() } // éteint les LEDs de la console
     }

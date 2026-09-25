@@ -88,6 +88,21 @@ final class AppModel {
     var outputDeviceUID = ""
     var bufferFrames = 0
 
+    // Live use. See AppModel+Live.swift.
+    /// A word in the top bar for a few seconds ("FX cleared", "Stop playback to…").
+    var notice: String?
+    @ObservationIgnored var noticeCountdown = 0
+    /// Last PANIC, for the bus cards' flash.
+    var panicFlash: Date?
+    /// The setlist song armed while the current one plays (N / P, or a click on its row): Space launches it.
+    var armedSong: FileReference?
+    /// Why launching the armed song will still cut the effect tails, if it will.
+    var armWarning: String?
+    /// The open song's own rack while it plays through the setlist's: written back to its file untouched.
+    @ObservationIgnored var songRack: Rack?
+    @ObservationIgnored var screenActivity: NSObjectProtocol?
+    @ObservationIgnored var activationObserver: NSObjectProtocol?
+
     var isRecording = false
     var recordingTime = 0.0
     /// Dernier enregistrement terminé (pour le retrouver dans le Finder).
@@ -122,6 +137,8 @@ final class AppModel {
         refreshAudioStatus()
         refreshModelStatus()
         midi.onEvent = { [weak self] in self?.mix.handle($0) }
+        mix.onPanic = { [weak self] in self?.panic() }
+        watchActivation()
         midi.onConnectionChange = { [weak self] connected in
             self?.midiConnected = connected
             self?.midiWarning = nil // a console plugged back in gets a fresh chance
@@ -146,6 +163,8 @@ final class AppModel {
     private func tick() {
         engine.tick()
         isPlaying = engine.isPlaying
+        keepScreenAwake(isPlaying)
+        tickNotice()
         position = engine.position
         duration = engine.duration
         for index in levels.indices {
@@ -281,22 +300,26 @@ final class AppModel {
     }
 
     /// Vide la session (sans toucher aux fichiers) : le projet ouvert est simplement refermé.
-    func clear() {
+    /// - Parameter keepingRack: a song of the setlist is coming: the rack (reverb and bus 3 effects, bus-to-bus
+    ///   sends, plugins on the buses) stays as it is, so nothing is rewired.
+    func clear(keepingRack: Bool = false) {
         for stem in engine.stems { dropStem(stem.id) }
         pool = []
         stripNames = [:]
         mix.setDrop(false)
         for strip in 0..<AudioEngine.stripCount { mix.setKeep(strip: strip, false) }
         setHold(false)
-        setReverbModel(.plate)
         setThrowTarget(.delay)
-        setBus3Model(.phaser)
         for strip in 0..<AudioEngine.stripCount { setInsert(strip: strip, nil) }
         unresolvedInserts = [:]
         titleOverride = nil
         unresolvedStems = []
-        unresolvedSlots = [:]
-        for bus in SendBus.allCases { unloadPlugin(on: bus) }
+        if !keepingRack {
+            setReverbModel(.plate)
+            setBus3Model(.phaser)
+            unresolvedSlots = [:]
+            for bus in SendBus.allCases { unloadPlugin(on: bus) }
+        }
         projectURL = nil
         savedProject = nil
         mix.setTempo(nil)
@@ -368,13 +391,20 @@ final class AppModel {
             setHold(down)
         case "c":
             if down { crash() }
+        case "\u{1b}": // Esc: PANIC (not in a sheet, where Esc closes it)
+            guard NSApp.keyWindow?.isSheet != true else { return false }
+            if down { panic() }
         default:
             return false
         }
         return true
     }
 
+    /// With a song armed, the pull-up lands on it instead of the top of the current one.
     func pullUp() {
+        if armedIndex != nil, engine.isPlaying, !engine.isPullingUp {
+            engine.pullUpLanding = { [weak self] in self?.launchArmed() }
+        }
         engine.pullUp()
     }
 
@@ -460,7 +490,12 @@ final class AppModel {
 
     // MARK: Transport
 
+    /// With a song armed, Space launches it (the selector's drop); otherwise play / pause.
     func togglePlay() {
+        if armedIndex != nil {
+            launchArmed()
+            return
+        }
         if engine.isPlaying { engine.pause() } else { engine.play() }
         isPlaying = engine.isPlaying
     }

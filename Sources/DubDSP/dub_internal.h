@@ -18,6 +18,8 @@ struct DubEffect {
     void (*prepare)(DubEffect *);
     void (*process)(DubEffect *, const float *, const float *, float *, float *, int);
     void (*destroy)(DubEffect *);
+    /// DUB_EFFECT_CLEAR in progress: samples left of the fade-out, and its length.
+    int clearLeft, clearLength;
 };
 
 static inline float dub_param(const DubEffect *e, int index) { return atomic_load_explicit(&e->params[index], memory_order_relaxed); }
@@ -58,5 +60,6 @@ void dub_spring_install(DubEffect *effect);
 void dub_sub_install(DubEffect *effect);
 void dub_wah_install(DubEffect *effect);
 void dub_flanger_install(DubEffect *effect);
+void dub_switch_install(DubEffect *effect);
 
 #endif

@@ -20,6 +20,13 @@ typedef enum {
     DUB_EFFECT_SUB = 5,    // strip insert: sub-octave generator (dbx "boom box" style), dry + sub
     DUB_EFFECT_WAH = 6,    // strip insert: envelope-following filter (Mu-Tron III style), wet only
     DUB_EFFECT_FLANGER = 7,// tape flanger, output 100 % wet (for a send bus, like the phaser); phaser parameter indices
+    // Switches: two kernels in one effect, chosen by DUB_SWITCH_SELECT, so that changing the effect never rewires
+    // the audio graph (no engine stop, no cut).
+    DUB_EFFECT_REVERB_BUS = 8, // plate (select 0) or spring (1), plate parameter indices. The one left keeps
+                               // ringing until silent while the input goes to the new one.
+    DUB_EFFECT_BUS3 = 9,       // phaser (select 0) or flanger (1), phaser parameter indices; same hand-over.
+    DUB_EFFECT_INSERT = 10,    // strip insert: straight through (select 0), sub (1) or auto-wah (2), crossfaded.
+                               // Sub parameters at DUB_INSERT_SUB + DUB_SUB_*, wah at DUB_INSERT_WAH + DUB_WAH_*.
 } DubEffectKind;
 
 // Paramètres, en unités réelles.
@@ -71,7 +78,18 @@ enum {
     DUB_MASTER_CRACKLE = 5,   // 0 … 1
 };
 
-#define DUB_EFFECT_MAX_PARAMS 8
+enum {
+    DUB_INSERT_SUB = 0,       // offset of the sub's parameters in DUB_EFFECT_INSERT
+    DUB_INSERT_WAH = 2,       // offset of the auto-wah's parameters
+};
+enum {
+    DUB_SWITCH_SELECT = 10,   // switches only: which kernel (see DubEffectKind)
+    DUB_EFFECT_CLEAR = 11,    // any effect: set to 1 to empty it (PANIC). The output fades out over 60 ms, the
+                              // effect is reset (tails, echoes, held loop gone), then it takes its input again.
+                              // Reset to 0 by the effect once taken into account.
+};
+
+#define DUB_EFFECT_MAX_PARAMS 12
 
 DubEffect *dub_effect_create(DubEffectKind kind);
 void dub_effect_destroy(DubEffect *effect);
@@ -81,6 +99,18 @@ void dub_effect_set(DubEffect *effect, int param, float value);
 float dub_effect_get(const DubEffect *effect, int param);
 /// Traite `frames` échantillons stéréo. L'entrée et la sortie peuvent être les mêmes tampons.
 void dub_effect_process(DubEffect *effect, const float *inL, const float *inR, float *outL, float *outR, int frames);
+
+// Bus-to-bus sends through memory (dub_portal.c): every source → target pair always exists, patching is a gain.
+typedef struct DubPortal DubPortal;
+
+DubPortal *dub_portal_create(void);
+void dub_portal_destroy(DubPortal *portal);
+/// Level sent from bus `source` to bus `target` (0 = closed), glided over 10 ms. Any thread.
+void dub_portal_set_gain(DubPortal *portal, int source, int target, float gain);
+/// Audio thread: the return of bus `source`, rendered at `sampleTime`.
+void dub_portal_write(DubPortal *portal, int source, double sampleTime, const float *left, const float *right, int frames);
+/// Audio thread: what the other buses send to bus `target`, one render slice after they gave it back.
+void dub_portal_read(DubPortal *portal, int target, double sampleTime, float *left, float *right, int frames);
 
 #ifdef __cplusplus
 }

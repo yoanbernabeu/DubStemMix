@@ -643,3 +643,254 @@ private func level(of samples: [Float], at hz: Double) -> Float {
     #expect(output[..<90].allSatisfy { abs($0) < 0.001 }) // wet only
     #expect(abs(output[min(2399, peak * 2)]) > 0.2 && abs(output[min(2399, peak * 2)]) < abs(output[peak])) // decaying repeats
 }
+
+// MARK: - Switches and PANIC (live use)
+
+private func noise(_ count: Int) -> [Float] {
+    var state: UInt32 = 12_345
+    return (0..<count).map { _ in
+        state = state &* 1_664_525 &+ 1_013_904_223
+        return Float(state >> 8) / 16_777_216 - 0.5
+    }
+}
+
+private func setReverb(_ effect: OpaquePointer) {
+    dub_effect_set(effect, Int32(DUB_PLATE_DECAY), 0.8)
+    dub_effect_set(effect, Int32(DUB_PLATE_DAMPING), 0.3)
+    dub_effect_set(effect, Int32(DUB_PLATE_PREDELAY), 0.02)
+    dub_effect_set(effect, Int32(DUB_PLATE_LOW_CUT), 100)
+    dub_effect_set(effect, Int32(DUB_PLATE_TONE), 8000)
+    dub_effect_prepare(effect, 48_000)
+}
+
+@Test func reverbSwitchSoundsExactlyLikeThePlateItHolds() {
+    let plate = dub_effect_create(DUB_EFFECT_PLATE)!, bus = dub_effect_create(DUB_EFFECT_REVERB_BUS)!
+    defer { dub_effect_destroy(plate); dub_effect_destroy(bus) }
+    setReverb(plate)
+    setReverb(bus)
+    let input = noise(48_000)
+    let alone = run(plate, input: input), switched = run(bus, input: input)
+    #expect(alone.left == switched.left && alone.right == switched.right)
+}
+
+@Test func bus3SwitchSoundsExactlyLikeThePhaserItHolds() {
+    let phaser = dub_effect_create(DUB_EFFECT_PHASER)!, bus = dub_effect_create(DUB_EFFECT_BUS3)!
+    defer { dub_effect_destroy(phaser); dub_effect_destroy(bus) }
+    for effect in [phaser, bus] {
+        dub_effect_set(effect, Int32(DUB_PHASER_RATE), 0.5)
+        dub_effect_set(effect, Int32(DUB_PHASER_DEPTH), 0.7)
+        dub_effect_set(effect, Int32(DUB_PHASER_FEEDBACK), 0.5)
+        dub_effect_set(effect, Int32(DUB_PHASER_CENTER), 800)
+        dub_effect_prepare(effect, 48_000)
+    }
+    let input = noise(48_000)
+    #expect(run(phaser, input: input).left == run(bus, input: input).left)
+}
+
+@Test func switchingToTheSpringLetsThePlateRingOut() {
+    let plate = dub_effect_create(DUB_EFFECT_PLATE)!, bus = dub_effect_create(DUB_EFFECT_REVERB_BUS)!
+    defer { dub_effect_destroy(plate); dub_effect_destroy(bus) }
+    setReverb(plate)
+    setReverb(bus)
+    _ = run(plate, input: impulse(9600))
+    _ = run(bus, input: impulse(9600))
+    dub_effect_set(bus, Int32(DUB_SWITCH_SELECT), 1) // spring: the plate gets nothing more, its tail goes on
+    let silence = [Float](repeating: 0, count: 9600)
+    let tail = run(plate, input: silence).left, afterSwitch = run(bus, input: silence).left
+    #expect(energy(tail[...]) > 0)
+    #expect(afterSwitch == tail)
+
+    // The spring now takes the input.
+    let hit = run(bus, input: impulse(48_000)).left
+    let plateOnly = run(plate, input: impulse(48_000)).left
+    #expect(energy(hit[...]) > 0 && hit != plateOnly)
+}
+
+@Test func aSwitchedOutReverbFallsAsleepOnceSilent() {
+    let bus = dub_effect_create(DUB_EFFECT_REVERB_BUS)!
+    defer { dub_effect_destroy(bus) }
+    dub_effect_set(bus, Int32(DUB_PLATE_DECAY), 0.3)
+    dub_effect_set(bus, Int32(DUB_PLATE_TONE), 8000)
+    dub_effect_prepare(bus, 48_000)
+    _ = run(bus, input: impulse(4800))
+    dub_effect_set(bus, Int32(DUB_SWITCH_SELECT), 1)
+    let tail = run(bus, input: [Float](repeating: 0, count: 480_000)).left
+    #expect(tail[470_000...].allSatisfy { $0 == 0 }) // plate asleep, spring fed nothing: exact silence
+}
+
+@Test func insertSwitchIsStraightThroughThenExactlyTheSub() {
+    let insert = dub_effect_create(DUB_EFFECT_INSERT)!, sub = dub_effect_create(DUB_EFFECT_SUB)!
+    defer { dub_effect_destroy(insert); dub_effect_destroy(sub) }
+    dub_effect_prepare(insert, 48_000)
+    let bass = (0..<48_000).map { Float(0.5 * sin(2 * Double.pi * 80 * Double($0) / 48_000)) }
+    #expect(run(insert, input: bass).left == bass)
+
+    dub_effect_set(sub, Int32(DUB_SUB_AMOUNT), 1)
+    dub_effect_set(sub, Int32(DUB_SUB_CUTOFF), 80)
+    dub_effect_prepare(sub, 48_000)
+    dub_effect_set(insert, Int32(DUB_INSERT_SUB + DUB_SUB_AMOUNT), 1)
+    dub_effect_set(insert, Int32(DUB_INSERT_SUB + DUB_SUB_CUTOFF), 80)
+    dub_effect_set(insert, Int32(DUB_SWITCH_SELECT), 1)
+    let switched = run(insert, input: bass).left, alone = run(sub, input: bass).left
+    #expect(Array(switched[960...]) == Array(alone[960...])) // once the 10 ms crossfade is over
+
+    dub_effect_set(insert, Int32(DUB_SWITCH_SELECT), 0)
+    let back = run(insert, input: bass).left
+    #expect(Array(back[960...]) == Array(bass[960...]))
+}
+
+@Test func clearEmptiesTheDelayThenItEchoesAgain() {
+    let delay = dub_effect_create(DUB_EFFECT_DELAY)!
+    defer { dub_effect_destroy(delay) }
+    dub_effect_set(delay, Int32(DUB_DELAY_TIME), 0.1)
+    dub_effect_set(delay, Int32(DUB_DELAY_FEEDBACK), 0.95)
+    dub_effect_set(delay, Int32(DUB_DELAY_WOW), 0)
+    dub_effect_set(delay, Int32(DUB_DELAY_LOW_CUT), 10)
+    dub_effect_set(delay, Int32(DUB_DELAY_HIGH_CUT), 20_000)
+    dub_effect_prepare(delay, 48_000)
+    let ringing = run(delay, input: impulse(48_000)).left
+    #expect(energy(ringing[38_400...]) > 0)
+
+    dub_effect_set(delay, Int32(DUB_EFFECT_CLEAR), 1)
+    let cleared = run(delay, input: [Float](repeating: 0, count: 9600)).left
+    #expect(cleared[2880...].allSatisfy { $0 == 0 }) // 60 ms of fade, then the echoes are gone
+    #expect(cleared[0..<2880].allSatisfy { abs($0) < 2 })
+    #expect(dub_effect_get(delay, Int32(DUB_EFFECT_CLEAR)) == 0)
+
+    let again = run(delay, input: impulse(9600)).left
+    #expect(energy(again[4700..<5300]) > 0) // the next throw echoes as before
+}
+
+@Test func clearEmptiesTheReverbSwitchTailsIncluded() {
+    let bus = dub_effect_create(DUB_EFFECT_REVERB_BUS)!
+    defer { dub_effect_destroy(bus) }
+    setReverb(bus)
+    _ = run(bus, input: impulse(9600))
+    dub_effect_set(bus, Int32(DUB_SWITCH_SELECT), 1) // the plate rings out under the spring…
+    _ = run(bus, input: impulse(4800))
+    dub_effect_set(bus, Int32(DUB_EFFECT_CLEAR), 1) // …and PANIC takes both
+    let cleared = run(bus, input: [Float](repeating: 0, count: 9600)).left
+    #expect(cleared[2880...].allSatisfy { $0 == 0 })
+}
+
+// MARK: - Bus-to-bus sends through memory (patched while playing)
+
+@Test func portalHandsASliceOnOneRenderLaterWhateverTheOrder() {
+    let portal = dub_portal_create()!
+    defer { dub_portal_destroy(portal) }
+    dub_portal_set_gain(portal, 0, 1, 1)
+    var left = [Float](repeating: 0, count: 256), right = left
+    let ramp = (0..<256).map { Float($0) / 256 }
+    // Slice 1: the reader runs first (nothing written yet), then the writer.
+    dub_portal_read(portal, 1, 1000, &left, &right, 256)
+    #expect(left.allSatisfy { $0 == 0 })
+    dub_portal_write(portal, 0, 1000, ramp, ramp, 256)
+    // Slice 2: the writer runs first this time; the reader still gets slice 1.
+    dub_portal_write(portal, 0, 1256, [Float](repeating: 9, count: 256), [Float](repeating: 9, count: 256), 256)
+    dub_portal_read(portal, 1, 1256, &left, &right, 256)
+    #expect(left.last! > 0 && left.allSatisfy { $0 < 1 }) // slice 1's ramp, gliding in: never slice 2's 9s
+    // A target gets nothing from a pair left closed, nor from itself.
+    dub_portal_read(portal, 2, 1256, &left, &right, 256)
+    #expect(left.allSatisfy { $0 == 0 })
+}
+
+@Test func portalNeverReadsAnOlderRunOfTheEngine() {
+    let portal = dub_portal_create()!
+    defer { dub_portal_destroy(portal) }
+    dub_portal_set_gain(portal, 0, 1, 1)
+    var left = [Float](repeating: 0, count: 256), right = left
+    let loud = [Float](repeating: 1, count: 256)
+    for slice in 0..<8 { dub_portal_write(portal, 0, Double(slice * 256), loud, loud, 256) }
+    // The engine restarts: its time starts again from 0. What was written before must not come back.
+    dub_portal_write(portal, 0, 0, [Float](repeating: 0, count: 256), [Float](repeating: 0, count: 256), 256)
+    dub_portal_read(portal, 1, 256, &left, &right, 256)
+    #expect(left.allSatisfy { $0 == 0 })
+}
+
+/// Energy at the master when an impulse is sent (pre-fader) into `source` only, and only `exit`'s return is open.
+@MainActor private func energyFrom(_ source: SendBus, to exit: SendBus, configure: (AudioEngine) -> Void) throws -> Float {
+    let engine = try AudioEngine(offline: true, effects: true)
+    let url = FileManager.default.temporaryDirectory.appending(path: "dsm-patch-\(UUID().uuidString).wav")
+    let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)!
+    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 48_000)!
+    buffer.frameLength = 48_000
+    for channel in 0..<2 { for n in 1000..<1100 { buffer.floatChannelData![channel][n] = 0.5 } }
+    try AVAudioFile(forWriting: url, settings: format.settings, commonFormat: .pcmFormatFloat32, interleaved: false).write(from: buffer)
+    try engine.addStem(url: url, name: "burst", strip: 0)
+    engine.setFaderGain(strip: 0, 0)
+    engine.setSendPreFader(source, true)
+    engine.setSendGain(source, strip: 0, 1)
+    engine.setMasterGain(1)
+    engine.setFX(.delayFeedback, 0.3)
+    for (bus, parameter) in zip(SendBus.allCases, [FXParameter.delayReturn, .reverbReturn, .phaserReturn]) {
+        engine.setFX(parameter, bus == exit ? 1 : 0)
+    }
+    configure(engine)
+    engine.loop = false
+    engine.play()
+    return energy(try engine.renderOffline(frames: 48_000)[...])
+}
+
+@MainActor @Test func everyBusCanBePatchedIntoEveryOther() throws {
+    for source in SendBus.allCases {
+        for target in SendBus.allCases where target != source {
+            let closed = try energyFrom(source, to: target) { _ in }
+            let open = try energyFrom(source, to: target) {
+                #expect($0.setBusSend(from: source, to: target))
+                $0.setFX(.busSend(from: source), 1)
+            }
+            #expect(closed < 1e-6, "\(source) → \(target) closed: \(closed)")
+            #expect(open > 1e-4, "\(source) → \(target) patched: \(open)")
+        }
+    }
+}
+
+@MainActor @Test func aChainOfTwoPatchesCarriesTheSignalThrough() throws {
+    let chained = try energyFrom(.delay, to: .reverb) { // delay → bus 3 → reverb, only the reverb heard
+        #expect($0.setBusSend(from: .delay, to: .bus3))
+        #expect($0.setBusSend(from: .bus3, to: .reverb))
+        #expect(!$0.setBusSend(from: .reverb, to: .delay)) // would close the loop
+        $0.setFX(.busSend(from: .delay), 1)
+        $0.setFX(.busSend(from: .bus3), 1)
+    }
+    #expect(chained > 1e-5, "\(chained)")
+}
+
+@MainActor @Test func patchingWhilePlayingCutsNothing() throws {
+    // The delay's echoes heard alone; patching it into the reverb (return closed) must not touch them.
+    func run(patching: Bool) throws -> [Float] {
+        let engine = try AudioEngine(offline: true, effects: true)
+        let url = FileManager.default.temporaryDirectory.appending(path: "dsm-live-\(UUID().uuidString).wav")
+        let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 96_000)!
+        buffer.frameLength = 96_000
+        for channel in 0..<2 { for n in 1000..<1100 { buffer.floatChannelData![channel][n] = 0.5 } }
+        try AVAudioFile(forWriting: url, settings: format.settings, commonFormat: .pcmFormatFloat32, interleaved: false).write(from: buffer)
+        try engine.addStem(url: url, name: "burst", strip: 0)
+        engine.setFaderGain(strip: 0, 0)
+        engine.setSendPreFader(.delay, true)
+        engine.setSendGain(.delay, strip: 0, 1)
+        engine.setMasterGain(1)
+        engine.setFX(.delayTime, 0.1)
+        engine.setFX(.delayFeedback, 0.8)
+        engine.setFX(.reverbReturn, 0)
+        engine.setFX(.phaserReturn, 0)
+        engine.play()
+        var output = try engine.renderOffline(frames: 24_000)
+        if patching {
+            for target: SendBus? in [.reverb, .bus3, nil, .reverb] { // re-patched again and again, mid-echo
+                #expect(engine.setBusSend(from: .delay, to: target))
+                engine.setFX(.delayToReverb, 1)
+                output += try engine.renderOffline(frames: 2048)
+            }
+        } else {
+            output += try engine.renderOffline(frames: 4 * 2048)
+        }
+        output += try engine.renderOffline(frames: 24_000)
+        #expect(engine.isPlaying)
+        return output
+    }
+    let untouched = try run(patching: false), patched = try run(patching: true)
+    #expect(untouched.contains { abs($0) > 0.01 })
+    #expect(zip(untouched, patched).allSatisfy { abs($0 - $1) < 0.000_01 }) // not a sample of the echoes lost
+}

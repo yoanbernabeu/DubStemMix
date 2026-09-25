@@ -22,6 +22,17 @@ public struct FileReference: Codable, Equatable, Sendable {
 
     public var fileName: String { URL(fileURLWithPath: path).lastPathComponent }
 
+    /// The file among `candidates` (files found by name, e.g. in a folder and its subfolders) that is this one:
+    /// the only one with its name, or else the only one in a folder named like its old folder. Stems of different
+    /// songs often share names (drums.wav, bass.wav…): never a guess between two.
+    public func bestMatch(in candidates: [String: [URL]]) -> URL? {
+        guard let found = candidates[fileName], !found.isEmpty else { return nil }
+        if found.count == 1 { return found[0] }
+        let folderName = URL(fileURLWithPath: path).deletingLastPathComponent().lastPathComponent
+        let sameFolder = found.filter { $0.deletingLastPathComponent().lastPathComponent == folderName }
+        return sameFolder.count == 1 ? sameFolder[0] : nil
+    }
+
     static func relativePath(from folder: URL, to file: URL) -> String {
         let base = folder.standardizedFileURL.pathComponents
         let target = file.standardizedFileURL.pathComponents
@@ -110,6 +121,17 @@ public struct Project: Codable, Equatable, Sendable {
 
     public init() {}
 
+    /// The song's own rack (see `Rack`).
+    public var rack: Rack {
+        get { Rack(reverbModel: reverbModel, bus3Model: bus3Model, busSends: busSends, slots: slots) }
+        set {
+            reverbModel = newValue.reverbModel
+            bus3Model = newValue.bus3Model
+            busSends = newValue.busSends
+            slots = newValue.slots
+        }
+    }
+
     public static func load(from url: URL) throws -> Project {
         try JSONDecoder().decode(Project.self, from: Data(contentsOf: url))
     }
@@ -121,6 +143,33 @@ public struct Project: Codable, Equatable, Sendable {
     }
 }
 
+/// What is patched on the buses: the reverb and bus 3 effects, the bus-to-bus sends, the plugins on the buses.
+/// Same encoding as in `Project`. In a setlist it belongs to the setlist, not to each song: the rack stays wired
+/// all night, so going from one song to the next never rewires the audio graph and the effect tails go on.
+public struct Rack: Codable, Equatable, Sendable {
+    public var reverbModel: String?
+    public var bus3Model: String?
+    public var busSends: [String: String]?
+    public var slots: [String: Project.SlotEntry]?
+
+    public init(reverbModel: String? = nil, bus3Model: String? = nil, busSends: [String: String]? = nil,
+                slots: [String: Project.SlotEntry]? = nil) {
+        self.reverbModel = reverbModel
+        self.bus3Model = bus3Model
+        self.busSends = busSends
+        self.slots = slots
+    }
+
+    /// Same effects and plugins, patched the same way, whatever the plugins' current settings.
+    public func isWiredLike(_ other: Rack) -> Bool {
+        func plugins(_ rack: Rack) -> [String: String] { (rack.slots ?? [:]).mapValues(\.plugin.id) }
+        return (reverbModel ?? "plate") == (other.reverbModel ?? "plate")
+            && (bus3Model ?? "phaser") == (other.bus3Model ?? "phaser")
+            && BusRouting(projectValue: busSends) == BusRouting(projectValue: other.busSends)
+            && plugins(self) == plugins(other)
+    }
+}
+
 /// Une setlist (.dubset) : une liste ordonnée de projets.
 public struct Setlist: Codable, Equatable, Sendable {
     public static let fileExtension = "dubset"
@@ -128,6 +177,9 @@ public struct Setlist: Codable, Equatable, Sendable {
     public var version = 1
     public var name = ""
     public var projects: [FileReference] = []
+    /// The rack the whole set plays through (absent until a first song of the setlist is opened, and in setlists
+    /// saved before it existed).
+    public var rack: Rack?
 
     public init(name: String = "") { self.name = name }
 

@@ -126,7 +126,7 @@ struct Fader: View {
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 0).onChanged { drag in
-                        value = min(1, max(0, 1 - (drag.location.y - capHeight / 2) / travel))
+                        value = Double(min(1, max(0, 1 - (drag.location.y - capHeight / 2) / travel)))
                     }
                 )
             }

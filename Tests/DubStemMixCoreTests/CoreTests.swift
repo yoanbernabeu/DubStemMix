@@ -367,16 +367,37 @@ private func hits(_ samples: [Float]) -> [Int: Float] {
 @MainActor @Test func bankRightCyclesToTheMasterPageAndBankLeftReturnsToMix() {
     let engine = FakeEngine(), surface = FakeSurface()
     let mix = MixController(engine: engine, surface: surface)
-    mix.handle(.button(.bankRight, strip: 0, pressed: true))
+    // Each press is followed by its release, as the console sends them (Note On, then Note Off).
+    func press(_ button: SurfaceButton) {
+        mix.handle(.button(button, strip: 0, pressed: true))
+        mix.handle(.button(button, strip: 0, pressed: false))
+    }
+    press(.bankRight)
     #expect(mix.page == .fx && surface.bankLeds == (false, true))
-    mix.handle(.button(.bankRight, strip: 0, pressed: true))
+    press(.bankRight)
     #expect(mix.page == .master && surface.bankLeds == (true, true))
-    mix.handle(.button(.bankRight, strip: 0, pressed: true))
+    press(.bankRight)
     #expect(mix.page == .inserts && surface.bankLeds == (true, true))
-    mix.handle(.button(.bankRight, strip: 0, pressed: true))
+    press(.bankRight)
     #expect(mix.page == .inserts) // stays on the last page
-    mix.handle(.button(.bankLeft, strip: 0, pressed: true))
+    press(.bankLeft)
     #expect(mix.page == .mix && surface.bankLeds == (true, false))
+}
+
+@MainActor @Test func bothBankButtonsTogetherArePanicAndKeepThePage() {
+    let mix = MixController(engine: FakeEngine())
+    var panics = 0
+    mix.onPanic = { panics += 1 }
+    mix.setPage(.fx)
+    mix.handle(.button(.bankLeft, strip: 0, pressed: true)) // goes to MIX as it goes down…
+    #expect(mix.page == .mix)
+    mix.handle(.button(.bankRight, strip: 0, pressed: true)) // …the other one while held: PANIC, back to FX
+    #expect(panics == 1 && mix.page == .fx)
+    mix.handle(.button(.bankRight, strip: 0, pressed: false))
+    mix.handle(.button(.bankLeft, strip: 0, pressed: false))
+    mix.handle(.button(.bankRight, strip: 0, pressed: true)) // alone again: just the next page
+    mix.handle(.button(.bankRight, strip: 0, pressed: false))
+    #expect(panics == 1 && mix.page == .master)
 }
 
 @MainActor @Test func insertsPageKnobsDriveTheStripInsert() {
@@ -536,4 +557,73 @@ private func toneLevel(_ samples: [Float], hz: Double, from start: Int) -> Float
     engine.setBus3Model(.phaser)
     #expect(engine.bus3Model == .phaser)
     _ = try engine.renderOffline(frames: 4800)
+}
+
+// MARK: - Live use: effects changed while playing, PANIC
+
+/// A click on strip 1 sent (pre-fader) into `bus` only, playing.
+@MainActor private func clickIntoBus(_ bus: SendBus) throws -> AudioEngine {
+    let engine = try AudioEngine(offline: true, effects: true)
+    try engine.addStem(url: makeStem(frames: 192_000) { $0 < 100 ? 0.5 : 0 }, name: "click", strip: 0)
+    engine.setFaderGain(strip: 0, 0)
+    engine.setSendGain(bus, strip: 0, 1)
+    engine.setSendPreFader(bus, true) // only the bus reaches the master
+    engine.setMasterGain(1)
+    try warmUp(engine)
+    engine.play()
+    return engine
+}
+
+@MainActor @Test func reverbModelChangesWhilePlayingWithoutCuttingThePlateTail() throws {
+    let kept = try clickIntoBus(.reverb), switched = try clickIntoBus(.reverb)
+    _ = try kept.renderOffline(frames: 9600)
+    _ = try switched.renderOffline(frames: 9600)
+    switched.setReverbModel(.spring) // the spring gets nothing: what sounds is the plate ringing out
+    let plateTail = try kept.renderOffline(frames: 19_200), afterSwitch = try switched.renderOffline(frames: 19_200)
+    #expect(plateTail.contains { abs($0) > 0.001 })
+    #expect(zip(plateTail, afterSwitch).allSatisfy { abs($0 - $1) < 0.000_01 })
+    #expect(switched.isPlaying)
+}
+
+@MainActor @Test func bus3ModelChangesWhilePlayingWithoutStopping() throws {
+    let engine = try clickIntoBus(.bus3)
+    _ = try engine.renderOffline(frames: 4800)
+    engine.setBus3Model(.flanger)
+    #expect(engine.bus3Model == .flanger && engine.isPlaying)
+    engine.setBus3Model(.phaser)
+    #expect(engine.bus3Model == .phaser)
+    _ = try engine.renderOffline(frames: 4800)
+}
+
+@MainActor @Test func panicEmptiesTheBusesAndTheTunePlaysOn() throws {
+    let engine = try clickIntoBus(.delay)
+    engine.setFX(.delayTime, 0.1)
+    engine.setFX(.delayFeedback, 1.0)
+    engine.setHold(true)
+    _ = try engine.renderOffline(frames: 24_000)
+    let ringing = try engine.renderOffline(frames: 9600)
+    #expect(ringing.contains { abs($0) > 0.01 })
+
+    engine.clearEffects()
+    let cleared = try engine.renderOffline(frames: 9600)
+    #expect(cleared[4800...].allSatisfy { abs($0) < 0.000_001 }, "\(cleared[4800...].map(abs).max() ?? 0)")
+    #expect(engine.isPlaying)
+}
+
+@MainActor @Test func builtInInsertChangesDoNotStopTheEngine() throws {
+    let engine = try AudioEngine(offline: true, effects: true)
+    try engine.addStem(url: makeStem(frames: 96_000) { Float(0.5 * sin(2 * Double.pi * 80 * Double($0) / 48_000)) }, name: "bass", strip: 0)
+    engine.setFaderGain(strip: 0, 1)
+    engine.setMasterGain(1)
+    try warmUp(engine)
+    engine.play()
+    let straight = try engine.renderOffline(frames: 4800)
+    engine.setInsert(strip: 0, .autoWah)
+    engine.setInsert(strip: 0, .sub)
+    engine.setInsert(strip: 0, nil)
+    _ = try engine.renderOffline(frames: 4800) // crossfades
+    let back = try engine.renderOffline(frames: 4800)
+    // No gap anywhere: the engine never stopped, the bass sounded all along.
+    #expect(straight.contains { abs($0) > 0.01 } && back.contains { abs($0) > 0.01 })
+    #expect(engine.isPlaying && engine.inserts[0] == nil)
 }

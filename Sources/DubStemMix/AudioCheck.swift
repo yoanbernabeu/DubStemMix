@@ -108,6 +108,28 @@ enum AudioCheck {
             RunLoop.main.run(until: Date().addingTimeInterval(0.3))
             check(!engine.isPullingUp && engine.isPlaying && engine.position < 1, "restarted from the top after \(ticks) ticks (position \(String(format: "%.2f", engine.position)) s)")
             check(engine.load.overloadCount == 0, "no dropout during the pull-up")
+
+            // Bus-to-bus send through memory, in real time, silently (master closed): the delay patched into the
+            // reverb must reach the reverb's input, and stop reaching it once unpatched. Measured on the bus meters.
+            engine.setMasterGain(0)
+            engine.setFaderGain(strip: 0, 0)
+            engine.setSendPreFader(.delay, true)
+            engine.setSendGain(.delay, strip: 0, 1)
+            engine.setFX(.delayFeedback, 0)
+            func reverbInput(over seconds: Double) -> Float {
+                _ = engine.meters.take(AudioEngine.busInputMeter(.reverb))
+                RunLoop.main.run(until: Date().addingTimeInterval(seconds))
+                return engine.meters.take(AudioEngine.busInputMeter(.reverb))
+            }
+            check(reverbInput(over: 0.3) < 0.0001, "nothing reaches the reverb while unpatched")
+            engine.setBusSend(from: .delay, to: .reverb)
+            engine.setFX(.delayToReverb, 1)
+            let patched = reverbInput(over: 0.5)
+            check(patched > 0.01, "delay patched into the reverb while playing: it reaches the reverb (peak \(String(format: "%.3f", patched)))")
+            check(engine.isPlaying && engine.load.overloadCount == 0, "still playing, no dropout")
+            engine.setBusSend(from: .delay, to: nil)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            check(reverbInput(over: 0.3) < 0.0001, "unpatched: nothing reaches the reverb any more")
             engine.stop()
         } catch {
             check(false, "pull-up: \(error.localizedDescription)")

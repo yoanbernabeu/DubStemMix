@@ -196,6 +196,65 @@ enum DocumentsCheck {
             check(model.setlistEntries.map(\.title) == ["second", "song"] || model.setlistIndex == 1, "glisser-déposer : morceau courant passé en 2e position")
             model.renameSetlist(" friday ")
             check((try? Setlist.load(from: setlistFile))?.name == "FRIDAY", "setlist renommée et enregistrée")
+
+            print("Usage live : rack de setlist")
+            check(model.setlist?.rack != nil, "la setlist a pris le rack du morceau ouvert")
+            let songURL = model.projectURL!
+            model.pickBuiltInEffect(on: .reverb, reverb: .spring) // à l'arrêt, sur le premier morceau
+            model.autosaveCountdown = 0
+            model.autosaveIfNeeded()
+            check((try? Setlist.load(from: setlistFile))?.rack?.reverbModel == "spring", "un changement du rack est enregistré dans la setlist")
+            var own = try Project.load(from: second)
+            own.rack = Rack(busSends: [:]) // le second morceau a été préparé avec la plate, sans renvoi
+            try own.save(to: second)
+            model.refreshSetlistEntries()
+            let secondIndex = model.setlistEntries.firstIndex { $0.url?.lastPathComponent == "second.dubstem" }!
+            check(model.setlistEntries[secondIndex].ownRack, "marque ≠ RACK sur le morceau préparé avec un autre rack")
+            model.openSetlistEntry(at: secondIndex)
+            check(model.reverbModel == .spring && model.engine.reverbModel == .spring, "morceau suivant joué avec le rack de la setlist")
+            model.autosaveCountdown = 0
+            model.autosaveIfNeeded()
+            check((try? Project.load(from: second))?.rack == Rack(busSends: [:]), "le morceau garde son propre rack dans son fichier")
+
+            print("Usage live : armement et protections pendant la lecture")
+            let songIndex = model.setlistEntries.firstIndex { $0.url?.standardizedFileURL == songURL.standardizedFileURL }!
+            model.openSetlistEntry(at: songIndex)
+            model.togglePlay()
+            check(model.engine.isPlaying, "lecture lancée")
+            model.openNextInSetlist(offset: secondIndex > songIndex ? 1 : -1)
+            check(model.armedIndex == secondIndex && model.projectURL == songURL, "N / P en lecture : morceau armé, rien de chargé")
+            model.openSetlistEntry(at: songIndex)
+            check(model.armedIndex == nil && model.projectURL == songURL, "clic sur le morceau en cours : désarmé")
+            model.openSetlistEntry(at: secondIndex)
+            model.togglePlay()
+            check(model.projectURL?.lastPathComponent == "second.dubstem" && model.engine.isPlaying && model.armedIndex == nil,
+                  "Espace : le morceau armé part tout de suite")
+            let stemsBefore = model.engine.stems.count
+            model.placeStems([files[2]], onStrip: 7)
+            check(model.engine.stems.count == stemsBefore && model.notice?.hasPrefix("Stop playback") == true, "en lecture : poser un stem est refusé")
+            let routing = model.busRouting
+            let wanted: SendBus? = routing.target(of: .bus3) == nil && routing.allows(.bus3, to: .delay) ? .delay : nil
+            model.pickBusSend(from: .bus3, to: wanted)
+            check(model.busRouting.target(of: .bus3) == wanted && model.engine.isPlaying, "en lecture : re-patcher les bus est permis, la lecture continue")
+            model.pickBuiltInEffect(on: .reverb, reverb: .plate)
+            check(model.reverbModel == .plate && model.engine.reverbModel == .plate, "en lecture : plate ↔ ressort permis")
+            model.pickInsert(strip: 0, .sub)
+            check(model.mix.strips[0].insert == .sub && model.engine.inserts[0] == .sub, "en lecture : insert intégré permis")
+            model.seekFromWaveform(fraction: 0.5, deliberate: false)
+            check(model.engine.position < 0.25, "en lecture : un simple clic sur la forme d'onde ne déplace pas")
+            model.seekFromWaveform(fraction: 0.5, deliberate: true)
+            check(abs(model.engine.position - model.engine.duration / 2) < 0.25, "en lecture : double-clic ou ⌥-clic déplace")
+            model.togglePlay()
+            check(!model.engine.isPlaying, "Espace sans morceau armé : pause")
+
+            print("Usage live : vérification de la setlist")
+            // Plus haut, un stem du premier morceau a été rangé dans « elsewhere » : il manque encore.
+            check(model.setlistHasMissingStems && model.setlistEntries.contains { $0.problems.contains { $0.contains("not found") } },
+                  "stem introuvable : signalé sur la ligne avant d'ouvrir le morceau")
+            model.relinkMissingStems(in: work)
+            check(!model.setlistHasMissingStems, "stems retrouvés pour toute la setlist dans un dossier et ses sous-dossiers")
+            check((try? Project.load(from: movedDocument))?.stems.allSatisfy { $0.file.resolve(relativeTo: movedDocument) != nil } == true,
+                  "le morceau est enregistré avec le fichier retrouvé")
         } catch {
             print("  ❌ erreur inattendue : \(error)")
             failures += 1

@@ -7,6 +7,8 @@ import DubDSP
 public final class BuiltInEffect {
     public enum Kind: CaseIterable, Sendable {
         case delay, plate, phaser, master, spring, sub, wah, flanger
+        /// Switches (two kernels in one unit, see dub_switch.c): the effect changes without rewiring the graph.
+        case reverbBus, bus3, insert
 
         var dspKind: DubEffectKind {
             switch self {
@@ -18,6 +20,9 @@ public final class BuiltInEffect {
             case .sub: DUB_EFFECT_SUB
             case .wah: DUB_EFFECT_WAH
             case .flanger: DUB_EFFECT_FLANGER
+            case .reverbBus: DUB_EFFECT_REVERB_BUS
+            case .bus3: DUB_EFFECT_BUS3
+            case .insert: DUB_EFFECT_INSERT
             }
         }
 
@@ -31,6 +36,9 @@ public final class BuiltInEffect {
             case .sub: "dsub"
             case .wah: "dwah"
             case .flanger: "dfln"
+            case .reverbBus: "drvb"
+            case .bus3: "db3x"
+            case .insert: "dins"
             }
             return AudioComponentDescription(
                 componentType: kAudioUnitType_Effect,
