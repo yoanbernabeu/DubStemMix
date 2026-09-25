@@ -70,8 +70,13 @@ enum DocumentsCheck {
             model.saveProject()
             check(FileManager.default.fileExists(atPath: document.path) && !model.hasUnsavedChanges, "enregistrement du projet")
 
+            model.mix.toggleMute(strip: 2)
+            model.mix.toggleSolo(strip: 3)
             model.newSession()
             check(model.engine.stems.isEmpty && model.pool.isEmpty && model.projectURL == nil, "nouvelle session vide")
+            check(model.mix.strips.allSatisfy { !$0.mute && !$0.solo }, "nouvelle session : ni mute ni solo")
+            check(model.busRouting == .standard && model.engine.busRouting == .standard, "nouvelle session : bus isolés")
+            check(FXParameter.allCases.allSatisfy { model.mix.fx[$0] == $0.defaultValue }, "nouvelle session : effets aux réglages d'usine")
             model.openProject(document)
             check(model.engine.stems.map(\.strip) == [4, 4], "réouverture : les 2 stems reviennent sur la tranche 5")
             check(model.pool.map(\.url.lastPathComponent) == [files[2].lastPathComponent], "réouverture : le 3e fichier revient dans la réserve")

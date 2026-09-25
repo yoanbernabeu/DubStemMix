@@ -1,7 +1,7 @@
 // Single place for the facts the page repeats. Bump `version` with each release.
 export const site = {
   name: "DubStemMix",
-  version: "0.4.0",
+  version: "0.5.0",
   repo: "https://github.com/yoanbernabeu/DubStemMix",
   releases: "https://github.com/yoanbernabeu/DubStemMix/releases",
   latest: "https://github.com/yoanbernabeu/DubStemMix/releases/latest",

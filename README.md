@@ -51,7 +51,7 @@ Eight strips, mirrored on screen so what you touch is where you look. Per strip:
 - **REC ARM held** is the **dub throw**: the strip goes at full into the delay (or the reverb, or both, from the delay card's menu), taken before the fader and the mute. Throw a cut vocal, hear only its echo.
 - Effects sit on shared buses, like the sends of a real board: cutting a strip never kills an echo or a reverb tail already on its way. That is the whole point.
 - Sends are post-fader by default; Settings (⌘,) switch any bus to pre-fader for the classic move: fader down, echo still running.
-- **Bus to bus**: each bus return can also feed one other bus, like patching a return into a send on a real board. Pick the target in the bus card's **Send to** menu, dose it with the three send knobs on strip 8 of the FX page. The order of your effects is which bus holds which: a filter plugin on bus 3 with the delay sent into it is a filtered echo. Targets that would close a loop are greyed out.
+- **Bus to bus**: any bus return can be patched into another bus, see [Patching the buses](#patching-the-buses).
 
 <p align="center"><img src="docs/screenshots/fx.png" width="100%" alt="DubStemMix, FX page: the knobs drive the tape delay, the reverb and the phaser"></p>
 
@@ -84,6 +84,20 @@ Any **Audio Unit** effect can replace a built-in effect on a bus, or sit in a st
 Set a plugin on a **bus** 100 % wet: the dry signal already goes to the master through the strip. A plugin in an **insert** is in the direct path, set its mix as you like.
 
 <p align="center"><img src="docs/screenshots/inserts.png" width="100%" alt="DubStemMix, INSERTS page: sub on the bass, auto-wah on the skank"></p>
+
+### Patching the buses
+
+On a dub board you patch a return into a send, and the effects start feeding each other. DubStemMix does the same: each bus return can also feed one other bus.
+
+- **Delay into the reverb**: the echoes drown in the space, each repeat a little further away.
+- **Delay into the phaser or the flanger**: the repeats start to turn.
+- **A filter plugin on bus 3, the delay sent into it**: a filtered echo. The order of your effects is which bus holds which.
+
+Out of the box every bus stands on its own and feeds only the master. Pick a target in the bus card's **Send to** menu, then dose it with the three send knobs on strip 8 of the FX page (DLY→, REV→ and the bus 3 one, labelled with their target). Targets that would close a loop are greyed out, so feedback between effects cannot run away.
+
+You see what you patched: a cable runs between the bus cards, dashed while its knob is at zero, with the signal travelling along it. Each card lights up in its colour while its effect sounds, tails included, and its colour bar shows what enters the bus.
+
+<p align="center"><img src="docs/screenshots/buses.png" width="100%" alt="DubStemMix bus cards: the delay patched into the reverb by a cable, both cards lit"></p>
 
 ## Splitting a tune into stems
 
@@ -135,7 +149,7 @@ Output device and buffer size (128 or 256 for the dance), recordings folder, pre
 git clone https://github.com/yoanbernabeu/DubStemMix.git
 cd DubStemMix
 swift run DubStemMix          # runs the app from the package
-tools/make-app.sh 0.4.0 dist  # builds dist/DubStemMix.app and the zip
+tools/make-app.sh 0.5.0 dist  # builds dist/DubStemMix.app and the zip
 swift test                    # 73 tests, no model or audio device needed
 ```
 

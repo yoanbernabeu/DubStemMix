@@ -1,6 +1,8 @@
 ---
+import { Image } from "astro:assets";
 import Section from "./Section.astro";
 import Knob from "./Knob.astro";
+import buses from "../assets/screenshots/buses.png";
 const cards = [
   { color: "delay", value: 0.72, title: "Dub delay", text: "A tape echo: every pass, including the first, goes through the filters and the saturation, so repeats get darker and rounder. Feedback up to self-oscillation, held by the tape. Wow and flutter. Time in milliseconds or locked to the tempo. Space Echo head patterns (1, 2, 3, 1+2, 2+3, 1+3, 1+2+3) and ping-pong.", specs: ["tape", "heads 1·2·3", "ping-pong"] },
   { color: "reverb", value: 0.58, title: "Reverb", text: "A Dattorro plate, or a spring: a dispersive line where the transient comes out as a downward chirp, the boing. Hit it with CRASH.", specs: ["plate", "spring", "crash"] },
@@ -8,6 +10,11 @@ const cards = [
   { color: "cream", value: 0.83, title: "Master chain", text: "The big knob: King Tubby's stepped high-pass from the MCI board, 20 Hz to 10 kHz in twelve steps, each one a plateau you hear. The kills: a sound-system isolator, BASS / MID / TOP, kill only, never boost. The dubplate colour: an acetate played a hundred times, bandwidth shrinking, tape saturation, a slow wobble, crackle to taste. And the pull-up.", specs: ["big knob", "kills", "dubplate", "pull-up"] },
   { color: "cream", value: 0.35, title: "Strip inserts", text: "A sub-octave generator (the dbx boom box idea: follow the bass, add the octave below) and an auto-wah in the Mu-Tron III style: louder opens the filter, or closes it in down mode.", specs: ["sub", "auto-wah"] },
   { color: "cream", value: 0.5, title: "Audio Units", text: "Any AU effect can replace a built-in effect on a bus, or sit in a strip's insert. Plugins load out of process: one that crashes falls back to the built-in effect and stays in the project. On the FX page the bus's six knobs become macros you assign to the plugin's parameters.", specs: ["AU", "out of process", "macros"] },
+] as const;
+const patches = [
+  { color: "reverb", title: "Delay → reverb", text: "the echoes drown in the space, each repeat a little further away." },
+  { color: "bus3", title: "Delay → phaser", text: "the repeats start to turn." },
+  { color: "cream", title: "Delay → a filter plugin", text: "a filtered echo: the order of your effects is which bus holds which." },
 ] as const;
 ---
 <Section id="sound" index="05" title="The sound" kicker="everything built in, no plugin needed. The references are the ones you would expect">
@@ -25,4 +32,38 @@ const cards = [
       </li>
     ))}
   </ul>
+
+  <div id="patching" class="mt-px rounded border-[1.5px] border-border bg-bg p-6 sm:p-8">
+    <div class="flex flex-wrap items-baseline justify-between gap-3">
+      <h3 class="label text-sm text-cream">Patch the buses</h3>
+      <p class="mono text-[11px] text-cream/70">send to · strip 8 · no loops</p>
+    </div>
+    <p class="mt-4 max-w-3xl text-sm leading-relaxed text-dim">
+      On a dub board you patch a return into a send, and the effects start feeding each other. Here too: each bus
+      return can also feed one other bus. Out of the box every bus stands on its own; pick a target in the
+      bus card's <strong class="text-cream">Send to</strong> menu, dose it on strip 8 of the FX page. Targets that
+      would close a loop are greyed out.
+    </p>
+    <ul class="mt-6 grid gap-4 sm:grid-cols-3">
+      {patches.map((p) => (
+        <li class="text-sm leading-relaxed text-dim">
+          <span class="label block text-xs" style={`color:var(--color-${p.color})`}>{p.title}</span>
+          {p.text}
+        </li>
+      ))}
+    </ul>
+    <Image
+      src={buses}
+      alt="DubStemMix bus cards: the delay patched into the reverb by a cable, both cards lit"
+      widths={[720, 1100, 1440, 2356]}
+      sizes="(min-width: 1152px) 1100px, 100vw"
+      format="webp"
+      loading="lazy"
+      class="mt-8 w-full rounded [mask-image:linear-gradient(to_bottom,black_85%,transparent)]"
+    />
+    <p class="mt-4 text-sm leading-relaxed text-dim">
+      You see what you patched: a cable runs between the bus cards, dashed while its knob is at zero, with the signal
+      travelling along it. Each card lights up while its effect sounds, tails included.
+    </p>
+  </div>
 </Section>

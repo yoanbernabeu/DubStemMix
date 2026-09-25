@@ -281,17 +281,22 @@ private struct StripView: View {
     private func fxCell(_ parameter: FXParameter) -> some View {
         let value = model.mix.fx[parameter] ?? 0
         let color = parameter.bus.map { Bus(rawValue: $0.rawValue)!.color } ?? Theme.text // master: cream
+        // A bus-to-bus send: arc in its source's color, pointer and arrow in its target's, dimmed when it feeds no bus.
+        let sendTarget = parameter.isBusSend ? parameter.bus.flatMap { model.busRouting.target(of: $0) } : nil
+        let targetColor = sendTarget.map { Bus(rawValue: $0.rawValue)!.color }
+        let unrouted = parameter.isBusSend && sendTarget == nil
         return VStack(spacing: 2) {
             Knob(
                 value: Binding(get: { value }, set: { model.mix.setFX(parameter, $0) }),
                 color: color,
                 ghost: model.mix.fxGhost(parameter),
-                size: 54
+                size: 54,
+                pointer: targetColor
             )
-            Text(model.fxLabel(parameter))
+            .opacity(unrouted ? 0.4 : 1)
+            fxLabel(parameter, color: color, targetColor: targetColor)
                 .font(Fonts.label(9.5, weight: 800))
                 .tracking(0.6)
-                .foregroundStyle(color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Text(model.mix.fxDisplay(parameter))
@@ -300,6 +305,13 @@ private struct StripView: View {
                 .font(Fonts.mono(10))
                 .foregroundStyle(Theme.text)
         }
+    }
+
+    private func fxLabel(_ parameter: FXParameter, color: Color, targetColor: Color?) -> Text {
+        guard parameter.isBusSend, let source = parameter.bus else { return Text(model.fxLabel(parameter)).foregroundStyle(color) }
+        let target = model.busRouting.target(of: source).map(model.busShortName) ?? "—"
+        return Text(model.busShortName(source)).foregroundStyle(color)
+            + Text("→" + target).foregroundStyle(targetColor ?? Theme.textDim)
     }
 
     /// Bus hébergeant un plugin : le potard est une macro, affectée par l'utilisateur à un paramètre du plugin.

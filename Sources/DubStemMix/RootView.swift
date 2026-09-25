@@ -18,7 +18,7 @@ struct RootView: View {
                 WaveformOverview(model: model)
                     .frame(height: 78)
                 FXRack(model: model)
-                    .frame(height: 64)
+                    .frame(height: FXRackLayout.height)
                 ConsoleView(model: model)
             }
             .padding(18)
@@ -378,8 +378,75 @@ private struct FXRack: View {
     var model: AppModel
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: FXRackLayout.spacing) {
             ForEach(Bus.allCases, id: \.self) { bus in FXSlotCard(model: model, bus: bus) }
+        }
+        // The cables hang below the cards, in the gap above the console.
+        .overlay(alignment: .top) {
+            BusCables(model: model)
+                .frame(height: FXRackLayout.height + FXRackLayout.cableDrop)
+                .allowsHitTesting(false)
+        }
+    }
+}
+
+enum FXRackLayout {
+    static let height: CGFloat = 64
+    static let spacing: CGFloat = 8
+    /// Room the cables take below the cards (the rack's gap to the console is 14).
+    static let cableDrop: CGFloat = 13
+
+    /// Where a bus's cable leaves (out) or arrives (in), on the bottom edge of its card.
+    static func jack(_ bus: SendBus, out: Bool, width: CGFloat) -> CGPoint {
+        let count = CGFloat(SendBus.allCases.count)
+        let card = (width - spacing * (count - 1)) / count
+        let x = CGFloat(bus.rawValue) * (card + spacing) + card * (out ? 0.62 : 0.38)
+        return CGPoint(x: x, y: height)
+    }
+}
+
+/// Bus-to-bus sends drawn as patch cables between the cards (issue #1): each routed bus's return leaves by its
+/// out jack and plugs into its target's in jack. Dashed while its knob is at zero; lit by the signal it carries.
+private struct BusCables: View {
+    var model: AppModel
+
+    var body: some View {
+        let routes = SendBus.allCases.compactMap { source in
+            model.busRouting.target(of: source).map { target in
+                (source: source, target: target,
+                 level: model.mix.fx[FXParameter.busSend(from: source)] ?? 0,
+                 flow: model.activity(AudioEngine.busReturnMeter(source)))
+            }
+        }
+        let phase = Date.timeIntervalSinceReferenceDate * 24
+        Canvas { context, size in
+            for route in routes {
+                let from = FXRackLayout.jack(route.source, out: true, width: size.width)
+                let to = FXRackLayout.jack(route.target, out: false, width: size.width)
+                let low = FXRackLayout.height + FXRackLayout.cableDrop * 1.33 // the curve bottoms out at cableDrop
+                var cable = Path()
+                cable.move(to: from)
+                cable.addCurve(to: to, control1: CGPoint(x: from.x, y: low), control2: CGPoint(x: to.x, y: low))
+                let color = Bus(rawValue: route.source.rawValue)!.color
+                if route.level < 0.005 {
+                    context.stroke(cable, with: .color(Theme.textDim.opacity(0.7)),
+                                   style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [2, 4]))
+                } else {
+                    let width = 2 + 2 * route.level
+                    context.stroke(cable, with: .color(color.opacity(0.55)), style: StrokeStyle(lineWidth: width, lineCap: .round))
+                    // The signal travelling down the cable, as bright as what the source bus gives back.
+                    let carried = route.flow * min(1, route.level * 2)
+                    if carried > 0.02 {
+                        context.stroke(cable, with: .color(Theme.text.opacity(carried)),
+                                       style: StrokeStyle(lineWidth: width * 0.6, lineCap: .round, dash: [3, 9], dashPhase: -phase))
+                    }
+                }
+                for (point, jackColor) in [(from, color), (to, Bus(rawValue: route.target.rawValue)!.color)] {
+                    let jack = Path(ellipseIn: CGRect(x: point.x - 3.5, y: point.y - 3.5, width: 7, height: 7))
+                    context.fill(jack, with: .color(Theme.bg))
+                    context.stroke(jack, with: .color(jackColor), lineWidth: 1.5)
+                }
+            }
         }
     }
 }
@@ -409,7 +476,7 @@ private struct FXSlotCard: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 2).fill(bus.color).frame(width: 5)
+            BusInputBar(model: model, bus: sendBus)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(model.busLabel(sendBus))
@@ -440,8 +507,12 @@ private struct FXSlotCard: View {
         .padding(.vertical, 10)
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface))
+        .background {
+            RoundedRectangle(cornerRadius: 8).fill(Theme.surface)
+            BusGlow(model: model, bus: sendBus, part: .fill)
+        }
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border, lineWidth: 1))
+        .overlay(BusGlow(model: model, bus: sendBus, part: .border))
     }
 
     /// Le nom de l'effet est un menu : effet intégré, ou un plugin AU (rangés par éditeur).
@@ -515,6 +586,52 @@ private struct FXSlotCard: View {
     private var manufacturers: [String] {
         var seen = Set<String>()
         return model.installedPlugins.map(\.manufacturer).filter { seen.insert($0).inserted }
+    }
+}
+
+/// The card's color bar doubles as the bus's input meter: it fills from the bottom with what enters the bus.
+/// Only this view and `BusGlow` redraw 30 times a second, not the whole card.
+private struct BusInputBar: View {
+    var model: AppModel
+    var bus: SendBus
+
+    var body: some View {
+        let color = Bus(rawValue: bus.rawValue)!.color
+        let level = model.activity(AudioEngine.busInputMeter(bus))
+        RoundedRectangle(cornerRadius: 2)
+            .fill(color.opacity(0.3))
+            .overlay(alignment: .bottom) {
+                GeometryReader { geometry in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color)
+                        .frame(height: geometry.size.height * max(0.12, level))
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                }
+            }
+            .frame(width: 5)
+    }
+}
+
+/// The card lights up in its bus's color while its effect sounds, tails included: a tint behind the content
+/// and a border over it.
+private struct BusGlow: View {
+    enum Part { case fill, border }
+
+    var model: AppModel
+    var bus: SendBus
+    var part: Part
+
+    var body: some View {
+        let color = Bus(rawValue: bus.rawValue)!.color
+        let glow = model.activity(AudioEngine.busReturnMeter(bus))
+        let shape = RoundedRectangle(cornerRadius: 8)
+        Group {
+            switch part {
+            case .fill: shape.fill(color.opacity(0.1 * glow))
+            case .border: shape.stroke(color.opacity(0.85 * glow), lineWidth: 1.5)
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
 

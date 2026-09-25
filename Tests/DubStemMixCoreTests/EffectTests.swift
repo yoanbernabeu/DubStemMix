@@ -192,6 +192,7 @@ private func energy(_ samples: ArraySlice<Float>) -> Float { samples.reduce(0) {
 
 @MainActor @Test func reverbCanBeSentBackToTheDelay() throws {
     let open = try energyThrough(.delay, throwTo: .reverb) {
+        #expect($0.setBusSend(from: .delay, to: .reverb))
         #expect(!$0.setBusSend(from: .reverb, to: .delay)) // DLY→REV exists: that would close a loop
         #expect($0.setBusSend(from: .delay, to: nil))
         #expect($0.setBusSend(from: .reverb, to: .delay))
@@ -203,7 +204,7 @@ private func energy(_ samples: ArraySlice<Float>) -> Float { samples.reduce(0) {
 @MainActor @Test func rewiringSendsRepeatedlyWhilePlayingKeepsTheEngineAlive() throws {
     let engine = try AudioEngine(offline: true, effects: true)
     engine.play()
-    let targets: [SendBus?] = [.bus3, nil, .reverb, .bus3, nil, .reverb]
+    let targets: [SendBus?] = [.bus3, nil, .reverb, .bus3, .reverb, nil]
     for target in targets {
         #expect(engine.setBusSend(from: .delay, to: target))
         _ = try engine.renderOffline(frames: 1024)
@@ -211,8 +212,16 @@ private func energy(_ samples: ArraySlice<Float>) -> Float { samples.reduce(0) {
     #expect(engine.busRouting == .standard)
 }
 
+@MainActor @Test func busesStandOnTheirOwnByDefault() throws {
+    let engine = try AudioEngine(offline: true, effects: true)
+    #expect(SendBus.allCases.allSatisfy { engine.busRouting.target(of: $0) == nil })
+    #expect(FXParameter.allCases.filter(\.isBusSend).allSatisfy { $0.defaultValue == 0 })
+    let reverb = try energyThrough(.reverb, throwTo: .delay) { $0.setFX(.delayToReverb, 1) } // only the routing stops it
+    #expect(reverb < 1e-6, "the delay feeds no other bus by default: \(reverb)")
+}
+
 @Test func busRoutingNeverClosesALoop() {
-    var routing = BusRouting.standard // delay → reverb
+    var routing = BusRouting.legacy // delay → reverb
     #expect(!routing.allows(.reverb, to: .delay))
     #expect(!routing.allows(.delay, to: .delay))
     routing = routing.setting(.reverb, to: .bus3)! // delay → reverb → bus 3
@@ -220,7 +229,8 @@ private func energy(_ samples: ArraySlice<Float>) -> Float { samples.reduce(0) {
     #expect(routing.allows(.delay, to: .bus3)) // replacing the delay's own target is fine
     #expect(BusRouting(projectValue: ["delay": "reverb", "reverb": "delay"]) == .standard) // a looped file falls back
     #expect(BusRouting(projectValue: routing.projectValue) == routing)
-    #expect(BusRouting.standard.projectValue == nil)
+    #expect(BusRouting(projectValue: BusRouting.standard.projectValue) == .standard) // always written
+    #expect(BusRouting(projectValue: nil) == .legacy) // projects saved before: DLY→REV, as they sounded
 }
 
 @MainActor @Test func busSendsStayOnTheirKnobsWhenBusesHostPlugins() {
