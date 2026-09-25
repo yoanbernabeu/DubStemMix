@@ -304,6 +304,13 @@ final class AppModel {
         refreshNames()
     }
 
+    /// A new session starts like a fresh launch: effect settings and bus routing back to their defaults.
+    /// Not part of `clear()`, which also runs when a project opens: rewiring the buses there would cut the tails.
+    func resetEffects() {
+        setBusRouting(.standard)
+        for parameter in FXParameter.allCases { mix.setFX(parameter, parameter.defaultValue) }
+    }
+
     func dropStem(_ id: UUID) {
         engine.removeStem(id: id)
         peaksByStem[id] = nil

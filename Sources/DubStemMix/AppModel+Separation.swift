@@ -166,6 +166,7 @@ extension AppModel {
     private func loadSeparated(_ result: SeparationResult, source: URL) {
         engine.stop()
         clear()
+        resetEffects()
         titleOverride = StemImporter.sessionTitle(for: [source])
         for (strip, stem) in Stem.allCases.enumerated() {
             guard let url = result.stems[stem] else { continue }
