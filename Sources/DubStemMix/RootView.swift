@@ -1004,6 +1004,7 @@ private struct SetlistSection: View {
                             if model.setlist != nil {
                                 Button("Rename…") { renaming = true }
                                 Button("Save As…") { model.saveSetlistAs() }
+                                Button("Export for Another Mac…") { model.exportSetlist() }.disabled(model.exportTask != nil)
                                 Divider()
                             }
                             Button("New Setlist…") { model.newSetlist() }
@@ -1025,6 +1026,7 @@ private struct SetlistSection: View {
                     .foregroundStyle(Theme.textDim)
             }
             if model.isPreview { rows } else { ScrollView { rows }.frame(maxHeight: 260) }
+            exportStatus
             if model.setlistHasMissingStems {
                 SmallButton(title: "LOCATE MISSING STEMS…", color: Theme.rec) { model.locateMissingStemsInSetlist() }
                     .help("One folder for the whole setlist: missing stems are looked for by name in it and its subfolders")
@@ -1082,6 +1084,34 @@ private struct SetlistSection: View {
                     Button("Remove from setlist", role: .destructive) { model.removeFromSetlist(entry) }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var exportStatus: some View {
+        switch model.setlistExport {
+        case .idle:
+            EmptyView()
+        case let .exporting(fraction):
+            Text("EXPORTING… \(Int(fraction * 100)) %")
+                .font(Fonts.mono(9.5, weight: 700))
+                .foregroundStyle(Theme.delay)
+        case let .done(folder, songs, missing, plugins):
+            SmallButton(title: "EXPORTED \(songs) SONG\(songs == 1 ? "" : "S") — SHOW IN FINDER", color: Theme.reverb) {
+                NSWorkspace.shared.activateFileViewerSelecting([folder])
+            }
+            .help(plugins > 0 ? "PLUGINS.txt lists the Audio Unit plugins to install on the other Mac" : "")
+            if !missing.isEmpty {
+                Text("⚠ \(missing.count) NOT FOUND, NOT EXPORTED")
+                    .font(Fonts.mono(9))
+                    .foregroundStyle(Theme.rec)
+                    .help(missing.joined(separator: "\n"))
+            }
+        case let .failed(message):
+            Text("EXPORT FAILED: \(message)")
+                .font(Fonts.mono(9))
+                .foregroundStyle(Theme.rec)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

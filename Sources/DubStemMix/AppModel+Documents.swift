@@ -19,6 +19,15 @@ struct SetlistEntry: Identifiable, Equatable {
     static func == (a: SetlistEntry, b: SetlistEntry) -> Bool { a.id == b.id }
 }
 
+enum SetlistExportState: Equatable {
+    case idle
+    case exporting(fraction: Double)
+    /// `missing`: files (or songs) not found, hence not exported.
+    case done(folder: URL, songs: Int, missing: [String], plugins: Int)
+    /// Kept by the setlist rather than in the top bar, where the next autosave would wipe it.
+    case failed(String)
+}
+
 extension AppModel {
     // MARK: Ouverture (projet, setlist, stems : un seul point d'entrée pour le sélecteur et le glisser-déposer)
 
@@ -342,6 +351,7 @@ extension AppModel {
     /// The open song stays as it sounds: from now on, the rack it plays through is its own.
     func closeSetlist() {
         disarm()
+        if exportTask == nil { setlistExport = .idle }
         songRack = nil
         setlist = nil
         setlistURL = nil
@@ -398,6 +408,49 @@ extension AppModel {
         setlist.name = document.deletingPathExtension().lastPathComponent.uppercased()
         setlistURL = document
         self.setlist = setlist
+    }
+
+    // MARK: Export
+
+    /// The setlist and every file its songs need, copied into a new folder, to play the set on another Mac.
+    func exportSetlist() {
+        if setlistURL == nil { saveSetlist() }
+        guard !isPreview, let setlistURL, let setlist, exportTask == nil else { return }
+        autosaveCountdown = 0
+        autosaveIfNeeded() // the open song and the rack as they are now
+        let panel = NSSavePanel()
+        panel.title = "Export Setlist"
+        panel.message = "A new folder with the setlist, its songs and all their files, to play the set on another Mac"
+        panel.prompt = "Export"
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = setlistURL.deletingPathExtension().lastPathComponent
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        export(self.setlist ?? setlist, at: setlistURL, to: folder)
+    }
+
+    func export(_ setlist: Setlist, at setlistURL: URL, to folder: URL) {
+        let export = SetlistExport(setlist: setlist, at: setlistURL, to: folder)
+        setlistExport = .exporting(fraction: 0)
+        exportTask = Task { [weak self] in
+            let result = await Task.detached {
+                Result {
+                    try export.run { fraction in
+                        Task { @MainActor in
+                            if case .exporting = self?.setlistExport { self?.setlistExport = .exporting(fraction: fraction) }
+                        }
+                    }
+                }
+            }.value
+            guard let self else { return }
+            exportTask = nil
+            switch result {
+            case .success:
+                setlistExport = .done(folder: folder, songs: export.report.songs, missing: export.report.missing,
+                                      plugins: export.report.plugins.count)
+            case let .failure(error):
+                setlistExport = .failed(error.localizedDescription)
+            }
+        }
     }
 
     func refreshSetlistEntries() {

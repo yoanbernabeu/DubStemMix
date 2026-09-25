@@ -100,6 +100,9 @@ final class AppModel {
     var armWarning: String?
     /// The open song's own rack while it plays through the setlist's: written back to its file untouched.
     @ObservationIgnored var songRack: Rack?
+    /// Setlist export to another Mac, see AppModel+Documents.swift.
+    var setlistExport = SetlistExportState.idle
+    @ObservationIgnored var exportTask: Task<Void, Never>?
     @ObservationIgnored var screenActivity: NSObjectProtocol?
     @ObservationIgnored var activationObserver: NSObjectProtocol?
 

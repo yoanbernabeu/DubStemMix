@@ -291,6 +291,27 @@ enum DocumentsCheck {
             check(model.setlistEntries.count == 3 && model.setlistEntries.last?.url?.lastPathComponent == "third.dubstem",
                   "ajouté à la fin, une seule fois (déjà présent et non-projet ignorés)")
             check(saved?.projects.count == 3 && model.projectURL == openBefore, "setlist enregistrée, morceau ouvert inchangé")
+
+            print("Setlist : export pour un autre Mac")
+            let exportFolder = work.appending(path: "export/SHORT SET")
+            model.export(model.setlist!, at: copyFile, to: exportFolder)
+            wait { model.exportTask == nil }
+            let exportedSet = exportFolder.appending(path: "Short Set.dubset")
+            if case let .done(_, songs, missing, _) = model.setlistExport {
+                check(songs == 3 && missing.isEmpty, "3 morceaux exportés, rien d'introuvable")
+            } else {
+                check(false, "export terminé")
+            }
+            let exportedSongs = (try? Setlist.load(from: exportedSet))?.projects.compactMap { $0.resolve(relativeTo: exportedSet) } ?? []
+            check(exportedSongs.count == 3 && exportedSongs.allSatisfy { $0.path.hasPrefix(exportFolder.path) },
+                  "la setlist exportée pointe sur les morceaux copiés")
+            model.open([exportedSet])
+            model.openSetlistEntry(at: 0)
+            check(model.projectURL?.path.hasPrefix(exportFolder.path) == true && model.unresolvedStems.isEmpty
+                  && model.engine.stems.allSatisfy { $0.url.path.hasPrefix(exportFolder.path) }, "morceau exporté ouvert avec ses propres stems")
+            model.export(model.setlist!, at: exportedSet, to: exportFolder)
+            wait { model.exportTask == nil }
+            check(model.setlistExport == .failed("\"SHORT SET\" already exists, choose another name"), "jamais d'export par-dessus un dossier existant")
         } catch {
             print("  ❌ erreur inattendue : \(error)")
             failures += 1
