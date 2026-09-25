@@ -40,6 +40,38 @@
 - [x] Changement de carte son **avec des plugins chargés** — vérifié le 22/09 par `--check-audio` (Dub Filter hors processus conservé et vivant après deux bascules).
 - [x] Stems de **fréquences d'échantillonnage différentes** — testé le 22/09 (44,1 + 48 kHz alignés au sample près, à l'étalement du convertisseur près) ; un retard de 22 ms du départ hors ligne corrigé au passage.
 
+## 3 bis. Usage live (revue du 25/09)
+
+- [ ] **Écran allumé pendant la lecture** : on joue à la console, macOS croit la machine inactive et éteint l'écran (puis peut verrouiller la session) en plein set. Poser `ProcessInfo.beginActivity([.idleDisplaySleepDisabled, .userInitiated])` au lancement de la lecture, la lever à l'arrêt (pas pendant l'arrêt : batterie). Évite aussi l'App Nap. Vérifier avec `pmset -g assertions`. Une ligne dans le README.
+- [ ] **Protection automatique pendant la lecture** (pas de mode à allumer : dès que ça joue, l'app se protège) :
+  - forme d'onde : le clic simple ne déplace plus la lecture (`RootView.swift`, `DragGesture(minimumDistance: 0)`), ⌥-clic ou double-clic pour se déplacer ; à l'arrêt, clic simple comme aujourd'hui ;
+  - mettre ou retirer un plugin sur un bus ou un insert, changer le routage de bus à bus, poser ou retirer un stem : refusé, message dans la barre d'état (« stop playback to … ») ; plate ↔ ressort et phaser ↔ flanger restent permis (voir ci-dessous) ;
+  - fermer la fenêtre, ⌘Q, ⌘N, ouvrir un autre projet : confirmation « Playback is running » (seul dialogue conservé) ;
+  - N / P restent permis (voir l'enchaînement des morceaux) ; le bandeau de mise à jour est déjà limité à l'arrêt.
+  - Logique de refus testable sans interface.
+- [ ] **Plate ↔ ressort et phaser ↔ flanger en jouant, sans coupure** : le changement se fait par le menu actuel de la carte de bus, pas de potard ; l'app gère la transition. Les deux effets intégrés d'un bus sont branchés en permanence côte à côte : au changement, les envois partent vers le nouvel effet, l'ancien ne reçoit plus rien et laisse finir ses échos. Pas de recâblage, donc pas d'arrêt du moteur. Coût CPU à mesurer (l'effet inactif tourne à vide ; court-circuiter son calcul une fois silencieux). Hors périmètre : plugins et routage de bus à bus restent refusés pendant la lecture (choix de préparation).
+- [ ] **Geste PANIC** (« tirer tous les retours ») : quand le delay, le HOLD ou un bus patché part trop fort, rien ne l'arrête vite sans couper le riddim.
+  - Geste : **Échap** au clavier ; **BANK LEFT + BANK RIGHT ensemble** sur la console (revenir à la page où l'on était, chaque BANK changeant de page à l'appui).
+  - Effet : fondu à zéro des trois retours (~100 ms, sans clic) → vidage des mémoires des effets (bande du delay, plate, ressort, phaser, flanger ; `AudioUnitReset` pour un plugin) → HOLD relâché → retours remontés à leur niveau.
+  - Ne touche pas : strips, mutes, potards, lecture. Les réglages restent (la console fait foi) : un feedback laissé à fond repart au prochain envoi.
+  - Retour visuel : flash des cartes de bus, « FX cleared » dans la barre d'état.
+  - Technique : paramètre « clear » auto-réarmé dans chaque noyau C (comme `DUB_SPRING_CRASH`), fondu dans `AudioEngine`, combinaison BANK dans `MixController`. Test hors ligne : impulsion, PANIC, silence sur le retour.
+- [ ] **Enchaîner les morceaux sans blanc** :
+  - constat : N arrête le morceau en cours, et `openProject` recâble le graphe (moteur arrêté, queues coupées) dès que le suivant diffère par le routage de bus à bus, le modèle de reverb, l'effet du bus 3 ou un plugin de bus. La promesse du README (« tails keep going ») est fausse dans ces cas : **corriger le README**.
+  - N / P pendant la lecture **arment** le morceau suivant (« NEXT: titre » clignotant dans la barre du haut) sans rien couper ; préparation en tâche de fond (fichiers, plugins hors processus) ; N / P à nouveau changent le morceau armé, revenir sur le morceau en cours désarme ;
+  - **Espace** lance le morceau armé : l'actuel s'arrête net, le suivant part du début, les queues continuent ;
+  - **R (pull-up)** avec un morceau armé : freinage de bande, puis le suivant part ;
+  - plus aucun recâblage entre deux morceaux d'une setlist : voir le **rack de setlist** ci-dessous.
+- [ ] **Rack de setlist** : quand on joue une setlist, le rack (modèle de reverb, effet du bus 3, routage de bus à bus, plugins de bus) appartient à la setlist, pas au morceau. On le règle une fois, il est enregistré dans le `.dubset`. Chaque morceau n'apporte que ce qui ne recâble pas : stems, valeurs d'effets, tempo, KEEP, noms de tranches. Plus de recâblage entre deux morceaux : les queues passent toujours. C'est le sound system : l'écho et le ressort restent branchés toute la soirée.
+  - hors setlist, un projet seul garde son propre rack, comme aujourd'hui ;
+  - un morceau préparé avec un autre rack : mention discrète sur sa ligne (« rack differs, setlist rack used ») ;
+  - technique : rack dans `Setlist`, `openProject` ignore ces quatre champs en contexte de setlist, la carte de bus modifie le rack de la setlist. Pas de changement du moteur audio.
+- [ ] **Vérifier la setlist avant de jouer** : aujourd'hui les stems introuvables et plugins absents ne se révèlent qu'à l'ouverture du morceau, en plein set.
+  - vérification automatique, sans commande : en construisant les `SetlistEntry` (qui lisent déjà chaque projet), contrôler la présence des stems et l'installation des plugins ; à l'ouverture de la setlist et au retour de l'app au premier plan (disque branché entre-temps) ;
+  - ⚠ discret sur les lignes à problème, infobulle détaillée (« 2 stems not found · TAL Reverb not installed ») ;
+  - **« Locate missing stems… » pour toute la setlist** : un dossier, recherche par nom de fichier (logique de `locateMissingStems`), projets mis à jour ;
+  - Test sans interface : projet pointant vers un fichier absent.
+
 ## 4. M5 — Publication
 
 - [x] Vraie **app `.app`** — fait le 22/09 : `tools/make-app.sh <version> dist` (release, signature ad hoc, Info.plist avec types .dubstem/.dubset, zip 9,4 Mo). Icône : `Design/AppIcon.icns` (source `tools/make-icon.swift`).
