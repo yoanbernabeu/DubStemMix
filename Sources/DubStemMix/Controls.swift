@@ -24,6 +24,8 @@ struct Knob: View {
     var color: Color
     var ghost: Double? = nil
     var size: CGFloat = 68
+    /// Pointer color when it differs from the arc (a bus-to-bus send points in its target's color).
+    var pointer: Color? = nil
 
     @State private var dragStart: Double?
 
@@ -41,7 +43,7 @@ struct Knob: View {
                 .overlay(Circle().stroke(Theme.border, lineWidth: 1.5))
                 .padding(size * 0.2)
             Capsule()
-                .fill(value > 0.005 ? color : Theme.textDim)
+                .fill(value > 0.005 ? pointer ?? color : Theme.textDim)
                 .frame(width: size * 0.07, height: size * 0.2)
                 .offset(y: -size * 0.17)
                 .rotationEffect(.degrees(-135 + 270 * value))

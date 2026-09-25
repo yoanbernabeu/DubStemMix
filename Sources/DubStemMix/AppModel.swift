@@ -103,7 +103,7 @@ final class AppModel {
     var looping = true
     var position = 0.0
     var duration = 0.0
-    var levels = [Float](repeating: 0, count: AudioEngine.stripCount + 1)
+    var levels = [Float](repeating: 0, count: AudioEngine.meterCount)
 
     /// - Parameter preview: données de démonstration, sans carte son ni console (rendu PNG de l'interface).
     /// - Parameter demoData: faux → modèle hors ligne vide (auto-contrôle des documents).
@@ -435,6 +435,13 @@ final class AppModel {
         }
     }
 
+    /// How lit a bus looks, 0…1, from a meter's peak on a 48 dB scale: echo and reverb tails stay visible as they fade.
+    func activity(_ meter: Int) -> Double {
+        let peak = Double(levels[meter])
+        guard peak > 0.000_01 else { return 0 }
+        return min(1, max(0, 1 + 20 * log10(peak) / 48))
+    }
+
     /// FX-page knob label; bus-send knobs name their target, and bus 3's return follows its effect.
     func fxLabel(_ parameter: FXParameter) -> String {
         if parameter == .phaserReturn { return busShortName(.bus3) + " RETURN" }
@@ -509,6 +516,13 @@ final class AppModel {
         mix.handle(.knob(strip: 3, row: 2, value: 0.2)) // potard « fantôme »
         mix.setSend(strip: 3, row: 2, 0.55)
         levels[AudioEngine.masterMeter] = 0.78
+        // The delay patched into the reverb, both sounding: the cable and the lit cards show on the screenshots.
+        setBusSend(from: .delay, to: .reverb)
+        mix.setFX(.delayToReverb, 0.5)
+        for (bus, input, output) in [(SendBus.delay, 0.4, 0.3), (.reverb, 0.12, 0.05), (.bus3, 0.002, 0.0005)] {
+            levels[AudioEngine.busInputMeter(bus)] = Float(input)
+            levels[AudioEngine.busReturnMeter(bus)] = Float(output)
+        }
         pool = [
             PoolItem(url: URL(fileURLWithPath: "/demo/Midnight Version (Melodica).wav"), name: "MELODICA"),
             PoolItem(url: URL(fileURLWithPath: "/demo/Midnight Version (Full mix).wav"), name: "FULL MIX"),

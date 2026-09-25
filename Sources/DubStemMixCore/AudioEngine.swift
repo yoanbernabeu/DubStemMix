@@ -99,6 +99,10 @@ public protocol MixEngineControl: AnyObject {
 public final class AudioEngine: MixEngineControl {
     public static let stripCount = 8
     public static let masterMeter = stripCount
+    /// What enters each send bus, then what its effect gives back (before the return level), for the bus cards.
+    public static func busInputMeter(_ bus: SendBus) -> Int { stripCount + 1 + bus.rawValue }
+    public static func busReturnMeter(_ bus: SendBus) -> Int { stripCount + 1 + SendBus.allCases.count + bus.rawValue }
+    public static let meterCount = stripCount + 1 + 2 * SendBus.allCases.count
     /// Hors ligne, la lecture démarre ce nombre d'échantillons après l'appel à `play()`.
     public static let offlineStartDelay = 2048
     private static let headroom: Float = 0.5
@@ -117,7 +121,7 @@ public final class AudioEngine: MixEngineControl {
         var inputBus = 0
     }
 
-    public let meters = MeterStore(count: stripCount + 1)
+    public let meters = MeterStore(count: meterCount)
     public let recorder = MasterRecorder()
     /// Audio thread load and dropouts (real time only).
     public let load = RenderLoad()
@@ -304,6 +308,15 @@ public final class AudioEngine: MixEngineControl {
         }
         masterOutput?.installTap(onBus: 0, bufferSize: 1024, format: nil,
                                  block: Self.tap(meters, index: Self.masterMeter, scale: 1, recorder: recorder))
+        // The neutral nodes around each effect stay wired whatever effect the bus holds.
+        for bus in SendBus.allCases {
+            let b = bus.rawValue
+            busInputs[b].installTap(onBus: 0, bufferSize: 1024, format: nil,
+                                    block: Self.tap(meters, index: Self.busInputMeter(bus), scale: 1 / Self.headroom, recorder: nil))
+            guard effectOutlets[b].engine != nil else { continue }
+            effectOutlets[b].installTap(onBus: 0, bufferSize: 1024, format: nil,
+                                        block: Self.tap(meters, index: Self.busReturnMeter(bus), scale: 1 / Self.headroom, recorder: nil))
+        }
     }
 
     /// Construit hors du MainActor : le bloc s'exécute sur un thread audio (non temps réel).
