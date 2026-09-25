@@ -1011,6 +1011,11 @@ private struct SetlistSection: View {
                     .help("Close the setlist")
                 }
             }
+            if !model.setlistEntries.isEmpty {
+                Text(totalLine)
+                    .font(Fonts.mono(9))
+                    .foregroundStyle(Theme.textDim)
+            }
             if model.isPreview { rows } else { ScrollView { rows }.frame(maxHeight: 260) }
             if model.setlistHasMissingStems {
                 SmallButton(title: "LOCATE MISSING STEMS…", color: Theme.rec) { model.locateMissingStemsInSetlist() }
@@ -1062,6 +1067,16 @@ private struct SetlistSection: View {
                 }
             }
         }
+    }
+
+    /// "7 SONGS · 48:12": the length of the set, to fit a slot.
+    private var totalLine: String {
+        let count = model.setlistEntries.count
+        let seconds = Int(model.setlistEntries.map(\.duration).reduce(0, +))
+        let length = seconds >= 3600
+            ? String(format: "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+            : String(format: "%d:%02d", seconds / 60, seconds % 60)
+        return "\(count) SONG\(count == 1 ? "" : "S") · \(length)"
     }
 
     private func renamingBinding(_ entry: SetlistEntry) -> Binding<Bool> {
