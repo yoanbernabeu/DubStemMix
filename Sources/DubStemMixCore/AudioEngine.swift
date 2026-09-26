@@ -188,6 +188,13 @@ public final class AudioEngine: MixEngineControl {
     private var switchingDevice = false
     /// Pull-up (PRD § 11.3): tape brake on the master, real time only.
     private var varispeed: AVAudioUnitVarispeed?
+    private var limiter: AVAudioUnitEffect?
+
+    /// The master's safety limiter, bypassed on demand: no rewiring, so it can change while playing.
+    public var limiterOn: Bool {
+        get { !(limiter?.auAudioUnit.shouldBypassEffect ?? false) }
+        set { limiter?.auAudioUnit.shouldBypassEffect = !newValue }
+    }
     private var pullUpStart: Date?
     private var masterVolume: Float = headroom
     public var isPullingUp: Bool { pullUpStart != nil }
@@ -321,6 +328,7 @@ public final class AudioEngine: MixEngineControl {
             engine.connect(makeup, to: limiter, format: format)
             engine.connect(limiter, to: engine.outputNode, format: format)
             masterOutput = limiter
+            self.limiter = limiter
         }
         main.outputVolume = Self.headroom
     }

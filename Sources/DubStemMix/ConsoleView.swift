@@ -572,10 +572,17 @@ private struct MasterView: View {
             .padding(.vertical, 14)
             .frame(maxHeight: .infinity)
 
-            Text("LIMITER ON")
-                .font(Fonts.mono(9.5))
-                .foregroundStyle(Theme.reverb)
-                .frame(height: 42, alignment: .top)
+            Button(action: model.toggleLimiter) {
+                Text(model.limiterOn ? "LIMITER ON" : "LIMITER OFF")
+                    .font(Fonts.mono(9.5, weight: model.limiterOn ? 400 : 700))
+                    .foregroundStyle(model.limiterOn ? Theme.reverb : Theme.rec)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(model.limiterOn
+                  ? "Safety limiter on the master. Click to switch it off (nothing then stops the output from clipping)."
+                  : "No limiter: above 0 dB the output clips. Click to switch it back on.")
+            .frame(height: 42, alignment: .top)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

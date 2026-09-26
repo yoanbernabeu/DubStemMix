@@ -128,7 +128,7 @@ Objectif : un son crédible pour le dub sans aucun plugin tiers.
 - **Dub Delay (tape echo)** : temps libre (ms) ou calé au tempo (1/16 → 1/2, dont 1/8 pointé et 1/4 pointé), changement de temps avec glissement de hauteur façon bande, feedback jusqu'à l'auto-oscillation contrôlée par saturation, filtres passe-haut/passe-bas dans la boucle, wow/flutter, envoi du delay vers la reverb.
 - **Reverb** : plate de Dattorro (entrée mono, sortie stéréo) — decay, damping, predelay, coupe-bas, tone. Un second modèle **ressort** arrive en M7 (§ 11.4).
 - **Phaser type Bi-Phase** — le « gros » phaser du reggae 70/80 : deux phaseurs 6 étages en série, résonance poussée (tenue par une saturation), balayage jusqu'à ± 2,5 octaves, LFO déphasé entre gauche et droite. Réglages : rate, depth, resonance, fréquence centrale, largeur stéréo. **Sa sortie est 100 % déphasée** : l'effet vit sur un bus d'envoi, et c'est sa somme avec le signal direct de la tranche qui creuse les encoches (complètes avec l'envoi à fond et le retour à 0 dB, valeur par défaut).
-- **Master** : limiteur de sécurité transparent.
+- **Master** : limiteur de sécurité transparent. **Désactivable** (décidé le 26/09/2026) : un clic sur « LIMITER ON » sous le fader master → « LIMITER OFF » en rouge, et inversement ; instantané, sans coupure, possible en jouant. Choix mémorisé pour ce Mac (comme la carte son), pas dans le projet. Sans limiteur, rien n'empêche la sortie (et l'enregistrement) de saturer au-dessus de 0 dB : le haut rouge du vu-mètre master sert de témoin.
 
 ### 5.5 Slots Audio Unit
 

@@ -115,6 +115,7 @@ final class AppModel {
     var availableUpdate: ReleaseInfo?
     var updateStatus = UpdateStatus.idle
     var automaticUpdateChecks = UserDefaults.standard.object(forKey: Preference.automaticUpdateChecks) as? Bool ?? true
+    var limiterOn = UserDefaults.standard.object(forKey: Preference.limiterOn) as? Bool ?? true
 
     // Rafraîchis 30 fois par seconde.
     var isPlaying = false

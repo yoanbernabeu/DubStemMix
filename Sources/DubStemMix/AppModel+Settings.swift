@@ -11,6 +11,7 @@ enum Preference {
     static let welcomeShown = "welcome.shown"
     static let automaticUpdateChecks = "updates.automatic"
     static let lastUpdateCheck = "updates.lastCheck"
+    static let limiterOn = "master.limiterOn"
 }
 
 extension AppModel {
@@ -33,6 +34,14 @@ extension AppModel {
         }
         let frames = defaults.integer(forKey: Preference.bufferFrames)
         if frames > 0 { engine.setBufferFrames(frames) }
+        engine.limiterOn = limiterOn
+    }
+
+    /// The master limiter, on or off for this Mac (a matter of the sound system, not of the song).
+    func toggleLimiter() {
+        limiterOn.toggle()
+        engine.limiterOn = limiterOn
+        UserDefaults.standard.set(limiterOn, forKey: Preference.limiterOn)
     }
 
     // MARK: Settings window
