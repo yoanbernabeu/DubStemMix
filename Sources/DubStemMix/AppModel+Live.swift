@@ -106,6 +106,15 @@ extension AppModel {
         seek(fraction: fraction)
     }
 
+    // MARK: End of the song
+
+    /// How long before the end the waveform turns orange, time to arm the next song.
+    static let endWarning = 30.0
+
+    var remaining: Double { max(0, duration - position) }
+
+    var nearEnd: Bool { duration > 0 && remaining <= Self.endWarning }
+
     // MARK: PANIC
 
     /// Esc, or BANK LEFT + BANK RIGHT on the console: the three buses emptied at once, the tune plays on.
