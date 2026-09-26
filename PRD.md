@@ -145,6 +145,7 @@ Objectif : un son crédible pour le dub sans aucun plugin tiers.
 - Espace : lecture/pause · retour au début · boucle du morceau on/off (calée à l'échantillon).
 - Forme d'onde globale avec tête de lecture ; clic pour se déplacer.
 - Affichage position / durée.
+- **Fin de morceau visible** (décidée le 26/09/2026) : le temps restant (« −1:23 ») s'affiche à côté de position / durée, et la forme d'onde passe à l'orange dans les **30 dernières secondes**, en lecture comme à l'arrêt. Seulement un affichage : rien ne se déclenche seul, la boucle et l'armement restent comme avant.
 
 ### 5.7 Tempo
 
@@ -163,6 +164,7 @@ Objectif : un son crédible pour le dub sans aucun plugin tiers.
   - **Durée totale du set** sous le nom de la setlist (« 7 SONGS · 48:12 »).
   - **Glisser des `.dubstem` depuis le Finder dans la setlist** : ils s'ajoutent à la fin, sans être ouverts (setlist créée au besoin).
   - **Nouvelle setlist** (vide) et **Save Setlist As…** (copie de la setlist ailleurs, sous un autre nom, qui devient la setlist ouverte).
+- **Même plugin d'insert, pas de coupure** (décidé le 26/09/2026) : quand le morceau suivant a le même plugin sur la même tranche, il reste branché et seuls ses réglages (état et macros) changent : plus de coupure pour ce cas. Les autres changements de plugin d'insert coupent encore les queues, et c'est toujours annoncé à l'armement. Écartés pour l'instant : garder branché, mais contourné, un plugin dont le morceau suivant n'a pas besoin ; revoir la façon dont l'app accueille les plugins (gros chantier moteur).
 - Stems introuvables (fichier déplacé) → signalés, bouton « Locate missing stems… » (recherche par nom de fichier dans un dossier choisi) ; tant qu'ils ne sont pas retrouvés, ils restent inscrits dans le projet.
 
 ### 5.9 Enregistrement
