@@ -544,6 +544,7 @@ final class AppModel {
             for (row, send) in sends.enumerated() { mix.setSend(strip: strip, row: row, send) }
             mix.setFader(strip: strip, fader)
             levels[strip] = level
+            levels[AudioEngine.stripPreMeter(strip)] = level > 0 ? min(1, level * 1.1) : 0.6 // muted strips still play
         }
         mix.toggleMute(strip: 4)
         mix.toggleMute(strip: 6)

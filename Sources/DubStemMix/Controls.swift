@@ -72,6 +72,9 @@ struct Knob: View {
 
 struct Meter: View {
     var level: Double
+    /// A plain tint and a narrow bar: the pre-fader meter, beside the real one.
+    var tint: Color? = nil
+    var width: CGFloat = 7
     private let segments = 22
 
     var body: some View {
@@ -79,10 +82,10 @@ struct Meter: View {
             ForEach(0..<segments, id: \.self) { index in
                 let threshold = Double(segments - 1 - index) / Double(segments)
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(level > threshold ? color(for: threshold) : Theme.border.opacity(0.6))
+                    .fill(level > threshold ? tint ?? color(for: threshold) : Theme.border.opacity(0.6))
             }
         }
-        .frame(width: 7)
+        .frame(width: width)
     }
 
     private func color(for threshold: Double) -> Color {

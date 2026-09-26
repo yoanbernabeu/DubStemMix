@@ -119,6 +119,7 @@ The separation runs on the CPU with [htdemucs_ft](https://github.com/facebookres
 
 ## Playing live
 
+- **Signal before the fader.** Next to each strip's meter, a thin grey bar shows what its stems give before the fader and the mute: fader down or muted, you see whether the vocal or the horns are playing right now, and open on time.
 - **The end of the tune, visible.** The time left shows next to the clock, and the waveform turns orange in the last 30 seconds: time to arm the next tune.
 - **The next tune, armed.** While a tune plays, N / P (or a click on a row of the setlist) arm the next one: it blinks on the waveform, nothing is cut. **Space** drops it: the current tune stops dead, the armed one starts from the top, the effect tails go on. **R** pulls up into it: tape brake, then the next tune. N / P again arm another one; a click on the current tune cancels.
 - **Effects change while playing.** Plate ↔ spring and phaser ↔ flanger switch without a gap: the new effect takes the input, the old one rings out its tail. Built-in strip inserts (sub, auto-wah) crossfade in 10 ms.

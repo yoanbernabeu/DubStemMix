@@ -127,7 +127,11 @@ private struct StripView: View {
                     value: Binding(get: { strip.fader }, set: { model.mix.setFader(strip: index, $0) }),
                     ghost: model.mix.faderGhost(strip: index)
                 )
-                LiveMeter(model: model, index: index)
+                HStack(spacing: 3) {
+                    LiveMeter(model: model, index: AudioEngine.stripPreMeter(index), preFader: true)
+                        .help("PRE: the stems before the fader and mute. Is there signal to bring in?")
+                    LiveMeter(model: model, index: index)
+                }
             }
             .padding(.vertical, 14)
             .frame(maxHeight: .infinity)
@@ -497,9 +501,14 @@ private struct StripView: View {
 private struct LiveMeter: View {
     var model: AppModel
     var index: Int
+    var preFader = false
 
     var body: some View {
-        Meter(level: Double(model.levels[index]))
+        if preFader {
+            Meter(level: Double(model.levels[index]), tint: Theme.textDim, width: 3)
+        } else {
+            Meter(level: Double(model.levels[index]))
+        }
     }
 }
 

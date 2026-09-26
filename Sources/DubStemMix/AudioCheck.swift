@@ -122,6 +122,10 @@ enum AudioCheck {
                 return engine.meters.take(AudioEngine.busInputMeter(.reverb))
             }
             check(reverbInput(over: 0.3) < 0.0001, "nothing reaches the reverb while unpatched")
+            _ = engine.meters.take(AudioEngine.stripPreMeter(0))
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            let pre = engine.meters.take(AudioEngine.stripPreMeter(0))
+            check(pre > 0.01, "fader down: the pre-fader meter still shows the stem (peak \(String(format: "%.3f", pre)))")
             engine.setBusSend(from: .delay, to: .reverb)
             engine.setFX(.delayToReverb, 1)
             let patched = reverbInput(over: 0.5)

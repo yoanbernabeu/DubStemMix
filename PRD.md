@@ -179,6 +179,7 @@ Objectif : un son crédible pour le dub sans aucun plugin tiers.
 - Panneau FX (disposé comme la page FX de la console), indicateur de page MIX/FX.
 - Barre latérale setlist · transport + forme d'onde · tempo · REC.
 - Indicateurs d'état : MIDImix connectée/déconnectée, carte son, charge CPU / décrochages.
+- **Signal avant fader** (décidé le 26/09/2026) : à côté du vu-mètre de chaque tranche, une barre fine et discrète (PRE) montre ce que donnent ses stems **avant le fader et le MUTE** (après l'insert). Fader en bas ou tranche coupée, on voit si la voix ou les cuivres jouent en ce moment, pour ouvrir au bon moment. Le vu-mètre existant ne change pas.
 - Tout est pilotable à la souris : l'app reste utilisable sans console (avec rattrapage au retour de la console).
 
 ### 5.11 Identité visuelle
