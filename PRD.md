@@ -128,7 +128,7 @@ Objectif : un son crédible pour le dub sans aucun plugin tiers.
 - **Dub Delay (tape echo)** : temps libre (ms) ou calé au tempo (1/16 → 1/2, dont 1/8 pointé et 1/4 pointé), changement de temps avec glissement de hauteur façon bande, feedback jusqu'à l'auto-oscillation contrôlée par saturation, filtres passe-haut/passe-bas dans la boucle, wow/flutter, envoi du delay vers la reverb.
 - **Reverb** : plate de Dattorro (entrée mono, sortie stéréo) — decay, damping, predelay, coupe-bas, tone. Un second modèle **ressort** arrive en M7 (§ 11.4).
 - **Phaser type Bi-Phase** — le « gros » phaser du reggae 70/80 : deux phaseurs 6 étages en série, résonance poussée (tenue par une saturation), balayage jusqu'à ± 2,5 octaves, LFO déphasé entre gauche et droite. Réglages : rate, depth, resonance, fréquence centrale, largeur stéréo. **Sa sortie est 100 % déphasée** : l'effet vit sur un bus d'envoi, et c'est sa somme avec le signal direct de la tranche qui creuse les encoches (complètes avec l'envoi à fond et le retour à 0 dB, valeur par défaut).
-- **Master** : limiteur de sécurité transparent.
+- **Master** : limiteur de sécurité transparent. **Désactivable** (décidé le 26/09/2026) : un clic sur « LIMITER ON » sous le fader master → « LIMITER OFF » en rouge, et inversement ; instantané, sans coupure, possible en jouant. Choix mémorisé pour ce Mac (comme la carte son), pas dans le projet. Sans limiteur, rien n'empêche la sortie (et l'enregistrement) de saturer au-dessus de 0 dB : le haut rouge du vu-mètre master sert de témoin.
 
 ### 5.5 Slots Audio Unit
 
@@ -145,6 +145,7 @@ Objectif : un son crédible pour le dub sans aucun plugin tiers.
 - Espace : lecture/pause · retour au début · boucle du morceau on/off (calée à l'échantillon).
 - Forme d'onde globale avec tête de lecture ; clic pour se déplacer.
 - Affichage position / durée.
+- **Fin de morceau visible** (décidée le 26/09/2026) : le temps restant (« −1:23 ») s'affiche à côté de position / durée, et la forme d'onde passe à l'orange dans les **30 dernières secondes**, en lecture comme à l'arrêt. Seulement un affichage : rien ne se déclenche seul, la boucle et l'armement restent comme avant.
 
 ### 5.7 Tempo
 
@@ -163,6 +164,7 @@ Objectif : un son crédible pour le dub sans aucun plugin tiers.
   - **Durée totale du set** sous le nom de la setlist (« 7 SONGS · 48:12 »).
   - **Glisser des `.dubstem` depuis le Finder dans la setlist** : ils s'ajoutent à la fin, sans être ouverts (setlist créée au besoin).
   - **Nouvelle setlist** (vide) et **Save Setlist As…** (copie de la setlist ailleurs, sous un autre nom, qui devient la setlist ouverte).
+- **Même plugin d'insert, pas de coupure** (décidé le 26/09/2026) : quand le morceau suivant a le même plugin sur la même tranche, il reste branché et seuls ses réglages (état et macros) changent : plus de coupure pour ce cas. Les autres changements de plugin d'insert coupent encore les queues, et c'est toujours annoncé à l'armement. Écartés pour l'instant : garder branché, mais contourné, un plugin dont le morceau suivant n'a pas besoin ; revoir la façon dont l'app accueille les plugins (gros chantier moteur).
 - Stems introuvables (fichier déplacé) → signalés, bouton « Locate missing stems… » (recherche par nom de fichier dans un dossier choisi) ; tant qu'ils ne sont pas retrouvés, ils restent inscrits dans le projet.
 
 ### 5.9 Enregistrement
@@ -177,6 +179,7 @@ Objectif : un son crédible pour le dub sans aucun plugin tiers.
 - Panneau FX (disposé comme la page FX de la console), indicateur de page MIX/FX.
 - Barre latérale setlist · transport + forme d'onde · tempo · REC.
 - Indicateurs d'état : MIDImix connectée/déconnectée, carte son, charge CPU / décrochages.
+- **Signal avant fader** (décidé le 26/09/2026) : à côté du vu-mètre de chaque tranche, une barre fine et discrète (PRE) montre ce que donnent ses stems **avant le fader et le MUTE** (après l'insert). Fader en bas ou tranche coupée, on voit si la voix ou les cuivres jouent en ce moment, pour ouvrir au bon moment. Le vu-mètre existant ne change pas.
 - Tout est pilotable à la souris : l'app reste utilisable sans console (avec rattrapage au retour de la console).
 
 ### 5.11 Identité visuelle

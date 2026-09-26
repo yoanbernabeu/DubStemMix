@@ -48,6 +48,29 @@ extension AppModel {
         }
     }
 
+    /// The same plugin on the same strip in the song coming: it stays plugged in, only its settings change,
+    /// so the graph is not rewired and the tails go on.
+    private func reuseInsertPlugin(strip: Int, saved entry: Project.InsertEntry) {
+        guard let plugin = engine.insertPlugins[strip] else { return }
+        if let state = entry.state { plugin.restore(state) }
+        unresolvedInserts[Self.insertKey(strip)] = nil
+        let available = Set(plugin.parameters.map(\.address))
+        let macros = entry.macros ?? Self.rememberedInsertMacros(for: plugin.info)
+        for index in 0..<AudioEngine.insertMacroCount {
+            let target = macros.indices.contains(index) ? macros[index] : nil
+            engine.setInsertMacroTarget(target.flatMap { available.contains($0.address) ? $0 : nil }, strip: strip, index: index)
+        }
+        insertStates[strip] = plugin.state
+    }
+
+    /// Strips whose plugin insert is the same in this project: kept plugged in when it opens.
+    func sharedInsertPlugins(with project: Project) -> Set<Int> {
+        Set((0..<AudioEngine.stripCount).filter { strip in
+            guard let loaded = engine.insertPlugins[strip]?.info.id else { return false }
+            return project.inserts?[Self.insertKey(strip)]?.plugin?.id == loaded
+        })
+    }
+
     func openInsertWindow(strip: Int) {
         guard let plugin = engine.insertPlugins[strip] else { return }
         pluginWindows.open(plugin, key: Self.windowKey(strip))
@@ -123,7 +146,9 @@ extension AppModel {
         for strip in 0..<AudioEngine.stripCount {
             guard let entry = unresolvedInserts[Self.insertKey(strip)] else { continue }
             if let plugin = entry.plugin {
-                if installedPlugins.contains(where: { $0.id == plugin.id }) {
+                if engine.insertPlugins[strip]?.info.id == plugin.id {
+                    reuseInsertPlugin(strip: strip, saved: entry)
+                } else if installedPlugins.contains(where: { $0.id == plugin.id }) {
                     loadInsertPlugin(plugin, strip: strip, saved: entry)
                 } else {
                     missing.append(plugin.name)

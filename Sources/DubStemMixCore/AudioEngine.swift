@@ -106,7 +106,9 @@ public final class AudioEngine: MixEngineControl {
     /// What enters each send bus, then what its effect gives back (before the return level), for the bus cards.
     public static func busInputMeter(_ bus: SendBus) -> Int { stripCount + 1 + bus.rawValue }
     public static func busReturnMeter(_ bus: SendBus) -> Int { stripCount + 1 + SendBus.allCases.count + bus.rawValue }
-    public static let meterCount = stripCount + 1 + 2 * SendBus.allCases.count
+    /// What a strip's stems give before its fader and mute (after the insert): is there signal to bring in?
+    public static func stripPreMeter(_ strip: Int) -> Int { stripCount + 1 + 2 * SendBus.allCases.count + strip }
+    public static let meterCount = 2 * stripCount + 1 + 2 * SendBus.allCases.count
     /// Hors ligne, la lecture démarre ce nombre d'échantillons après l'appel à `play()`.
     public static let offlineStartDelay = 2048
     private static let headroom: Float = 0.5
@@ -186,6 +188,13 @@ public final class AudioEngine: MixEngineControl {
     private var switchingDevice = false
     /// Pull-up (PRD § 11.3): tape brake on the master, real time only.
     private var varispeed: AVAudioUnitVarispeed?
+    private var limiter: AVAudioUnitEffect?
+
+    /// The master's safety limiter, bypassed on demand: no rewiring, so it can change while playing.
+    public var limiterOn: Bool {
+        get { !(limiter?.auAudioUnit.shouldBypassEffect ?? false) }
+        set { limiter?.auAudioUnit.shouldBypassEffect = !newValue }
+    }
     private var pullUpStart: Date?
     private var masterVolume: Float = headroom
     public var isPullingUp: Bool { pullUpStart != nil }
@@ -319,6 +328,7 @@ public final class AudioEngine: MixEngineControl {
             engine.connect(makeup, to: limiter, format: format)
             engine.connect(limiter, to: engine.outputNode, format: format)
             masterOutput = limiter
+            self.limiter = limiter
         }
         main.outputVolume = Self.headroom
     }
@@ -330,6 +340,11 @@ public final class AudioEngine: MixEngineControl {
         for (i, strip) in faderMixers.enumerated() {
             strip.installTap(onBus: 0, bufferSize: 1024, format: nil,
                              block: Self.tap(meters, index: i, scale: 1 / Self.headroom, recorder: nil))
+        }
+        // Before the fader's headroom: full scale as it is.
+        for (i, outlet) in insertOutlets.enumerated() {
+            outlet.installTap(onBus: 0, bufferSize: 1024, format: nil,
+                              block: Self.tap(meters, index: Self.stripPreMeter(i), scale: 1, recorder: nil))
         }
         masterOutput?.installTap(onBus: 0, bufferSize: 1024, format: nil,
                                  block: Self.tap(meters, index: Self.masterMeter, scale: 1, recorder: recorder))

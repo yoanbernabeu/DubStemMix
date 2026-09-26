@@ -115,6 +115,7 @@ final class AppModel {
     var availableUpdate: ReleaseInfo?
     var updateStatus = UpdateStatus.idle
     var automaticUpdateChecks = UserDefaults.standard.object(forKey: Preference.automaticUpdateChecks) as? Bool ?? true
+    var limiterOn = UserDefaults.standard.object(forKey: Preference.limiterOn) as? Bool ?? true
 
     // Rafraîchis 30 fois par seconde.
     var isPlaying = false
@@ -305,7 +306,8 @@ final class AppModel {
     /// Vide la session (sans toucher aux fichiers) : le projet ouvert est simplement refermé.
     /// - Parameter keepingRack: a song of the setlist is coming: the rack (reverb and bus 3 effects, bus-to-bus
     ///   sends, plugins on the buses) stays as it is, so nothing is rewired.
-    func clear(keepingRack: Bool = false) {
+    /// - Parameter keepingInserts: strips whose plugin insert the coming song uses too: it stays plugged in.
+    func clear(keepingRack: Bool = false, keepingInserts: Set<Int> = []) {
         for stem in engine.stems { dropStem(stem.id) }
         pool = []
         stripNames = [:]
@@ -313,7 +315,7 @@ final class AppModel {
         for strip in 0..<AudioEngine.stripCount { mix.setKeep(strip: strip, false) }
         setHold(false)
         setThrowTarget(.delay)
-        for strip in 0..<AudioEngine.stripCount { setInsert(strip: strip, nil) }
+        for strip in 0..<AudioEngine.stripCount where !keepingInserts.contains(strip) { setInsert(strip: strip, nil) }
         unresolvedInserts = [:]
         titleOverride = nil
         unresolvedStems = []
@@ -543,6 +545,7 @@ final class AppModel {
             for (row, send) in sends.enumerated() { mix.setSend(strip: strip, row: row, send) }
             mix.setFader(strip: strip, fader)
             levels[strip] = level
+            levels[AudioEngine.stripPreMeter(strip)] = level > 0 ? min(1, level * 1.1) : 0.6 // muted strips still play
         }
         mix.toggleMute(strip: 4)
         mix.toggleMute(strip: 6)

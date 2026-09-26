@@ -147,6 +147,12 @@ private struct TopBar: View {
                     Text("/ " + timecode(model.duration, tenths: false))
                         .font(Fonts.mono(13))
                         .foregroundStyle(Theme.textDim)
+                    if model.duration > 0 {
+                        Text("· −" + timecode(model.remaining.rounded(.up), tenths: false))
+                            .font(Fonts.mono(13, weight: model.nearEnd ? 700 : 400))
+                            .foregroundStyle(model.nearEnd ? Theme.bus3 : Theme.textDim)
+                            .help("Time left in the song")
+                    }
                 }
             }
 
@@ -414,6 +420,8 @@ private struct WaveformOverview: View {
                         .foregroundStyle(Theme.textDim)
                         .frame(maxWidth: .infinity)
                 } else {
+                    // The last seconds turn orange: time to arm the next song.
+                    let playedColor = model.nearEnd ? Theme.bus3 : Theme.text
                     Canvas { context, size in
                         let peaks = model.waveform
                         let bars = max(1, Int(size.width / 3))
@@ -426,7 +434,7 @@ private struct WaveformOverview: View {
                             let played = Double(bar) / Double(bars) < progress
                             context.fill(
                                 Path(roundedRect: rect, cornerRadius: 1),
-                                with: .color(played ? Theme.text : Theme.textDim.opacity(0.45))
+                                with: .color(played ? playedColor : Theme.textDim.opacity(0.45))
                             )
                         }
                     }

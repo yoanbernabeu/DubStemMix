@@ -115,10 +115,13 @@ The separation runs on the CPU with [htdemucs_ft](https://github.com/facebookres
 - **Rename a tune**: double-click its title in the top bar, or right-click a setlist row → Rename…. The title you type is kept in the project.
 - **Take the set to another Mac**: **File → Export Setlist…** creates a new folder with the setlist and, for each tune, its project and every one of its files. Copy it anywhere, double-click the setlist, play. Audio Unit plugins can't be copied: `PLUGINS.txt` lists the ones to install (without them, the built-in effects stand in).
 - **The setlist's rack.** In a setlist, what is patched on the buses (the reverb and bus 3 effects, the bus-to-bus sends, the plugins on the buses) belongs to the setlist, not to each tune: the echo and the spring stay wired all night, like on a sound system. Each tune brings its stems, its effect settings, its tempo, its KEEP marks and its inserts, never a rewiring, so the tails of one tune ring into the next. The first tune opened gives the setlist its rack; change it while playing and the setlist keeps it. A tune prepared with another rack keeps it in its own file (shown `≠ RACK` in the list) and is played through the setlist's.
+- **The limiter is yours.** The master's safety limiter can be switched off: click `LIMITER ON` under the master fader (and again to bring it back). Instant, even while playing, remembered on this Mac. Without it, nothing stops the output or the recording from clipping above 0 dB: watch the red top of the master meter.
 - **REC** (⌘R) records the master, after the limiter, as 24-bit WAV in `~/Music/DubStemMix` (changeable in Settings): your version, ready to cut.
 
 ## Playing live
 
+- **Signal before the fader.** Next to each strip's meter, a thin grey bar shows what its stems give before the fader and the mute: fader down or muted, you see whether the vocal or the horns are playing right now, and open on time.
+- **The end of the tune, visible.** The time left shows next to the clock, and the waveform turns orange in the last 30 seconds: time to arm the next tune.
 - **The next tune, armed.** While a tune plays, N / P (or a click on a row of the setlist) arm the next one: it blinks on the waveform, nothing is cut. **Space** drops it: the current tune stops dead, the armed one starts from the top, the effect tails go on. **R** pulls up into it: tape brake, then the next tune. N / P again arm another one; a click on the current tune cancels.
 - **Effects change while playing.** Plate ↔ spring and phaser ↔ flanger switch without a gap: the new effect takes the input, the old one rings out its tail. Built-in strip inserts (sub, auto-wah) crossfade in 10 ms.
 - **Effects change while playing.** Re-patching the buses (the **Send to** menus) is live too, without a cut.
@@ -135,7 +138,7 @@ Output device and buffer size (128 or 256 for the dance), recordings folder, pre
 ## Known limits
 
 - Plugin latency is not compensated. Fine on send buses (100 % wet), audible in an insert with a plugin that adds latency.
-- Loading or removing a plugin, on a bus or in an insert, stops the engine for a fraction of a second (effect tails are cut): AVAudioEngine cannot rewire while running. So it waits for playback to stop. Moving from one tune to the next still cuts the tails when either tune has a plugin in an insert (the armed tune says so).
+- Loading or removing a plugin, on a bus or in an insert, stops the engine for a fraction of a second (effect tails are cut): AVAudioEngine cannot rewire while running. So it waits for playback to stop. Moving from one tune to the next still cuts the tails when a strip's insert plugin changes (the armed tune says so); the same plugin on the same strip in both tunes stays plugged in, only its settings change.
 - Putting a stem on a strip or taking one off leaves a short gap, so it waits for the stop too. MUTE takes about 25 ms to close (the mixer's own ramp).
 - macOS 14 is out: the engine uses the `Synchronization` module (macOS 15). Only macOS 26 has actually been tested.
 - The MIDImix is the only controller in this version; the mapping lives in one file, other controllers can follow.

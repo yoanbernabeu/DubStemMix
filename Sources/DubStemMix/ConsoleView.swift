@@ -127,7 +127,11 @@ private struct StripView: View {
                     value: Binding(get: { strip.fader }, set: { model.mix.setFader(strip: index, $0) }),
                     ghost: model.mix.faderGhost(strip: index)
                 )
-                LiveMeter(model: model, index: index)
+                HStack(spacing: 3) {
+                    LiveMeter(model: model, index: AudioEngine.stripPreMeter(index), preFader: true)
+                        .help("PRE: the stems before the fader and mute. Is there signal to bring in?")
+                    LiveMeter(model: model, index: index)
+                }
             }
             .padding(.vertical, 14)
             .frame(maxHeight: .infinity)
@@ -497,9 +501,14 @@ private struct StripView: View {
 private struct LiveMeter: View {
     var model: AppModel
     var index: Int
+    var preFader = false
 
     var body: some View {
-        Meter(level: Double(model.levels[index]))
+        if preFader {
+            Meter(level: Double(model.levels[index]), tint: Theme.textDim, width: 3)
+        } else {
+            Meter(level: Double(model.levels[index]))
+        }
     }
 }
 
@@ -563,10 +572,17 @@ private struct MasterView: View {
             .padding(.vertical, 14)
             .frame(maxHeight: .infinity)
 
-            Text("LIMITER ON")
-                .font(Fonts.mono(9.5))
-                .foregroundStyle(Theme.reverb)
-                .frame(height: 42, alignment: .top)
+            Button(action: model.toggleLimiter) {
+                Text(model.limiterOn ? "LIMITER ON" : "LIMITER OFF")
+                    .font(Fonts.mono(9.5, weight: model.limiterOn ? 400 : 700))
+                    .foregroundStyle(model.limiterOn ? Theme.reverb : Theme.rec)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(model.limiterOn
+                  ? "Safety limiter on the master. Click to switch it off (nothing then stops the output from clipping)."
+                  : "No limiter: above 0 dB the output clips. Click to switch it back on.")
+            .frame(height: 42, alignment: .top)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

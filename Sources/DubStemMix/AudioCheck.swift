@@ -109,6 +109,11 @@ enum AudioCheck {
             check(!engine.isPullingUp && engine.isPlaying && engine.position < 1, "restarted from the top after \(ticks) ticks (position \(String(format: "%.2f", engine.position)) s)")
             check(engine.load.overloadCount == 0, "no dropout during the pull-up")
 
+            engine.limiterOn = false
+            check(!engine.limiterOn && engine.isPlaying && engine.load.overloadCount == 0, "limiter switched off while playing, no dropout")
+            engine.limiterOn = true
+            check(engine.limiterOn, "limiter back on")
+
             // Bus-to-bus send through memory, in real time, silently (master closed): the delay patched into the
             // reverb must reach the reverb's input, and stop reaching it once unpatched. Measured on the bus meters.
             engine.setMasterGain(0)
@@ -122,6 +127,10 @@ enum AudioCheck {
                 return engine.meters.take(AudioEngine.busInputMeter(.reverb))
             }
             check(reverbInput(over: 0.3) < 0.0001, "nothing reaches the reverb while unpatched")
+            _ = engine.meters.take(AudioEngine.stripPreMeter(0))
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            let pre = engine.meters.take(AudioEngine.stripPreMeter(0))
+            check(pre > 0.01, "fader down: the pre-fader meter still shows the stem (peak \(String(format: "%.3f", pre)))")
             engine.setBusSend(from: .delay, to: .reverb)
             engine.setFX(.delayToReverb, 1)
             let patched = reverbInput(over: 0.5)
