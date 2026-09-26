@@ -157,12 +157,15 @@ extension AppModel {
     }
 
     /// With the setlist's rack, only plugin inserts still rewire the graph between two songs (built-in inserts
-    /// switch, the buses stay as they are).
+    /// switch, the buses stay as they are), and not when a strip keeps the same plugin.
     private func tailsCutWarning(for entry: SetlistEntry) -> String? {
         let next = entry.url.flatMap { try? Project.load(from: $0) }
-        let nextHasPluginInserts = next?.inserts?.values.contains { $0.plugin != nil } ?? false
-        guard nextHasPluginInserts || !engine.insertPlugins.isEmpty else { return nil }
-        return "plugin inserts: tails will be cut"
+        let rewired = (0..<AudioEngine.stripCount).contains { strip in
+            let loaded = engine.insertPlugins[strip]?.info.id
+            let wanted = next?.inserts?[Self.insertKey(strip)]?.plugin?.id
+            return loaded != wanted && (loaded != nil || wanted.map { id in installedPlugins.contains { $0.id == id } } == true)
+        }
+        return rewired ? "plugin inserts: tails will be cut" : nil
     }
 
     /// The selector's drop: the current song stops dead, the armed one starts from the top, the tails go on.

@@ -133,7 +133,7 @@ extension AppModel {
         }
         let throughSetlist = setlist != nil && isInSetlist(document)
         engine.stop()
-        clear(keepingRack: throughSetlist)
+        clear(keepingRack: throughSetlist, keepingInserts: sharedInsertPlugins(with: project))
         // The saved title wins over the one derived from the stems' names (it may have been typed by the user).
         if !project.title.isEmpty { titleOverride = project.title }
         mix.setTempo(project.bpm) // avant de poser les stems : un tempo enregistré n'est pas re-détecté

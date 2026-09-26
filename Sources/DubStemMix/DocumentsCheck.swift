@@ -161,6 +161,22 @@ enum DocumentsCheck {
                     check(model.insertMacroTarget(strip: 2, index: 1) == parameter, "réouverture : la macro d'insert est toujours affectée")
                     let restoredInsert = model.engine.insertPlugins[2]?.normalizedValue(parameter.address) ?? -1
                     check(abs(restoredInsert - 0.4) < 0.02, "réouverture : l'état du plugin d'insert est restauré")
+
+                    print("Même plugin d'insert dans le morceau suivant")
+                    let sibling = moved.appending(path: "sibling.dubstem")
+                    model.mix.setInsertMacro(strip: 2, index: 1, 0.7)
+                    model.followInsertPlugins(refreshStates: true)
+                    try model.currentProject(for: sibling).save(to: sibling)
+                    let kept = model.engine.insertPlugins[2]
+                    model.openProject(movedDocument)
+                    check(model.engine.insertPlugins[2] === kept, "même plugin sur la même tranche : il reste branché")
+                    let switched = model.engine.insertPlugins[2]?.normalizedValue(parameter.address) ?? -1
+                    check(abs(switched - 0.4) < 0.02, "même plugin : les réglages du morceau ouvert sont appliqués")
+                    check(model.insertMacroTarget(strip: 2, index: 1) == parameter, "même plugin : la macro reste affectée")
+                    model.openProject(sibling)
+                    let back = model.engine.insertPlugins[2]?.normalizedValue(parameter.address) ?? -1
+                    check(model.engine.insertPlugins[2] === kept && abs(back - 0.7) < 0.02, "et dans l'autre sens")
+                    try FileManager.default.removeItem(at: sibling)
                     model.setInsert(strip: 2, nil)
                     UserDefaults.standard.removeObject(forKey: "insertmacros." + appleDelay.id)
                 }

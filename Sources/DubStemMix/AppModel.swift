@@ -305,7 +305,8 @@ final class AppModel {
     /// Vide la session (sans toucher aux fichiers) : le projet ouvert est simplement refermé.
     /// - Parameter keepingRack: a song of the setlist is coming: the rack (reverb and bus 3 effects, bus-to-bus
     ///   sends, plugins on the buses) stays as it is, so nothing is rewired.
-    func clear(keepingRack: Bool = false) {
+    /// - Parameter keepingInserts: strips whose plugin insert the coming song uses too: it stays plugged in.
+    func clear(keepingRack: Bool = false, keepingInserts: Set<Int> = []) {
         for stem in engine.stems { dropStem(stem.id) }
         pool = []
         stripNames = [:]
@@ -313,7 +314,7 @@ final class AppModel {
         for strip in 0..<AudioEngine.stripCount { mix.setKeep(strip: strip, false) }
         setHold(false)
         setThrowTarget(.delay)
-        for strip in 0..<AudioEngine.stripCount { setInsert(strip: strip, nil) }
+        for strip in 0..<AudioEngine.stripCount where !keepingInserts.contains(strip) { setInsert(strip: strip, nil) }
         unresolvedInserts = [:]
         titleOverride = nil
         unresolvedStems = []

@@ -119,6 +119,7 @@ The separation runs on the CPU with [htdemucs_ft](https://github.com/facebookres
 
 ## Playing live
 
+- **The end of the tune, visible.** The time left shows next to the clock, and the waveform turns orange in the last 30 seconds: time to arm the next tune.
 - **The next tune, armed.** While a tune plays, N / P (or a click on a row of the setlist) arm the next one: it blinks on the waveform, nothing is cut. **Space** drops it: the current tune stops dead, the armed one starts from the top, the effect tails go on. **R** pulls up into it: tape brake, then the next tune. N / P again arm another one; a click on the current tune cancels.
 - **Effects change while playing.** Plate ↔ spring and phaser ↔ flanger switch without a gap: the new effect takes the input, the old one rings out its tail. Built-in strip inserts (sub, auto-wah) crossfade in 10 ms.
 - **Effects change while playing.** Re-patching the buses (the **Send to** menus) is live too, without a cut.
@@ -135,7 +136,7 @@ Output device and buffer size (128 or 256 for the dance), recordings folder, pre
 ## Known limits
 
 - Plugin latency is not compensated. Fine on send buses (100 % wet), audible in an insert with a plugin that adds latency.
-- Loading or removing a plugin, on a bus or in an insert, stops the engine for a fraction of a second (effect tails are cut): AVAudioEngine cannot rewire while running. So it waits for playback to stop. Moving from one tune to the next still cuts the tails when either tune has a plugin in an insert (the armed tune says so).
+- Loading or removing a plugin, on a bus or in an insert, stops the engine for a fraction of a second (effect tails are cut): AVAudioEngine cannot rewire while running. So it waits for playback to stop. Moving from one tune to the next still cuts the tails when a strip's insert plugin changes (the armed tune says so); the same plugin on the same strip in both tunes stays plugged in, only its settings change.
 - Putting a stem on a strip or taking one off leaves a short gap, so it waits for the stop too. MUTE takes about 25 ms to close (the mixer's own ramp).
 - macOS 14 is out: the engine uses the `Synchronization` module (macOS 15). Only macOS 26 has actually been tested.
 - The MIDImix is the only controller in this version; the mapping lives in one file, other controllers can follow.
