@@ -12,3 +12,12 @@
 - [x] **[toi]** Barre PRE, fin de morceau et même plugin d'insert : validés le 26/09.
 - [ ] **[toi]** Essayer le limiteur OFF en vrai (sur la sono, en surveillant le haut du vu-mètre master).
 - [x] **[toi]** Essayer en vrai : laisser tourner un morceau jusqu'aux 30 dernières secondes ; deux morceaux de la setlist avec le même plugin sur la même tranche, armer puis Espace (les queues doivent passer).
+
+## 2. Mode préparation : plusieurs morceaux en file (cadré le 03/10, PRD § 12.6)
+
+- [x] Zone « Prepare songs » dans la barre latérale + menu Fichier « Prepare Songs… » ; écran à part à la place de la console, lecture coupée.
+- [x] File : ajouter en cours de route, retirer / réordonner les morceaux en attente, tout annuler (les finis restent), estimation du temps total.
+- [x] Un projet `.dubstem` prêt par morceau, à côté de ses stems ; notification à la fin ; avertissement en quittant.
+- [x] Split a Song : la session prend le nom du morceau, plus celui de son dossier.
+- [ ] **[toi]** Essayer en vrai : glisser 3 ou 4 morceaux (ou un dossier), réordonner, en retirer un, laisser finir ; ouvrir un des projets créés.
+- [ ] **[toi]** Vérifier que la notification de fin s'affiche (macOS demande l'autorisation la première fois).
