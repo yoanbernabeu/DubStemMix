@@ -8,6 +8,7 @@ enum Preference {
     static let bufferFrames = "audio.bufferFrames"
     static let recordingsFolder = "recording.folder"
     static let stemsFolder = "separation.stemsFolder"
+    static let splitSpeed = "separation.secondsPerAudioSecond"
     static let welcomeShown = "welcome.shown"
     static let automaticUpdateChecks = "updates.automatic"
     static let lastUpdateCheck = "updates.lastCheck"

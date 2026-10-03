@@ -40,7 +40,7 @@ extension AppModel {
 
     /// Checks, consent and warnings happen here; the work itself starts in `startSplit`.
     func splitSong(_ url: URL) {
-        guard !isPreview else { return }
+        guard !isPreview, !refusedWhilePreparing() else { return }
         guard !separation.isActive else {
             errorMessage = "A separation is already running"
             return
@@ -67,7 +67,7 @@ extension AppModel {
     }
 
     /// Never a silent download (PRD § 12.2): size, source and license status are on the screen.
-    private func consentToDownload() -> Bool {
+    func consentToDownload() -> Bool {
         let alert = NSAlert()
         alert.messageText = "Download the separation engine?"
         let megabytes = Int(Double(ModelCatalog.totalBytes) / 1e6)
@@ -102,6 +102,8 @@ extension AppModel {
                 if let song = pendingSong {
                     pendingSong = nil
                     startSplit(song)
+                } else if preparing {
+                    startPreparing()
                 }
             } catch is CancellationError {
                 self?.separation = .idle

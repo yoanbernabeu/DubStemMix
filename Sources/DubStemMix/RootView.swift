@@ -9,6 +9,21 @@ struct RootView: View {
     @State private var dropTargeted = false
 
     var body: some View {
+        Group {
+            if model.preparing {
+                PreparationView(model: model)
+            } else {
+                console
+            }
+        }
+        .background { if !model.isPreview { CloseGuard(model: model) } }
+        .environment(\.colorScheme, .dark)
+        .sheet(isPresented: Binding(get: { model.showWelcome && !model.isPreview }, set: { if !$0 { model.dismissWelcome() } })) {
+            WelcomeView(model: model) { model.dismissWelcome() }
+        }
+    }
+
+    private var console: some View {
         HStack(spacing: 0) {
             Sidebar(model: model)
                 .frame(width: 232)
@@ -32,11 +47,6 @@ struct RootView: View {
         )
         .stemDrop(enabled: !model.isPreview, isTargeted: $dropTargeted) { model.open($0) }
         .background(Shortcuts(model: model))
-        .background { if !model.isPreview { CloseGuard(model: model) } }
-        .environment(\.colorScheme, .dark)
-        .sheet(isPresented: Binding(get: { model.showWelcome && !model.isPreview }, set: { if !$0 { model.dismissWelcome() } })) {
-            WelcomeView(model: model) { model.dismissWelcome() }
-        }
     }
 }
 
@@ -86,7 +96,7 @@ private struct CloseGuard: NSViewRepresentable {
     private func install(on window: NSWindow?, _ coordinator: Coordinator) {
         guard let window, coordinator.guardian == nil || window.delegate !== coordinator.guardian else { return }
         let model = model
-        let guardian = WindowCloseGuard(original: window.delegate) { model.confirmWhilePlaying("Quit") }
+        let guardian = WindowCloseGuard(original: window.delegate) { model.confirmQuit() }
         coordinator.guardian = guardian // the window holds its delegate weakly
         window.delegate = guardian
     }
@@ -782,6 +792,8 @@ private struct Sidebar: View {
 
             SplitZone(model: model)
                 .padding(.top, 20)
+            PrepareZone(model: model)
+                .padding(.top, 8)
 
             if !model.pool.isEmpty || stemCount > 0 {
                 StemPool(model: model)
@@ -918,6 +930,34 @@ private struct SplitZone: View {
             text += " · \(remaining / 60):\(String(format: "%02d", remaining % 60)) left"
         }
         return text
+    }
+}
+
+/// Several songs at once: enters the preparation mode (PRD § 12.6).
+private struct PrepareZone: View {
+    var model: AppModel
+
+    @State private var targeted = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Prepare songs")
+                .font(Fonts.label(12, weight: 800))
+                .tracking(0.8)
+                .foregroundStyle(targeted ? Theme.bg : Theme.text)
+            Text("→ drop several, one ready project each")
+                .font(Fonts.mono(9))
+                .foregroundStyle(targeted ? Theme.bg.opacity(0.7) : Theme.textDim)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 5).fill(targeted ? Theme.text : .clear))
+        .overlay(RoundedRectangle(cornerRadius: 5).stroke(targeted ? Theme.text : Theme.textDim.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
+        .contentShape(Rectangle())
+        .stemDrop(enabled: !model.isPreview, isTargeted: $targeted) { model.prepareSongs($0) }
+        .onTapGesture { model.chooseSongsToPrepare() }
+        .help("Drop several songs or a folder (or click to choose): each one is split in turn into stems and a ready project, while playback is off")
     }
 }
 
@@ -1210,7 +1250,7 @@ private struct EditableTitle<Label: View>: View {
     }
 }
 
-private struct SmallButton: View {
+struct SmallButton: View {
     var title: String
     var color: Color
     var action: () -> Void

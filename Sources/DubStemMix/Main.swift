@@ -10,8 +10,9 @@ import SwiftUI
 //   swift run DubStemMix --check-plugin-crash            tue le processus d'un plugin hors processus et vérifie la bascule
 //   swift run DubStemMix --check-update [version]        interroge GitHub, télécharge et vérifie la dernière release, sans rien remplacer
 //   swift run DubStemMix --download-models               télécharge les 4 réseaux htdemucs_ft (663 Mo) dans le dossier de l'app
-//   swift run DubStemMix --split <fichier> [--out dir] [--provider cpu|coreml-…]   sépare un morceau avec les vrais modèles et rapporte Σ stems vs mix
-//   swift run DubStemMix --snapshot out.png [--fx | --master | --inserts | --settings]   rend l'interface (données de démo) dans un PNG
+//   swift run DubStemMix --split <fichier> [--out dir] [--provider cpu|coreml-…] [--project]   sépare un morceau avec les vrais modèles et rapporte Σ stems vs mix
+//   swift run DubStemMix --check-prepare <dossier> <fichiers…>   file du mode préparation sur le vrai modèle, puis annulation
+//   swift run DubStemMix --snapshot out.png [--fx | --master | --inserts | --settings | --prepare]   rend l'interface (données de démo) dans un PNG
 
 @main
 enum Main {
@@ -36,26 +37,29 @@ enum Main {
             AppModel.runCheck(pretending: i + 1 < args.count ? args[i + 1] : "0.0.1")
         } else if args.contains("--download-models") {
             SplitCheck.downloadModels()
+        } else if let i = args.firstIndex(of: "--check-prepare"), i + 2 < args.count {
+            SplitCheck.checkPreparation(out: args[i + 1], files: Array(args[(i + 2)...]))
         } else if let i = args.firstIndex(of: "--split"), i + 1 < args.count {
             let out = args.firstIndex(of: "--out").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
             let provider = args.firstIndex(of: "--provider").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
             let threads = args.firstIndex(of: "--threads").flatMap { $0 + 1 < args.count ? Int(args[$0 + 1]) : nil }
-            SplitCheck.split(args[i + 1], out: out, provider: provider, threads: threads)
+            SplitCheck.split(args[i + 1], out: out, provider: provider, threads: threads, project: args.contains("--project"))
         } else if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
             let page: MixController.Page = args.contains("--fx") ? .fx : args.contains("--master") ? .master : args.contains("--inserts") ? .inserts : .mix
-            snapshot(to: args[i + 1], page: page, settings: args.contains("--settings"))
+            snapshot(to: args[i + 1], page: page, settings: args.contains("--settings"), prepare: args.contains("--prepare"))
         } else {
             DubStemMixApp.main()
         }
     }
 
     @MainActor
-    private static func snapshot(to path: String, page: MixController.Page, settings: Bool) {
+    private static func snapshot(to path: String, page: MixController.Page, settings: Bool, prepare: Bool) {
         guard let model = try? AppModel(preview: true) else {
             print("Échec de la création du modèle de démonstration")
             exit(1)
         }
         model.mix.setPage(page)
+        if prepare { model.loadPreviewPreparation() }
         let renderer = settings
             ? ImageRenderer(content: AnyView(SettingsView(model: model)))
             : ImageRenderer(content: AnyView(RootView(model: model).frame(width: 1440, height: 900)))
@@ -105,6 +109,7 @@ struct DubStemMixApp: App {
                 Button("New Session") { model?.newSession() }.keyboardShortcut("n")
                 Button("Open…") { model?.chooseFilesToOpen() }.keyboardShortcut("o")
                 Button("Split a Song…") { model?.chooseSongToSplit() }
+                Button("Prepare Songs…") { model?.chooseSongsToPrepare() }
             }
             CommandGroup(replacing: .saveItem) {
                 Button("Save Project") { model?.saveProject() }.keyboardShortcut("s")
@@ -158,7 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// ⌘Q while playing asks first (the window's close button does too, see `WindowCloseGuard`).
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        MainActor.assumeIsolated { model?.confirmWhilePlaying("Quit") ?? true } ? .terminateNow : .terminateCancel
+        MainActor.assumeIsolated { model?.confirmQuit() ?? true } ? .terminateNow : .terminateCancel
     }
 
     func applicationWillTerminate(_ notification: Notification) {
