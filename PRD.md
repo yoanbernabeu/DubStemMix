@@ -379,3 +379,15 @@ Cadré le 22 septembre 2026 à partir de la spec « Séparation de stems avec ht
 
 - Unitaire, sans modèle : fenêtre et poids de l'overlap-add, nombre de blocs, décodage (mono 22,05 kHz, stéréo 48 kHz), affectation des lignes du bag avec un faux séparateur, annulation.
 - Avec les vrais modèles (hors CI) : `--split <fichier>` en ligne de commande rapporte Σ stems vs mix (≥ 25 dB attendu) et l'énergie par stem ; mix synthétique voix + basse + batterie → `instruments` < −40 dB. Le POC n'étant pas disponible, pas de test de parité à −60 dB.
+
+### 12.6 Mode préparation : plusieurs morceaux en file
+
+Cadré en interview le 3 octobre 2026. Préparer un set entier d'un coup : on glisse plusieurs morceaux, ils sont séparés l'un après l'autre.
+
+- **Entrée** : une zone dédiée « PREPARE SONGS » dans la barre latérale, sous « SPLIT A SONG » (glisser des fichiers ou un dossier, ou cliquer), et le menu Fichier « Prepare Songs… ». La zone « SPLIT A SONG » ne change pas.
+- **Un mode à part** : l'écran de préparation remplace la console. Pas de lecture possible, pas de retour à la console tant que la file tourne (sortie à la fin ou par « Tout annuler »). Entrer dans le mode pendant une lecture : un dialogue demande confirmation, puis la lecture s'arrête. La session ouverte n'est pas touchée : on la retrouve en revenant à la console.
+- **La file** : liste des morceaux (en attente, en cours avec stem / pourcentage / temps restant, finis, en erreur), avec l'**estimation du temps total restant** pour toute la file (vitesse mesurée sur le morceau en cours × durée des morceaux en attente ; mémorisée pour ce Mac, donc connue dès le départ à partir du deuxième usage). Un fichier illisible ou en échec est marqué « en erreur » et la file passe au suivant. On peut ajouter des morceaux pendant que ça tourne (glisser dans l'écran), retirer un morceau en attente, réordonner les morceaux en attente, tout annuler (arrête le morceau en cours, vide la file ; les morceaux finis restent).
+- **Résultat par morceau** : un projet `.dubstem` prêt (stems batterie, basse, instruments, voix sur les tranches 1 à 4, original en réserve, tempo détecté, titre = nom du morceau), enregistré **à côté de ses stems** dans `~/Music/DubStemMix/Stems/<titre> [empreinte]/`. Rien ne s'ouvre tout seul. Un morceau déjà séparé avec le même modèle n'est pas recalculé.
+- **Fin de la file** : notification système (« 8 songs prepared · 1 failed »), et l'icône rebondit dans le Dock si l'app n'est pas au premier plan.
+- **Quitter** avec des morceaux en attente : un dialogue prévient que la file sera perdue (les morceaux finis restent sur le disque).
+- Moteur inchangé (§ 12.4) : un morceau à la fois, un réseau à la fois. Ordre de grandeur : ~6 min par morceau sur un M3 Pro.
