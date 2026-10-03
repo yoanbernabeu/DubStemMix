@@ -169,7 +169,7 @@ extension AppModel {
         engine.stop()
         clear()
         resetToLaunchState()
-        titleOverride = StemImporter.sessionTitle(for: [source])
+        titleOverride = StemImporter.songTitle(for: source)
         for (strip, stem) in Stem.allCases.enumerated() {
             guard let url = result.stems[stem] else { continue }
             stripNames[strip] = stem.label
