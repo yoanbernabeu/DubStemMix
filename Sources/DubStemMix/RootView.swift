@@ -9,7 +9,8 @@ struct RootView: View {
     @State private var dropTargeted = false
 
     var body: some View {
-        Group {
+        // A ZStack, not a Group: a Group would give each screen its own CloseGuard (see `install`).
+        ZStack {
             if model.preparing {
                 PreparationView(model: model)
             } else {
@@ -95,6 +96,12 @@ private struct CloseGuard: NSViewRepresentable {
 
     private func install(on window: NSWindow?, _ coordinator: Coordinator) {
         guard let window, coordinator.guardian == nil || window.delegate !== coordinator.guardian else { return }
+        // Already guarded (a second CloseGuard in the same window): wrapping the guard again would leave the
+        // window with a delegate that loses SwiftUI's own once the first guard goes away, and full screen breaks.
+        if let existing = window.delegate as? WindowCloseGuard {
+            coordinator.guardian = existing
+            return
+        }
         let model = model
         let guardian = WindowCloseGuard(original: window.delegate) { model.confirmQuit() }
         coordinator.guardian = guardian // the window holds its delegate weakly
@@ -107,7 +114,7 @@ private struct Shortcuts: View {
     var model: AppModel
 
     var body: some View {
-        Group {
+        ZStack {
             Button("") { model.togglePlay() }.keyboardShortcut(.space, modifiers: [])
             Button("") { model.returnToStart() }.keyboardShortcut(.return, modifiers: [])
             Button("") { model.toggleLoop() }.keyboardShortcut("l", modifiers: [])
@@ -725,7 +732,7 @@ private struct BusGlow: View {
         // PANIC: one white flash, fading out in half a second.
         let flash = model.panicFlash.map { max(0, 1 - Date.now.timeIntervalSince($0) / 0.5) } ?? 0
         let shape = RoundedRectangle(cornerRadius: 8)
-        Group {
+        ZStack {
             switch part {
             case .fill: shape.fill(color.opacity(0.1 * glow)).overlay(shape.fill(Theme.text.opacity(0.25 * flash)))
             case .border: shape.stroke(flash > 0 ? Theme.text.opacity(flash) : color.opacity(0.85 * glow), lineWidth: 1.5)
