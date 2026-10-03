@@ -95,22 +95,16 @@ public struct SplitQueue: Equatable, Sendable {
     }
 
     /// Seconds left for the whole list: what remains of the running song plus the waiting ones, at the measured
-    /// speed (seconds of work per second of audio). Nil until the speed is known or when a length is unknown.
+    /// speed (seconds of work per second of audio). Nil until the speed is known. A song whose length can't be read
+    /// counts for nothing: it won't be split (it fails at once).
     public func remainingTime(secondsPerAudioSecond speed: Double?, runningRemaining: Double?) -> Double? {
         guard let speed else { return nil }
         var total = 0.0
         if let running {
-            if let runningRemaining {
-                total += runningRemaining
-            } else if let duration = running.duration {
-                total += duration * speed
-            } else {
-                return nil
-            }
+            total += runningRemaining ?? (running.duration ?? 0) * speed
         }
         for item in items where item.isWaiting {
-            guard let duration = item.duration else { return nil }
-            total += duration * speed
+            total += (item.duration ?? 0) * speed
         }
         return total
     }

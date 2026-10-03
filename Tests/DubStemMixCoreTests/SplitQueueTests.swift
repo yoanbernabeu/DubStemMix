@@ -64,8 +64,8 @@ private func song(_ name: String, _ duration: Double? = 200) -> (source: URL, du
     #expect(queue.remainingTime(secondsPerAudioSecond: 1.2, runningRemaining: nil) == 720)
     _ = queue.startNext()
     #expect(queue.remainingTime(secondsPerAudioSecond: 1.2, runningRemaining: 50) == 410)
-    queue.add([song("d", nil)])
-    #expect(queue.remainingTime(secondsPerAudioSecond: 1.2, runningRemaining: 50) == nil)
+    queue.add([song("d", nil)]) // unreadable: fails at once, costs nothing
+    #expect(queue.remainingTime(secondsPerAudioSecond: 1.2, runningRemaining: 50) == 410)
 }
 
 @Test func separatedProjectOpensLikeAFreshSplit() throws {
