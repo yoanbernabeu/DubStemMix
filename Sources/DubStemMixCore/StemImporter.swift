@@ -49,6 +49,11 @@ public enum StemImporter {
         return urls.first.map { clean($0.deletingLastPathComponent().lastPathComponent) } ?? ""
     }
 
+    /// Title of a full song (a split): its file name, cleaned like the other names.
+    public static func songTitle(for source: URL) -> String {
+        clean(source.deletingPathExtension().lastPathComponent)
+    }
+
     private static func clean(_ text: String) -> String {
         text.trimmingCharacters(in: CharacterSet(charactersIn: " ()[]_-.")).uppercased()
     }
