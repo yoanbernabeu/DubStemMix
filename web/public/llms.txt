@@ -12,7 +12,7 @@ Made by YoanDev (https://yoandev.co). Source, releases and issues: https://githu
 - Install, one line: `curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/DubStemMix/main/install.sh | sh` (installs or updates DubStemMix.app in /Applications, clears the Gatekeeper quarantine flag, opens the app). Or download the zip from the releases page.
 - Input: any audio stems (WAV, AIFF, FLAC, MP3, M4A, CAF), any sample rate. Several stems can share a strip.
 - Stem separation built in: drop a full song, get drums, bass, instruments and vocals on strips 1 to 4 (htdemucs_ft through ONNX Runtime, on the CPU, about 1.2x the song length on an M3 Pro, up to 9 GB of memory). The 663 MB model is downloaded from Hugging Face on first use, after asking, never bundled.
-- Output: 24-bit WAV recording of the master (after the limiter). Projects (.dubstem) and setlists (.dubset).
+- Output: 24-bit WAV recording of the master (after the limiter). Projects (.dubstem) and setlists (.dubset), built in a setlist workshop (library with search, a colour and a tag per line, listening before adding).
 
 ## The board
 

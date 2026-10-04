@@ -37,7 +37,7 @@
 - [x] Pas de doublon ; morceau introuvable en rouge ⚠ avec « Locate… ».
 - [x] Barre latérale : réordonner, « + » pour ajouter un morceau après celui en cours (sans couper), couleurs et tags visibles, « déjà joué » grisé ✓ (≥ 30 s, effacé à la fermeture).
 - [ ] **[toi]** Essayer en vrai : la pré-écoute (▶, clic dans la forme d'onde), « Locate… », le « + » de la barre latérale pendant la lecture, les morceaux grisés ✓ après 30 s.
-- [ ] Doc de l'atelier : README, site (une section ou un paragraphe), capture `--snapshot … --setlists`.
+- [x] Doc de l'atelier : README (« Building a set », Playing live), site (section 07 « Build a set », lien Setlists, FAQ, llms.txt), capture `docs/screenshots/setlists.png`.
 
 ## 4. Fichiers récents (décidé le 04/10, PRD § 5.8)
 
