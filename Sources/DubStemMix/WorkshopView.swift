@@ -254,7 +254,8 @@ private struct SetlistColumn: View {
             if let setlist = model.workshopSetlist {
                 head(setlist)
                 list
-                endZone
+                if entries.isEmpty { emptyHint }
+                Spacer(minLength: 0)
             } else {
                 ColumnTitle(title: "SETLIST")
                 Text("Choose a setlist on the left, or make a new one.")
@@ -262,12 +263,13 @@ private struct SetlistColumn: View {
                     .foregroundStyle(Theme.textDim)
             }
         }
+        .frame(maxHeight: .infinity, alignment: .top)
         .padding(4)
         .background(RoundedRectangle(cornerRadius: 7).stroke(dropTargeted ? Theme.reverb : .clear, lineWidth: 1.5))
         .padding(-4)
-        .stemDrop(enabled: !model.isPreview && model.workshopSetlist != nil, isTargeted: $dropTargeted) {
-            model.addToWorkshopSetlist($0)
-        }
+        .contentShape(Rectangle())
+        // Dropped anywhere in the column (not on a line): at the end.
+        .workshopDrop(model: model, at: nil, isTargeted: $dropTargeted)
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
@@ -307,15 +309,13 @@ private struct SetlistColumn: View {
         if model.isPreview { rows } else { ScrollView { rows } }
     }
 
-    /// Drop here to add at the end.
-    private var endZone: some View {
-        Text(entries.isEmpty ? "Drag songs from the library here" : "Drop here to add at the end")
+    private var emptyHint: some View {
+        Text("Drag songs from the library here")
             .font(Fonts.mono(10))
             .foregroundStyle(Theme.textDim)
             .frame(maxWidth: .infinity, minHeight: 40)
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.textDim.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
             .padding(.top, 8)
-            .workshopDrop(model: model, at: nil)
     }
 
     private func row(_ entry: SetlistEntry, number: Int) -> some View {
@@ -471,8 +471,8 @@ extension View {
     /// Drop on a line (`at`: before it) or on the end zone (nil): reorders a line, or adds songs from the library
     /// or the Finder.
     @ViewBuilder
-    fileprivate func workshopDrop(model: AppModel, at target: SetlistEntry?) -> some View {
-        if model.isPreview {
+    fileprivate func workshopDrop(model: AppModel, at target: SetlistEntry?, isTargeted: Binding<Bool>? = nil) -> some View {
+        if model.isPreview || model.workshopSetlist == nil {
             self
         } else {
             dropDestination(for: String.self) { items, _ in
@@ -484,7 +484,7 @@ extension View {
                 guard !urls.isEmpty else { return false }
                 model.addToWorkshopSetlist(urls, at: target.flatMap { model.workshopEntries.firstIndex(of: $0) })
                 return true
-            }
+            } isTargeted: { isTargeted?.wrappedValue = $0 }
         }
     }
 }
