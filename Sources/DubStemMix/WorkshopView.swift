@@ -253,6 +253,7 @@ private struct SetlistColumn: View {
     @FocusState private var focused: Bool
 
     private var entries: [SetlistEntry] { model.workshopEntries }
+    private var onConsole: Bool { model.workshopURL != nil && model.workshopURL == model.setlistURL?.standardizedFileURL }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -288,7 +289,7 @@ private struct SetlistColumn: View {
 
     private func head(_ setlist: Setlist) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            ColumnTitle(title: "SETLIST", detail: model.workshopURL == model.setlistURL?.standardizedFileURL ? "ON THE CONSOLE" : "")
+            ColumnTitle(title: "SETLIST", detail: onConsole ? "ON THE CONSOLE" : "")
             EditableTitle(text: setlist.name, editing: $renaming, onCommit: { model.renameWorkshopSetlistTitle($0) }) {
                 Text(setlist.name.isEmpty ? "SETLIST" : setlist.name).lineLimit(1)
             }
@@ -296,10 +297,27 @@ private struct SetlistColumn: View {
             .tracking(1)
             .foregroundStyle(Theme.text)
             .help("Double-click to rename")
-            let total = entries.map(\.duration).reduce(0, +)
-            Text("\(entries.count) SONG\(entries.count == 1 ? "" : "S") · \(length(total))")
-                .font(Fonts.mono(10, weight: 700))
-                .foregroundStyle(Theme.delay)
+            HStack(alignment: .center, spacing: 10) {
+                let total = entries.map(\.duration).reduce(0, +)
+                Text("\(entries.count) SONG\(entries.count == 1 ? "" : "S") · \(length(total))")
+                    .font(Fonts.mono(10, weight: 700))
+                    .foregroundStyle(Theme.delay)
+                if let saved = model.workshopSavedAt {
+                    Text("SAVED · \(saved.formatted(date: .omitted, time: .shortened))")
+                        .font(Fonts.mono(9.5, weight: 700))
+                        .foregroundStyle(Theme.reverb)
+                        .help("Every change is saved at once")
+                }
+                Spacer()
+                SmallButton(title: "SAVE", color: Theme.text) { model.saveWorkshopSetlist() }
+                    .frame(width: 80)
+                    .help("Every change is already saved; this saves once more (⌘S)")
+                SmallButton(title: onConsole ? "BACK TO IT IN THE CONSOLE" : "LOAD IN THE CONSOLE", color: Theme.delay) {
+                    model.loadWorkshopSetlistInConsole()
+                }
+                .frame(width: 210)
+                .help("This setlist becomes the console's; no song is opened (N or a click starts it)")
+            }
         }
         .padding(.bottom, 12)
     }

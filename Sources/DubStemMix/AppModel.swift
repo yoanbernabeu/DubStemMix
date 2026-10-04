@@ -73,6 +73,8 @@ final class AppModel {
     var libraryScanning = false
     /// A song refused because it is already in the set: its line blinks.
     var workshopBlink: URL?
+    /// When the setlist being edited was last written (every change is), shown as "SAVED · 18:42".
+    var workshopSavedAt: Date?
     /// Songs played at least 30 s this session: greyed with ✓ in the setlist, forgotten when the app quits.
     var playedSongs: Set<URL> = []
     @ObservationIgnored var playedSeconds: [URL: Double] = [:]

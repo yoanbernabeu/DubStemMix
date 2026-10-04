@@ -88,6 +88,10 @@ extension AppModel {
 
     /// Enregistre dans le fichier du projet ; la première fois (ou pour « Save As »), demande où.
     func saveProject(askLocation: Bool = false) {
+        if editingSetlists, !askLocation { // ⌘S in the workshop saves the setlist being edited
+            saveWorkshopSetlist()
+            return
+        }
         var destination = askLocation ? nil : projectURL
         if destination == nil {
             guard !isPreview else { return }

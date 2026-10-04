@@ -84,6 +84,7 @@ extension AppModel {
         }
         workshopURL = url.standardizedFileURL
         workshopSetlist = setlist
+        workshopSavedAt = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
         workshopEntries = entries(of: setlist, at: url)
     }
 
@@ -263,6 +264,23 @@ extension AppModel {
         refreshWorkshopSetlists()
     }
 
+    /// SAVE (⌘S): every change is already written; this writes the setlist once more and says so.
+    func saveWorkshopSetlist() {
+        guard let workshopSetlist else { return }
+        commitWorkshop(workshopSetlist)
+    }
+
+    /// The setlist being edited becomes the console's, and the workshop closes. No song is opened: N or a click
+    /// on a line starts where you want.
+    func loadWorkshopSetlistInConsole() {
+        guard let workshopURL else { return }
+        if setlistURL?.standardizedFileURL != workshopURL {
+            openSetlist(workshopURL)
+            noteRecentDocument(workshopURL)
+        }
+        leaveWorkshop()
+    }
+
     func renameWorkshopSetlistTitle(_ typed: String) {
         guard let workshopURL else { return }
         renameWorkshopSetlist(workshopURL, to: typed)
@@ -279,6 +297,7 @@ extension AppModel {
             return
         }
         workshopSetlist = edited
+        workshopSavedAt = .now
         workshopEntries = entries(of: edited, at: workshopURL)
         if let index = workshopSetlists.firstIndex(where: { $0.url == workshopURL }) { workshopSetlists[index].songs = edited.projects.count }
         if isConsoleSetlist {
@@ -439,6 +458,7 @@ extension AppModel {
         workshopEntries[3].url = nil
         workshopSetlist = set
         workshopTags = ["Encore", "Opener", "Peak"]
+        workshopSavedAt = Calendar.current.date(bySettingHour: 18, minute: 42, second: 0, of: .now)
         let titles: [(String, Double, Double)] = [
             ("Bless Na Curse Riddim", 76, 212), ("Graceful Dub", 66, 385), ("Iyanola", 70, 311), ("King's Stone", 65.6, 213),
             ("Lion Heart", 74, 274), ("Marchin", 72, 244), ("Midnight Version", 72, 252), ("Ras To The Bone", 78, 237),

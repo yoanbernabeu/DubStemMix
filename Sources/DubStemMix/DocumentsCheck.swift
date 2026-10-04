@@ -407,6 +407,17 @@ enum DocumentsCheck {
             for _ in 0..<40 { model.countPlayedTime() }
             check(model.wasPlayed(firstEntry) && !model.wasPlayed(model.setlistEntries[1]), "« déjà joué » après 30 s de lecture")
             model.isPlaying = false
+
+            print("Atelier : SAVE et charger dans la console")
+            model.editingSetlists = true
+            model.selectWorkshopSetlist(duplicate)
+            let projectBeforeLoad = model.projectURL
+            model.saveWorkshopSetlist()
+            check(model.workshopSavedAt != nil && (try? Setlist.load(from: duplicate))?.projects.count == 2, "SAVE : la setlist est écrite")
+            model.loadWorkshopSetlistInConsole()
+            check(model.setlistURL?.standardizedFileURL == duplicate.standardizedFileURL && !model.editingSetlists
+                  && model.setlistEntries.count == 2 && model.projectURL == projectBeforeLoad,
+                  "chargée dans la console, atelier fermé, aucun morceau ouvert à sa place")
         } catch {
             print("  ❌ erreur inattendue : \(error)")
             failures += 1
