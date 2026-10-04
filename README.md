@@ -108,6 +108,10 @@ Drop a full song (WAV, MP3, AIFF, FLAC, M4A…) in **SPLIT A SONG** in the sideb
 
 The separation runs on the CPU with [htdemucs_ft](https://github.com/facebookresearch/demucs) through ONNX Runtime. Count roughly 1.2× the song's length on an M3 Pro (a 5-minute tune takes about 6 minutes) and up to 9 GB of memory. The four model files (663 MB) are **not** in this repository, the releases or the app: they are downloaded from Hugging Face on first use, after asking you, into `~/Library/Application Support/DubStemMix/Models`. Their license status is described in [NOTICE](NOTICE).
 
+**A whole set at once.** Drop several songs, or a folder, in **PREPARE SONGS** under SPLIT A SONG, or File ▸ Prepare Songs…. They are split one after the other, and each one becomes a ready `.dubstem` project saved next to its stems: drums, bass, instruments and vocals on strips 1 to 4, the original in the pool, the tempo detected, the song's name as title. Nothing opens by itself. While the queue runs, the preparation screen replaces the console and playback is off. You can drop more songs onto it, remove or reorder the ones still waiting, or **CANCEL ALL** (finished songs stay on disk). The time left for the whole queue shows at the top. A file that fails is marked and the queue moves on to the next one. At the end, a macOS notification says how many songs are ready. Your open session is untouched: you find it again when you come back to the console.
+
+<p align="center"><img src="docs/screenshots/prepare.png" width="100%" alt="DubStemMix, Prepare Songs: a queue of six songs, one ready, one failed, one splitting, three waiting"></p>
+
 ## Projects, setlists, recording
 
 - **Save** (⌘S) writes a `.dubstem` project: which stems on which strips, effect settings, plugins and their state, inserts, KEEP marks, tempo. Fader and knob positions are not restored: the console is the truth. Once saved, changes are saved automatically. Files are referenced by absolute and relative path, so a moved folder still opens.
@@ -171,7 +175,7 @@ tools/make-app.sh 0.6.0 dist  # builds dist/DubStemMix.app and the zip
 swift test                    # 95 tests, no model or audio device needed
 ```
 
-Needs Xcode 26 (Swift 6.2). Useful self-checks without the UI: `--check-documents`, `--check-audio`, `--check-plugins`, `--check-plugin-crash`, `--download-models`, `--split <file>`. The screenshots above come from `--snapshot <file.png> [--fx | --master | --inserts | --settings]`, rendered with demo data.
+Needs Xcode 26 (Swift 6.2). Useful self-checks without the UI: `--check-documents`, `--check-audio`, `--check-plugins`, `--check-plugin-crash`, `--download-models`, `--split <file>` (add `--project` to also write the song's ready project next to its stems), `--check-prepare <out dir> <files…>` (runs the preparation queue on these files, then a second queue cancelled after 5 s). The screenshots above come from `--snapshot <file.png> [--fx | --master | --inserts | --settings | --prepare]`, rendered with demo data.
 
 `PRD.md` is the product reference (in French): every decision, the console mapping, the milestones. `TODO.md` is what remains.
 

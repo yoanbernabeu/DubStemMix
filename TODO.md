@@ -10,7 +10,7 @@
 - [x] **Signal avant fader** (PRD § 5.10) : barre fine PRE à côté du vu-mètre de chaque tranche, avant fader et MUTE.
 - [x] **Limiteur master désactivable** (PRD § 5.4) : clic sur « LIMITER ON / OFF » sous le fader master, mémorisé pour ce Mac.
 - [x] **[toi]** Barre PRE, fin de morceau et même plugin d'insert : validés le 26/09.
-- [ ] **[toi]** Essayer le limiteur OFF en vrai (sur la sono, en surveillant le haut du vu-mètre master).
+- [x] **[toi]** Essayer le limiteur OFF en vrai (sur la sono, en surveillant le haut du vu-mètre master).
 - [x] **[toi]** Essayer en vrai : laisser tourner un morceau jusqu'aux 30 dernières secondes ; deux morceaux de la setlist avec le même plugin sur la même tranche, armer puis Espace (les queues doivent passer).
 
 ## 2. Mode préparation : plusieurs morceaux en file (cadré le 03/10, PRD § 12.6)
@@ -24,10 +24,10 @@
 
 ## 2 bis. Doc du mode préparation (à faire avant le § 4)
 
-- [ ] README « Splitting a tune into stems » : paragraphe « A whole set at once » (PREPARE SONGS, File ▸ Prepare Songs…, un `.dubstem` prêt par morceau à côté de ses stems, ajouter / retirer / réordonner / tout annuler, temps restant, notification).
-- [ ] README section développeurs : `--check-prepare`, `--split … --project`, `--snapshot … --prepare`.
-- [ ] Site : même paragraphe dans `Split.astro`, une phrase dans l'aide-mémoire « Play » (`Install.astro`).
-- [ ] **[toi]** Capture de l'écran de préparation (`--snapshot … --prepare`, données de démo) pour le site et le README : oui ou non ? Chiffre « ~1,2× la durée » gardé tel quel ?
+- [x] README « Splitting a tune into stems » : paragraphe « A whole set at once » (PREPARE SONGS, File ▸ Prepare Songs…, un `.dubstem` prêt par morceau à côté de ses stems, ajouter / retirer / réordonner / tout annuler, temps restant, notification).
+- [x] README section développeurs : `--check-prepare`, `--split … --project`, `--snapshot … --prepare`.
+- [x] Site : même paragraphe dans `Split.astro`, une phrase dans l'aide-mémoire « Play » (`Install.astro`).
+- [x] **[toi]** Capture de l'écran de préparation (`--snapshot … --prepare`, données de démo) pour le site et le README : oui (04/10, `docs/screenshots/prepare.png`). Chiffre « ~1,2× la durée » gardé tel quel.
 
 ## 3. Atelier de setlist (cadré le 04/10, PRD § 13)
 
@@ -41,3 +41,9 @@
 
 - [ ] Fichier › Open Recent : 10 derniers `.dubstem` et `.dubset`, fichiers disparus masqués, Clear Menu, même liste dans le Dock.
 
+
+## 5. Skill de release (demandé le 04/10)
+
+- [x] Créer une skill Claude Code de release qui pense à monter le numéro de version partout, site de doc compris. Endroits repérés : `web/src/site.ts` (`version`, encore à 0.6.0 alors que le dernier tag est v0.9.0), l'exemple `tools/make-app.sh 0.6.0 dist` du README, le tag git, la release GitHub.
+- [x] **[toi]** Cadrer la skill (04/10) : elle prépare tout, montre numéro + fichiers + notes, et publie seulement après ton OK ; numéro proposé (mineur), notes rédigées par elle. Rangée dans `.claude/skills/release/`.
+- [ ] **[toi]** Premier essai avec `/release` à la prochaine version (corrigera au passage le site resté à 0.6.0).
