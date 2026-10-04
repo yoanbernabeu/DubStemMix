@@ -233,7 +233,10 @@ extension AppModel {
         activationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshSetlistEntries() }
+            MainActor.assumeIsolated {
+                self?.refreshSetlistEntries()
+                self?.refreshRecentFiles()
+            }
         }
     }
 

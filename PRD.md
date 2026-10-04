@@ -164,7 +164,7 @@ Objectif : un son crédible pour le dub sans aucun plugin tiers.
   - **Durée totale du set** sous le nom de la setlist (« 7 SONGS · 48:12 »).
   - **Glisser des `.dubstem` depuis le Finder dans la setlist** : ils s'ajoutent à la fin, sans être ouverts (setlist créée au besoin).
   - **Nouvelle setlist** (vide) et **Save Setlist As…** (copie de la setlist ailleurs, sous un autre nom, qui devient la setlist ouverte).
-- **Ouvrir un fichier récent** (décidé le 4 octobre 2026, à coder) : menu Fichier › « Open Recent », les **10 derniers** fichiers ouverts, du plus récent au plus ancien, projets `.dubstem` **et** setlists `.dubset` mélangés (une setlist est signalée comme telle). Un fichier disparu n'apparaît plus. « Clear Menu » vide la liste. La même liste apparaît au clic droit sur l'icône de l'app dans le Dock.
+- **Ouvrir un fichier récent** (décidé le 4 octobre 2026, codé) : menu Fichier › « Open Recent », les **10 derniers** fichiers ouverts, du plus récent au plus ancien, projets `.dubstem` **et** setlists `.dubset` mélangés (une setlist est signalée comme telle). Un fichier disparu n'apparaît plus. « Clear Menu » vide la liste. La même liste apparaît au clic droit sur l'icône de l'app dans le Dock. Un fichier compte quand il devient le projet ou la setlist ouverte (ouverture, premier enregistrement, Enregistrer sous) ; un morceau ouvert depuis la setlist ouverte n'y entre pas, la setlist suffit pour y revenir et un set ne chasse pas le reste de la liste.
 - **Construire la setlist** se fait dans un écran à part, l'atelier de setlist (§ 13) ; la barre latérale sert à jouer.
 - **Même plugin d'insert, pas de coupure** (décidé le 26/09/2026) : quand le morceau suivant a le même plugin sur la même tranche, il reste branché et seuls ses réglages (état et macros) changent : plus de coupure pour ce cas. Les autres changements de plugin d'insert coupent encore les queues, et c'est toujours annoncé à l'armement. Écartés pour l'instant : garder branché, mais contourné, un plugin dont le morceau suivant n'a pas besoin ; revoir la façon dont l'app accueille les plugins (gros chantier moteur).
 - Stems introuvables (fichier déplacé) → signalés, bouton « Locate missing stems… » (recherche par nom de fichier dans un dossier choisi) ; tant qu'ils ne sont pas retrouvés, ils restent inscrits dans le projet.
@@ -394,14 +394,14 @@ Cadré en interview le 3 octobre 2026. Préparer un set entier d'un coup : on gl
 - **Quitter** avec des morceaux en attente : un dialogue prévient que la file sera perdue (les morceaux finis restent sur le disque).
 - Moteur inchangé (§ 12.4) : un morceau à la fois, un réseau à la fois. Ordre de grandeur : ~6 min par morceau sur un M3 Pro.
 
-## 13. Atelier de setlist (à valider)
+## 13. Atelier de setlist (validé le 4 octobre 2026)
 
 Cadré en interview le 4 octobre 2026. Construire un set dans un écran à part, comme le mode préparation ; la console sert à jouer.
 
 - **Entrée** : bouton « Edit setlists » en tête de la setlist dans la barre latérale, et menu Fichier « Setlists… ». L'écran remplace la console ; entrer pendant une lecture demande confirmation puis l'arrête (comme § 12.6). Bouton « Back to console » pour revenir, la session ouverte n'est pas touchée.
 - **Trois colonnes** :
   - **Mes setlists** : toutes les `.dubset` rangées dans `~/Music/DubStemMix/Setlists` (les setlists existantes ailleurs s'ouvrent et peuvent y être déplacées). Créer, renommer, dupliquer, supprimer. Un même morceau peut être dans plusieurs setlists.
-  - **Bibliothèque** : tous les `.dubstem` trouvés dans le dossier DubStemMix (`~/Music/DubStemMix`, sous-dossiers compris), avec une recherche par titre. On peut aussi glisser des `.dubstem` depuis le Finder. Par ligne : titre, BPM, durée.
+  - **Bibliothèque** : tous les `.dubstem` trouvés dans le dossier DubStemMix (`~/Music/DubStemMix`, sous-dossiers compris), avec une recherche par titre. On y trouve aussi le dossier des stems choisi dans les réglages s'il est ailleurs (les morceaux préparés y sont rangés). On peut aussi glisser des `.dubstem` depuis le Finder : la bibliothèque s'en souvient d'un lancement à l'autre. Par ligne : titre, BPM, durée.
   - **La setlist** : nom (modifiable), nombre de morceaux et durée totale en tête, puis une ligne par morceau : numéro, ▶, titre, BPM, durée, **couleur** et **tag**. Glisser depuis la bibliothèque pour ajouter (à l'endroit lâché), glisser dans la liste pour réordonner, retirer au clic droit ou avec ⌫. **Pas de doublon** : un morceau déjà présent dans la setlist ne peut pas y être ajouté une seconde fois (sa ligne clignote pour le montrer).
 - **Morceau introuvable** (`.dubstem` déplacé ou supprimé) : sa ligne s'affiche en rouge avec ⚠, dans l'atelier comme dans la barre latérale, avec « Locate… » au clic droit pour le retrouver. Il reste dans la setlist tant qu'on ne le retire pas.
 - **Couleur et tag sur la ligne de setlist**, pas sur le morceau : le même morceau peut être « Ouverture » en rouge dans un set et « Rappel » en vert dans un autre. Enregistrés dans le `.dubset`. Couleur choisie dans une palette fixe de 8 ; tag en texte libre court, avec les tags déjà utilisés proposés.

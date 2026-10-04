@@ -105,6 +105,7 @@ extension AppModel {
         let project = currentProject(for: document)
         do {
             try project.save(to: document)
+            if document != projectURL { noteRecentDocument(document) } // first save or Save As
             projectURL = document
             savedProject = project
             errorMessage = nil
@@ -176,6 +177,7 @@ extension AppModel {
         }
         projectURL = document
         savedProject = currentProject(for: document)
+        if !throughSetlist { noteRecentDocument(document) }
         var warnings = missingPlugins.map { "\($0) is not installed (built-in effect used instead)" }
         warnings += restoreInserts().map { "\($0) is not installed (insert bypassed)" }
         if !unresolvedStems.isEmpty { warnings.insert("\(unresolvedStems.count) stem(s) not found", at: 0) }
@@ -262,6 +264,7 @@ extension AppModel {
         do {
             setlist = try Setlist.load(from: document)
             setlistURL = document
+            noteRecentDocument(document)
             disarm()
             refreshSetlistEntries()
             adoptSetlistRackForOpenSong()
@@ -409,6 +412,7 @@ extension AppModel {
         setlist.name = document.deletingPathExtension().lastPathComponent.uppercased()
         setlistURL = document
         self.setlist = setlist
+        noteRecentDocument(document)
     }
 
     // MARK: Export

@@ -31,7 +31,7 @@
 
 ## 3. Atelier de setlist (cadré le 04/10, PRD § 13)
 
-- [ ] **[toi]** Relire le PRD § 13 et valider avant qu'on code.
+- [x] **[toi]** Relire le PRD § 13 et valider avant qu'on code (validé le 04/10, avec deux ajouts : la bibliothèque cherche aussi dans le dossier des stems des réglages, et se souvient des `.dubstem` glissés depuis le Finder).
 - [ ] Écran à part : mes setlists, bibliothèque auto avec recherche, setlist avec couleur / tag par ligne, glisser pour ajouter et réordonner, durée totale.
 - [ ] Pré-écoute du mix brut, forme d'onde cliquable.
 - [ ] Pas de doublon ; morceau introuvable en rouge ⚠ avec « Locate… ».
@@ -39,7 +39,8 @@
 
 ## 4. Fichiers récents (décidé le 04/10, PRD § 5.8)
 
-- [ ] Fichier › Open Recent : 10 derniers `.dubstem` et `.dubset`, fichiers disparus masqués, Clear Menu, même liste dans le Dock.
+- [x] Fichier › Open Recent : 10 derniers `.dubstem` et `.dubset`, fichiers disparus masqués, Clear Menu, même liste dans le Dock. Un morceau ouvert depuis la setlist ouverte n'y entre pas.
+- [ ] **[toi]** Essayer Open Recent en vrai (menu Fichier et clic droit sur l'icône du Dock).
 
 
 ## 5. Skill de release (demandé le 04/10)

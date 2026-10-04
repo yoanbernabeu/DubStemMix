@@ -13,6 +13,7 @@ enum Preference {
     static let automaticUpdateChecks = "updates.automatic"
     static let lastUpdateCheck = "updates.lastCheck"
     static let limiterOn = "master.limiterOn"
+    static let recentDocuments = "documents.recent"
 }
 
 extension AppModel {

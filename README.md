@@ -120,6 +120,7 @@ The separation runs on the CPU with [htdemucs_ft](https://github.com/facebookres
 - **Take the set to another Mac**: **File → Export Setlist…** creates a new folder with the setlist and, for each tune, its project and every one of its files. Copy it anywhere, double-click the setlist, play. Audio Unit plugins can't be copied: `PLUGINS.txt` lists the ones to install (without them, the built-in effects stand in).
 - **The setlist's rack.** In a setlist, what is patched on the buses (the reverb and bus 3 effects, the bus-to-bus sends, the plugins on the buses) belongs to the setlist, not to each tune: the echo and the spring stay wired all night, like on a sound system. Each tune brings its stems, its effect settings, its tempo, its KEEP marks and its inserts, never a rewiring, so the tails of one tune ring into the next. The first tune opened gives the setlist its rack; change it while playing and the setlist keeps it. A tune prepared with another rack keeps it in its own file (shown `≠ RACK` in the list) and is played through the setlist's.
 - **The limiter is yours.** The master's safety limiter can be switched off: click `LIMITER ON` under the master fader (and again to bring it back). Instant, even while playing, remembered on this Mac. Without it, nothing stops the output or the recording from clipping above 0 dB: watch the red top of the master meter.
+- **Open Recent**: File ▸ Open Recent lists the last 10 projects and setlists you opened, newest first; a file that is gone is hidden until it comes back. The same list shows on a right-click on the Dock icon. Songs opened from the open setlist are not added: the setlist brings you back to them.
 - **REC** (⌘R) records the master, after the limiter, as 24-bit WAV in `~/Music/DubStemMix` (changeable in Settings): your version, ready to cut.
 
 ## Playing live
@@ -172,7 +173,7 @@ git clone https://github.com/yoanbernabeu/DubStemMix.git
 cd DubStemMix
 swift run DubStemMix          # runs the app from the package
 tools/make-app.sh 0.6.0 dist  # builds dist/DubStemMix.app and the zip
-swift test                    # 95 tests, no model or audio device needed
+swift test                    # 98 tests, no model or audio device needed
 ```
 
 Needs Xcode 26 (Swift 6.2). Useful self-checks without the UI: `--check-documents`, `--check-audio`, `--check-plugins`, `--check-plugin-crash`, `--download-models`, `--split <file>` (add `--project` to also write the song's ready project next to its stems), `--check-prepare <out dir> <files…>` (runs the preparation queue on these files, then a second queue cancelled after 5 s). The screenshots above come from `--snapshot <file.png> [--fx | --master | --inserts | --settings | --prepare]`, rendered with demo data.

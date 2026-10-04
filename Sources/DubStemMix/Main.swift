@@ -108,6 +108,13 @@ struct DubStemMixApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("New Session") { model?.newSession() }.keyboardShortcut("n")
                 Button("Open…") { model?.chooseFilesToOpen() }.keyboardShortcut("o")
+                Menu("Open Recent") {
+                    ForEach(model?.recentFiles ?? [], id: \.self) { url in
+                        Button(AppModel.recentLabel(url)) { model?.openRecent(url) }
+                    }
+                    Divider()
+                    Button("Clear Menu") { model?.clearRecentDocuments() }.disabled(model?.recentFiles.isEmpty ?? true)
+                }
                 Button("Split a Song…") { model?.chooseSongToSplit() }
                 Button("Prepare Songs…") { model?.chooseSongsToPrepare() }
             }
@@ -157,6 +164,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Lancée via `swift run` (sans bundle), l'app doit demander elle-même à passer au premier plan.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Right-click on the Dock icon: the same recent files as File ▸ Open Recent.
+    @MainActor func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        guard let model else { return nil }
+        model.refreshRecentFiles()
+        guard !model.recentFiles.isEmpty else { return nil }
+        let menu = NSMenu()
+        for url in model.recentFiles {
+            let item = NSMenuItem(title: AppModel.recentLabel(url), action: #selector(openRecentFromDock(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = url
+            menu.addItem(item)
+        }
+        return menu
+    }
+
+    @MainActor @objc private func openRecentFromDock(_ item: NSMenuItem) {
+        guard let url = item.representedObject as? URL else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        model?.openRecent(url)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

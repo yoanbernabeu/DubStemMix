@@ -39,6 +39,9 @@ final class AppModel {
     var setlist: Setlist?
     var setlistURL: URL?
     var setlistEntries: [SetlistEntry] = []
+    /// File ▸ Open Recent and the Dock menu: the recent projects and setlists still on disk. See AppModel+Recent.swift.
+    var recentFiles: [URL] = []
+    @ObservationIgnored var recentDocuments = AppModel.storedRecentDocuments()
     @ObservationIgnored var autosaveCountdown = 0
 
     // Plugins Audio Unit. Voir AppModel+Plugins.swift.
@@ -148,6 +151,7 @@ final class AppModel {
         midi.onEvent = { [weak self] in self?.mix.handle($0) }
         mix.onPanic = { [weak self] in self?.panic() }
         watchActivation()
+        refreshRecentFiles()
         midi.onConnectionChange = { [weak self] connected in
             self?.midiConnected = connected
             self?.midiWarning = nil // a console plugged back in gets a fresh chance
