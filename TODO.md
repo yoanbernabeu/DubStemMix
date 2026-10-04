@@ -49,4 +49,4 @@
 
 - [x] Créer une skill Claude Code de release qui pense à monter le numéro de version partout, site de doc compris. Endroits repérés : `web/src/site.ts` (`version`, encore à 0.6.0 alors que le dernier tag est v0.9.0), l'exemple `tools/make-app.sh 0.6.0 dist` du README, le tag git, la release GitHub.
 - [x] **[toi]** Cadrer la skill (04/10) : elle prépare tout, montre numéro + fichiers + notes, et publie seulement après ton OK ; numéro proposé (mineur), notes rédigées par elle. Rangée dans `.claude/skills/release/`.
-- [ ] **[toi]** Premier essai avec `/release` à la prochaine version (corrigera au passage le site resté à 0.6.0).
+- [x] **[toi]** Premier essai avec `/release` : 0.10.0 publiée le 04/10 (site remis à jour).
