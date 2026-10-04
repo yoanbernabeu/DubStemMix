@@ -21,3 +21,23 @@
 - [x] Split a Song : la session prend le nom du morceau, plus celui de son dossier.
 - [ ] **[toi]** Essayer en vrai : glisser 3 ou 4 morceaux (ou un dossier), réordonner, en retirer un, laisser finir ; ouvrir un des projets créés.
 - [ ] **[toi]** Vérifier que la notification de fin s'affiche (macOS demande l'autorisation la première fois).
+
+## 2 bis. Doc du mode préparation (à faire avant le § 4)
+
+- [ ] README « Splitting a tune into stems » : paragraphe « A whole set at once » (PREPARE SONGS, File ▸ Prepare Songs…, un `.dubstem` prêt par morceau à côté de ses stems, ajouter / retirer / réordonner / tout annuler, temps restant, notification).
+- [ ] README section développeurs : `--check-prepare`, `--split … --project`, `--snapshot … --prepare`.
+- [ ] Site : même paragraphe dans `Split.astro`, une phrase dans l'aide-mémoire « Play » (`Install.astro`).
+- [ ] **[toi]** Capture de l'écran de préparation (`--snapshot … --prepare`, données de démo) pour le site et le README : oui ou non ? Chiffre « ~1,2× la durée » gardé tel quel ?
+
+## 3. Atelier de setlist (cadré le 04/10, PRD § 13)
+
+- [ ] **[toi]** Relire le PRD § 13 et valider avant qu'on code.
+- [ ] Écran à part : mes setlists, bibliothèque auto avec recherche, setlist avec couleur / tag par ligne, glisser pour ajouter et réordonner, durée totale.
+- [ ] Pré-écoute du mix brut, forme d'onde cliquable.
+- [ ] Pas de doublon ; morceau introuvable en rouge ⚠ avec « Locate… ».
+- [ ] Barre latérale : réordonner, « + » pour ajouter un morceau après celui en cours (sans couper), couleurs et tags visibles, « déjà joué » grisé ✓ (≥ 30 s, effacé à la fermeture).
+
+## 4. Fichiers récents (décidé le 04/10, PRD § 5.8)
+
+- [ ] Fichier › Open Recent : 10 derniers `.dubstem` et `.dubset`, fichiers disparus masqués, Clear Menu, même liste dans le Dock.
+
