@@ -1,6 +1,6 @@
 # DubStemMix — ce qui reste à faire
 
-> État au 26 septembre 2026. Ancien TODO soldé. La référence produit reste `PRD.md`.
+> État au 4 octobre 2026. Ancien TODO soldé. La référence produit reste `PRD.md`.
 > Légende : **[toi]** = demande un essai ou une décision de ta part.
 
 ## 1. Confort d'un set préparé (cadré le 26/09)
@@ -19,8 +19,8 @@
 - [x] File : ajouter en cours de route, retirer / réordonner les morceaux en attente, tout annuler (les finis restent), estimation du temps total.
 - [x] Un projet `.dubstem` prêt par morceau, à côté de ses stems ; notification à la fin ; avertissement en quittant.
 - [x] Split a Song : la session prend le nom du morceau, plus celui de son dossier.
-- [ ] **[toi]** Essayer en vrai : glisser 3 ou 4 morceaux (ou un dossier), réordonner, en retirer un, laisser finir ; ouvrir un des projets créés.
-- [ ] **[toi]** Vérifier que la notification de fin s'affiche (macOS demande l'autorisation la première fois).
+- [x] **[toi]** Essayer en vrai : glisser 3 ou 4 morceaux (ou un dossier), réordonner, en retirer un, laisser finir ; ouvrir un des projets créés.
+- [x] **[toi]** Vérifier que la notification de fin s'affiche (macOS demande l'autorisation la première fois).
 
 ## 2 bis. Doc du mode préparation (à faire avant le § 4)
 
@@ -36,13 +36,13 @@
 - [x] Pré-écoute du mix brut, forme d'onde cliquable.
 - [x] Pas de doublon ; morceau introuvable en rouge ⚠ avec « Locate… ».
 - [x] Barre latérale : réordonner, « + » pour ajouter un morceau après celui en cours (sans couper), couleurs et tags visibles, « déjà joué » grisé ✓ (≥ 30 s, effacé à la fermeture).
-- [ ] **[toi]** Essayer en vrai : la pré-écoute (▶, clic dans la forme d'onde), « Locate… », le « + » de la barre latérale pendant la lecture, les morceaux grisés ✓ après 30 s.
+- [x] **[toi]** Essayer en vrai : la pré-écoute (▶, clic dans la forme d'onde), « Locate… », le « + » de la barre latérale pendant la lecture, les morceaux grisés ✓ après 30 s.
 - [x] Doc de l'atelier : README (« Building a set », Playing live), site (section 07 « Build a set », lien Setlists, FAQ, llms.txt), capture `docs/screenshots/setlists.png`.
 
 ## 4. Fichiers récents (décidé le 04/10, PRD § 5.8)
 
 - [x] Fichier › Open Recent : 10 derniers `.dubstem` et `.dubset`, fichiers disparus masqués, Clear Menu, même liste dans le Dock. Un morceau ouvert depuis la setlist ouverte n'y entre pas.
-- [ ] **[toi]** Essayer Open Recent en vrai (menu Fichier et clic droit sur l'icône du Dock).
+- [x] **[toi]** Essayer Open Recent en vrai (menu Fichier et clic droit sur l'icône du Dock).
 
 
 ## 5. Skill de release (demandé le 04/10)
