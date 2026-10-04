@@ -390,6 +390,23 @@ enum DocumentsCheck {
             wait { !model.libraryScanning }
             check(model.library.contains { $0.url.lastPathComponent == "far.dubstem" }, "bibliothèque : un projet glissé d'ailleurs est gardé")
             UserDefaults.standard.set(storedExtra, forKey: Preference.libraryExtra) // leave the real library as it was
+
+            print("Barre latérale : demande en plein set, déjà joué")
+            model.editingSetlists = false
+            model.openSetlistEntry(at: 0)
+            let countBefore = model.setlistEntries.count
+            model.insertAfterCurrent(outside)
+            check(model.setlistEntries.count == countBefore + 1 && model.setlistEntries[1].url?.lastPathComponent == "far.dubstem"
+                  && (try? Setlist.load(from: movedSet))?.projects.count == countBefore + 1, "« + » : inséré juste après le morceau en cours, enregistré")
+            model.insertAfterCurrent(outside)
+            check(model.setlistEntries.count == countBefore + 1, "« + » : doublon refusé")
+            model.isPlaying = true
+            for _ in 0..<(29 * 30) { model.countPlayedTime() }
+            let firstEntry = model.setlistEntries[0]
+            check(!model.wasPlayed(firstEntry), "pas encore « déjà joué » avant 30 s")
+            for _ in 0..<40 { model.countPlayedTime() }
+            check(model.wasPlayed(firstEntry) && !model.wasPlayed(model.setlistEntries[1]), "« déjà joué » après 30 s de lecture")
+            model.isPlaying = false
         } catch {
             print("  ❌ erreur inattendue : \(error)")
             failures += 1

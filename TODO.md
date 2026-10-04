@@ -32,10 +32,12 @@
 ## 3. Atelier de setlist (cadré le 04/10, PRD § 13)
 
 - [x] **[toi]** Relire le PRD § 13 et valider avant qu'on code (validé le 04/10, avec deux ajouts : la bibliothèque cherche aussi dans le dossier des stems des réglages, et se souvient des `.dubstem` glissés depuis le Finder).
-- [ ] Écran à part : mes setlists, bibliothèque auto avec recherche, setlist avec couleur / tag par ligne, glisser pour ajouter et réordonner, durée totale.
-- [ ] Pré-écoute du mix brut, forme d'onde cliquable.
-- [ ] Pas de doublon ; morceau introuvable en rouge ⚠ avec « Locate… ».
-- [ ] Barre latérale : réordonner, « + » pour ajouter un morceau après celui en cours (sans couper), couleurs et tags visibles, « déjà joué » grisé ✓ (≥ 30 s, effacé à la fermeture).
+- [x] Écran à part : mes setlists, bibliothèque auto avec recherche, setlist avec couleur / tag par ligne, glisser pour ajouter et réordonner, durée totale.
+- [x] Pré-écoute du mix brut, forme d'onde cliquable.
+- [x] Pas de doublon ; morceau introuvable en rouge ⚠ avec « Locate… ».
+- [x] Barre latérale : réordonner, « + » pour ajouter un morceau après celui en cours (sans couper), couleurs et tags visibles, « déjà joué » grisé ✓ (≥ 30 s, effacé à la fermeture).
+- [ ] **[toi]** Essayer en vrai : la pré-écoute (▶, clic dans la forme d'onde), « Locate… », le « + » de la barre latérale pendant la lecture, les morceaux grisés ✓ après 30 s.
+- [ ] Doc de l'atelier : README, site (une section ou un paragraphe), capture `--snapshot … --setlists`.
 
 ## 4. Fichiers récents (décidé le 04/10, PRD § 5.8)
 

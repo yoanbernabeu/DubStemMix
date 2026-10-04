@@ -347,6 +347,31 @@ extension AppModel {
         saveSetlist()
     }
 
+    /// A song asked for during the set: in just after the one playing (at the end when none is), without touching
+    /// the music. A song already in the setlist is refused.
+    func insertAfterCurrent(_ document: URL) {
+        guard var setlist else { return }
+        let anchor = setlistURL ?? document
+        guard setlist.insert(document, at: (setlistIndex ?? setlist.projects.count - 1) + 1, location: anchor) else {
+            errorMessage = "\(document.deletingPathExtension().lastPathComponent) is already in the setlist"
+            return
+        }
+        self.setlist = setlist
+        refreshSetlistEntries()
+        saveSetlist()
+    }
+
+    /// Feeds "already played": 30 s of playback of the open song, over the session.
+    func countPlayedTime() {
+        guard isPlaying, let song = projectURL?.standardizedFileURL, !playedSongs.contains(song) else { return }
+        playedSeconds[song, default: 0] += 1.0 / 30
+        if playedSeconds[song, default: 0] >= 30 { playedSongs.insert(song) }
+    }
+
+    func wasPlayed(_ entry: SetlistEntry) -> Bool {
+        entry.url.map { playedSongs.contains($0.standardizedFileURL) } ?? false
+    }
+
     /// "Locate…" on a song of the console's setlist whose project can't be found.
     func locateSetlistSong(_ entry: SetlistEntry) {
         guard var setlist, let index = setlistEntries.firstIndex(of: entry), let found = Self.chooseProject(replacing: entry) else { return }

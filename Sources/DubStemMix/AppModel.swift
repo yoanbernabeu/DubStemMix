@@ -73,6 +73,9 @@ final class AppModel {
     var libraryScanning = false
     /// A song refused because it is already in the set: its line blinks.
     var workshopBlink: URL?
+    /// Songs played at least 30 s this session: greyed with ✓ in the setlist, forgotten when the app quits.
+    var playedSongs: Set<URL> = []
+    @ObservationIgnored var playedSeconds: [URL: Double] = [:]
     /// The song being listened to in the workshop (its project), its progress and its waveform.
     var previewing: URL?
     var previewPosition = 0.0
@@ -202,6 +205,7 @@ final class AppModel {
         tickNotice()
         position = engine.position
         duration = engine.duration
+        countPlayedTime()
         for index in levels.indices {
             levels[index] = max(engine.meters.take(index), levels[index] * 0.85)
         }
@@ -608,10 +612,13 @@ final class AppModel {
         setlist = Setlist(name: "SUNDAY SESSION")
         let songs: [(String, Double, Double)] = [("Roots Steppa", 68, 238), ("Midnight Version", 72, 252),
                                                  ("Zion Gate Dub", 140, 303), ("Rockers Rise", 76, 221)]
+        let marks: [String: (Int, String)] = ["Roots Steppa": (0, "Opener"), "Zion Gate Dub": (2, "Peak")]
         setlistEntries = songs.map { title, bpm, duration in
             let url = URL(fileURLWithPath: "/demo/\(title).dubstem")
-            return SetlistEntry(song: SetlistSong(FileReference(url, relativeTo: url)), url: url, title: title, bpm: bpm, duration: duration)
+            let song = SetlistSong(FileReference(url, relativeTo: url), color: marks[title]?.0, tag: marks[title]?.1)
+            return SetlistEntry(song: song, url: url, title: title, bpm: bpm, duration: duration)
         }
+        playedSongs = [URL(fileURLWithPath: "/demo/Roots Steppa.dubstem")]
         isPlaying = true
         duration = 252
         position = 85.6
