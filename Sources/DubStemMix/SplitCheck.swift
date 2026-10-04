@@ -1,10 +1,14 @@
 import Foundation
+import DubStemMixCore
 import StemSplit
 
 /// Command-line checks for the stem separation (PRD § 12.5), with the real models:
 ///   --download-models          downloads the four networks (663 MB) into the app's model folder
 ///   --split <file> [--out dir] [--provider cpu|coreml-cpu|coreml-gpu|coreml-ane|coreml-all]
 ///                              separates a song and reports per-stem energy and Σ stems vs mix
+///   --check-prepare <out dir> <files…>   runs the preparation queue of the real app model on these files (one
+///                              unreadable file expected to fail), then a second queue cancelled after 5 s
+///   --split <file> --project   also writes the song's ready project next to the stems (preparation mode, PRD § 12.6)
 @MainActor
 enum SplitCheck {
     static func downloadModels() {
@@ -29,7 +33,7 @@ enum SplitCheck {
         exit(store.isReady ? 0 : 1)
     }
 
-    static func split(_ path: String, out: String?, provider providerName: String?, threads: Int?) {
+    static func split(_ path: String, out: String?, provider providerName: String?, threads: Int?, project: Bool = false) {
         let provider: OnnxStemSeparator.ExecutionProvider = switch providerName {
         case "coreml-cpu": .coreML(computeUnits: "CPUOnly")
         case "coreml-gpu": .coreML(computeUnits: "CPUAndGPU")
@@ -67,8 +71,71 @@ enum SplitCheck {
         case let .success(result):
             let elapsed = Date().timeIntervalSince(start)
             print(result.reused ? "Reused stems in \(result.folder.path)" : "Separated in \(Int(elapsed)) s → \(result.folder.path)")
+            if project { writeProject(result, source: source) }
             report(source: source, result: result, elapsed: elapsed)
         }
+    }
+
+    static func checkPreparation(out: String, files: [String]) {
+        setvbuf(stdout, nil, _IOLBF, 0)
+        guard let model = try? AppModel() else { print("❌ no app model"); exit(1) }
+        model.stemsFolder = URL(fileURLWithPath: out)
+        let urls = files.map { URL(fileURLWithPath: $0) }
+        func wait(until done: () -> Bool, limit: TimeInterval) {
+            let start = Date()
+            var lastPrint = Date.distantPast
+            while !done(), Date().timeIntervalSince(start) < limit {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+                if Date().timeIntervalSince(lastPrint) > 5 {
+                    lastPrint = .now
+                    let left = model.prepTimeLeft.map { "\(Int($0)) s left" } ?? "estimating"
+                    print("  \(Int(Date().timeIntervalSince(start))) s · \(model.prepQueue.doneCount) done · \(model.prepQueue.waitingCount) waiting · \(left)")
+                }
+            }
+        }
+        model.prepareSongs(urls + [urls[0]]) // the duplicate is not queued twice
+        print("Queued: \(model.prepQueue.items.count) of \(urls.count + 1) · preparing: \(model.preparing)")
+        wait(until: { !model.prepBusy }, limit: 900)
+        for item in model.prepQueue.items { print("  \(item.source.lastPathComponent): \(item.status)") }
+        var ok = model.prepQueue.items.count == urls.count && !model.prepBusy && model.prepQueue.failedCount >= 1
+        print("Speed stored: \(model.splitSpeed.map { String(format: "%.2f s per audio second", $0) } ?? "none")")
+
+        model.leavePreparation()
+        model.preparing = true
+        model.prepQueue.add(urls.map { ($0, AppModel.audioDuration(of: $0)) })
+        let fresh = URL(fileURLWithPath: out).appending(path: "fresh")
+        model.stemsFolder = fresh // nothing reused: the first song really runs when cancelled
+        model.startPreparing()
+        wait(until: { false }, limit: 5)
+        model.cancelPreparation()
+        wait(until: { false }, limit: 4)
+        let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: fresh.path)) ?? []
+        print("After cancel: \(model.prepQueue.items.count) in list · busy: \(model.prepBusy) · files left: \(leftovers)")
+        ok = ok && model.prepQueue.items.isEmpty && !model.prepBusy && leftovers.isEmpty
+        model.leavePreparation()
+        print(ok ? "✅ preparation queue OK" : "❌ preparation queue")
+        exit(ok ? 0 : 1)
+    }
+
+    private static func writeProject(_ result: SeparationResult, source: URL) {
+        var finished = false
+        Task {
+            do {
+                let (document, reused) = try await AppModel.writePreparedProject(result, source: source, duration: nil)
+                let project = try Project.load(from: document)
+                print((reused ? "Project already there: " : "Project written: ") + document.path)
+                print("  \(project.title) · \(project.bpm.map { "\($0) BPM" } ?? "no tempo") · \(Int(project.duration)) s · "
+                    + project.stems.map { "\($0.strip + 1)=\($0.file.fileName)" }.joined(separator: " ")
+                    + " · pool: \(project.pool.map(\.fileName).joined(separator: ", "))")
+                let missing = (project.stems.map(\.file) + project.pool).filter { $0.resolve(relativeTo: document) == nil }
+                if !missing.isEmpty { print("❌ not found: \(missing.map(\.fileName))"); exit(1) }
+            } catch {
+                print("❌ project: \(error.localizedDescription)")
+                exit(1)
+            }
+            finished = true
+        }
+        while !finished { RunLoop.main.run(until: Date().addingTimeInterval(0.2)) }
     }
 
     private static func rms(_ samples: [Float]) -> Double {

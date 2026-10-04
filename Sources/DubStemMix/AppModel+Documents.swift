@@ -32,6 +32,7 @@ extension AppModel {
     // MARK: Ouverture (projet, setlist, stems : un seul point d'entrée pour le sélecteur et le glisser-déposer)
 
     func open(_ urls: [URL]) {
+        guard !refusedWhilePreparing() else { return }
         if let setlistFile = urls.first(where: { $0.pathExtension == Setlist.fileExtension }) {
             openSetlist(setlistFile)
         } else if let projectFile = urls.first(where: { $0.pathExtension == Project.fileExtension }) {
@@ -125,7 +126,7 @@ extension AppModel {
     /// Le morceau est chargé à l'arrêt, au début. Les queues d'écho et de reverb du précédent continuent.
     /// A song of the open setlist plays through the setlist's rack: nothing is rewired between two songs.
     func openProject(_ document: URL) {
-        guard confirmDiscardingUnsavedSession() else { return }
+        guard !refusedWhilePreparing(), confirmDiscardingUnsavedSession() else { return }
         let project: Project
         do { project = try Project.load(from: document) } catch {
             errorMessage = "Can't open \(document.lastPathComponent)"
@@ -223,7 +224,7 @@ extension AppModel {
     }
 
     func newSession() {
-        guard confirmWhilePlaying("New Session"), confirmDiscardingUnsavedSession() else { return }
+        guard !refusedWhilePreparing(), confirmWhilePlaying("New Session"), confirmDiscardingUnsavedSession() else { return }
         disarm()
         engine.stop()
         clear()

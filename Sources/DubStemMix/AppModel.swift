@@ -58,6 +58,11 @@ final class AppModel {
     var stemsFolder = AppModel.storedStemsFolder()
     @ObservationIgnored var separationTask: Task<Void, Never>?
     @ObservationIgnored var pendingSong: URL?
+    // Preparation mode (PRD § 12.6). See AppModel+Preparation.swift.
+    var preparing = false
+    var prepQueue = SplitQueue()
+    @ObservationIgnored var prepTask: Task<Void, Never>?
+    var splitSpeed = AppModel.storedSplitSpeed()
     /// Session title set by a split (the stems are named drums, bass… and would give no title).
     var titleOverride: String?
 
@@ -387,6 +392,7 @@ final class AppModel {
 
     /// - Returns: true when the key is a gesture (the event is consumed).
     private func handleGestureKey(_ key: String, down: Bool) -> Bool {
+        guard !preparing else { return false }
         switch key {
         case "d":
             mix.setDrop(down)
@@ -497,6 +503,7 @@ final class AppModel {
 
     /// With a song armed, Space launches it (the selector's drop); otherwise play / pause.
     func togglePlay() {
+        guard !preparing else { return }
         if armedIndex != nil {
             launchArmed()
             return

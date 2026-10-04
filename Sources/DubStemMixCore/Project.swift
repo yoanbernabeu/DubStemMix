@@ -193,3 +193,27 @@ public struct Setlist: Codable, Equatable, Sendable {
         try encoder.encode(self).write(to: url, options: .atomic)
     }
 }
+
+extension Project {
+    /// A song prepared from its separated stems (PRD § 12.6), as "Split a Song" would leave the session: the stems in
+    /// order on the first strips with their names, the original in the pool, effects and bus routing as at launch.
+    public static func separated(
+        title: String,
+        stems: [(url: URL, name: String)],
+        original: URL,
+        duration: Double,
+        bpm: Double?,
+        document: URL
+    ) -> Project {
+        var project = Project()
+        project.title = title
+        project.duration = duration
+        project.bpm = bpm
+        project.stems = stems.enumerated().map { .init(file: FileReference($0.element.url, relativeTo: document), strip: $0.offset) }
+        project.stripNames = Dictionary(uniqueKeysWithValues: stems.enumerated().map { ("\($0.offset)", $0.element.name) })
+        project.pool = [FileReference(original, relativeTo: document)]
+        project.fx = Dictionary(uniqueKeysWithValues: FXParameter.allCases.map { ($0.rawValue, $0.defaultValue) })
+        project.busSends = BusRouting.standard.projectValue
+        return project
+    }
+}
