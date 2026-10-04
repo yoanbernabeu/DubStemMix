@@ -1120,7 +1120,7 @@ private struct SetlistSection: View {
                     VStack(alignment: .leading, spacing: 1) {
                         EditableTitle(text: entry.title, editing: renamingBinding(entry), doubleClick: false,
                                       onCommit: { model.renameSetlistEntry(entry, to: $0) }) {
-                            Text((entry.problems.isEmpty ? "" : "⚠ ") + entry.title).lineLimit(1)
+                            Text((entry.problems.isEmpty && entry.url != nil ? "" : "⚠ ") + entry.title).lineLimit(1)
                         }
                         .font(Fonts.label(12.5, weight: current ? 800 : 600, width: 104))
                         .foregroundStyle(current ? Theme.bg : (entry.url == nil || !entry.problems.isEmpty ? Theme.rec : Theme.text))
@@ -1140,6 +1140,10 @@ private struct SetlistSection: View {
                 .onTapGesture { model.openSetlistEntry(at: index) }
                 .setlistDrag(entry, model: model)
                 .contextMenu {
+                    if entry.url == nil {
+                        Button("Locate…") { model.locateSetlistSong(entry) }
+                        Divider()
+                    }
                     Button("Rename…") { renamingEntry = entry.id }.disabled(entry.url == nil)
                     Button("Move up") { model.moveInSetlist(entry, by: -1) }
                     Button("Move down") { model.moveInSetlist(entry, by: 1) }

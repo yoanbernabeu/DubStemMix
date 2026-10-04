@@ -200,7 +200,10 @@ private struct LibraryColumn: View {
 
     private func row(_ song: LibrarySong) -> some View {
         let inSet = model.isInWorkshopSetlist(song)
-        return HStack(spacing: 8) {
+        let listening = model.previewing == song.url
+        return VStack(spacing: 6) {
+          HStack(spacing: 8) {
+            PlayButton(playing: listening) { model.togglePreview(song.url) }
             VStack(alignment: .leading, spacing: 2) {
                 Text(song.title)
                     .font(Fonts.label(12, weight: 650, width: 104))
@@ -214,6 +217,8 @@ private struct LibraryColumn: View {
             if inSet {
                 Text("IN SET").font(Fonts.mono(8.5, weight: 700)).foregroundStyle(Theme.textDim)
             }
+          }
+          if listening { PreviewWaveform(model: model) }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -323,11 +328,16 @@ private struct SetlistColumn: View {
         let isSelected = selected == entry.id
         let blinking = entry.url != nil && entry.url?.standardizedFileURL == model.workshopBlink
         let color = Theme.lineColor(entry.song.color)
-        return HStack(spacing: 10) {
+        let listening = entry.url != nil && model.previewing == entry.url?.standardizedFileURL
+        return VStack(spacing: 6) {
+          HStack(spacing: 10) {
             Text(String(format: "%02d", number))
                 .font(Fonts.mono(10.5))
                 .foregroundStyle(Theme.textDim)
                 .frame(width: 20, alignment: .leading)
+            PlayButton(playing: listening) { if let url = entry.url { model.togglePreview(url) } }
+                .disabled(missing)
+                .opacity(missing ? 0.3 : 1)
             colorMenu(entry, color: color)
             Text((missing ? "⚠ " : "") + entry.title)
                 .font(Fonts.label(13, weight: 700, width: 104))
@@ -346,6 +356,8 @@ private struct SetlistColumn: View {
             Text(missing ? "PROJECT NOT FOUND" : ([entry.bpm.map { "\(Int($0.rounded())) BPM" }, length(entry.duration)].compactMap { $0 }).joined(separator: " · "))
                 .font(Fonts.mono(9.5))
                 .foregroundStyle(missing ? Theme.rec : Theme.textDim)
+          }
+          if listening { PreviewWaveform(model: model).padding(.leading, 30) }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -366,6 +378,10 @@ private struct SetlistColumn: View {
         }
         .entryDrag(entry, model: model)
         .contextMenu {
+            if missing {
+                Button("Locate…") { model.locateWorkshopSong(entry) }
+                Divider()
+            }
             Menu("Colour") {
                 ForEach(Theme.lineColors.indices, id: \.self) { index in
                     Button(Theme.lineColors[index].name) { model.setColor(index, of: entry) }
@@ -486,5 +502,72 @@ extension View {
                 return true
             } isTargeted: { isTargeted?.wrappedValue = $0 }
         }
+    }
+}
+
+// MARK: - Listening
+
+/// ▶ / ■ at the start of a line.
+private struct PlayButton: View {
+    var playing: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: playing ? "stop.fill" : "play.fill")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(playing ? Theme.delay : Theme.text)
+                .frame(width: 22, height: 22)
+                .background(Circle().stroke(playing ? Theme.delay : Theme.textDim.opacity(0.6), lineWidth: 1))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(playing ? "Stop listening" : "Listen (raw mix, no effects, on the console's output)")
+    }
+}
+
+/// The song being listened to: click anywhere to jump there.
+private struct PreviewWaveform: View {
+    var model: AppModel
+
+    var body: some View {
+        GeometryReader { geo in
+            let peaks = model.previewPeaks
+            let fraction = model.previewDuration > 0 ? model.previewPosition / model.previewDuration : 0
+            ZStack(alignment: .leading) {
+                Canvas { context, size in
+                    guard !peaks.isEmpty else {
+                        context.fill(Path(CGRect(x: 0, y: size.height / 2 - 0.5, width: size.width, height: 1)), with: .color(Theme.border))
+                        return
+                    }
+                    let bars = max(1, Int(size.width / 2))
+                    for bar in 0..<bars {
+                        let start = bar * peaks.count / bars
+                        let end = max(start + 1, (bar + 1) * peaks.count / bars)
+                        let peak = CGFloat(peaks[start..<min(end, peaks.count)].max() ?? 0)
+                        let height = max(1, peak * size.height)
+                        let x = CGFloat(bar) * size.width / CGFloat(bars)
+                        let played = x / size.width < fraction
+                        context.fill(Path(CGRect(x: x, y: (size.height - height) / 2, width: 1.2, height: height)),
+                                     with: .color(played ? Theme.delay : Theme.textDim.opacity(0.55)))
+                    }
+                }
+                Rectangle().fill(Theme.text).frame(width: 1.5).offset(x: geo.size.width * fraction)
+            }
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onEnded { value in
+                model.seekPreview(to: min(1, max(0, value.location.x / geo.size.width)))
+            })
+        }
+        .frame(height: 28)
+        .overlay(alignment: .bottomTrailing) {
+            Text("\(length(model.previewPosition)) / \(length(model.previewDuration))")
+                .font(Fonts.mono(8.5))
+                .foregroundStyle(Theme.textDim)
+                .padding(.horizontal, 4)
+                .background(Theme.surface.opacity(0.8))
+                .allowsHitTesting(false)
+        }
+        .help("Click to jump anywhere in the song")
     }
 }

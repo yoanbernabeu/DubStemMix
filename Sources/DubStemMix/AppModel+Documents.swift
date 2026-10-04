@@ -347,6 +347,20 @@ extension AppModel {
         saveSetlist()
     }
 
+    /// "Locate…" on a song of the console's setlist whose project can't be found.
+    func locateSetlistSong(_ entry: SetlistEntry) {
+        guard var setlist, let index = setlistEntries.firstIndex(of: entry), let found = Self.chooseProject(replacing: entry) else { return }
+        let anchor = setlistURL ?? found
+        guard setlist.index(of: found, at: anchor) == nil else {
+            errorMessage = "\(found.lastPathComponent) is already in the setlist"
+            return
+        }
+        setlist.projects[index].file = FileReference(found, relativeTo: anchor)
+        self.setlist = setlist
+        refreshSetlistEntries()
+        saveSetlist()
+    }
+
     func renameSetlist(_ name: String) {
         guard setlist != nil else { return }
         setlist?.name = name.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()

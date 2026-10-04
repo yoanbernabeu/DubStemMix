@@ -43,6 +43,7 @@ extension AppModel {
     }
 
     func leaveWorkshop() {
+        stopPreview()
         editingSetlists = false
         errorMessage = nil
     }
@@ -323,6 +324,91 @@ extension AppModel {
         scanLibrary()
     }
 
+    // MARK: Listening
+
+    /// ▶ on a line: the song's stems summed, raw, from the start; again on the same line stops it. Plays on the
+    /// console's output device, so on the sound system when it is plugged in.
+    func togglePreview(_ document: URL) {
+        let document = document.standardizedFileURL
+        if previewing == document {
+            stopPreview()
+            return
+        }
+        stopPreview()
+        guard let project = try? Project.load(from: document) else {
+            errorMessage = "Can't open \(document.lastPathComponent)"
+            return
+        }
+        var files = project.stems.compactMap { $0.file.resolve(relativeTo: document) }
+        if files.isEmpty { files = project.pool.compactMap { $0.resolve(relativeTo: document) } }
+        do {
+            try previewPlayer.play(files, deviceID: engine.outputDeviceID)
+        } catch {
+            errorMessage = files.isEmpty ? "No stem of this song can be found" : "Can't play this song: \(error.localizedDescription)"
+            return
+        }
+        errorMessage = nil
+        previewing = document
+        previewDuration = previewPlayer.duration
+        previewPosition = 0
+        previewTicker = Task { @MainActor [weak self] in
+            while !Task.isCancelled, let self {
+                previewPosition = previewPlayer.position
+                if previewPosition >= previewDuration - 0.05 { stopPreview() }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+        Task { [weak self] in
+            var all: [[Float]] = []
+            for file in files { all.append(await Waveform.peaks(of: file)) }
+            guard let self, previewing == document else { return }
+            previewPeaks = Waveform.combine(all)
+        }
+    }
+
+    /// A click on the waveform: `fraction` of the song.
+    func seekPreview(to fraction: Double) {
+        guard previewing != nil else { return }
+        previewPlayer.seek(to: fraction * previewDuration)
+        previewPosition = fraction * previewDuration
+    }
+
+    func stopPreview() {
+        previewTicker?.cancel()
+        previewTicker = nil
+        previewPlayer.stop()
+        previewing = nil
+        previewPeaks = []
+        previewPosition = 0
+    }
+
+    // MARK: Missing songs
+
+    /// "Locate…" on a song whose project can't be found: the file chosen takes its place, colour and tag kept.
+    func locateWorkshopSong(_ entry: SetlistEntry) {
+        guard var setlist = workshopSetlist, let workshopURL, let index = workshopEntries.firstIndex(of: entry),
+              let found = Self.chooseProject(replacing: entry)
+        else { return }
+        guard setlist.index(of: found, at: workshopURL) == nil else {
+            errorMessage = "\(found.lastPathComponent) is already in the set"
+            return
+        }
+        setlist.projects[index].file = FileReference(found, relativeTo: workshopURL)
+        commitWorkshop(setlist)
+    }
+
+    static func chooseProject(replacing entry: SetlistEntry) -> URL? {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.init(filenameExtension: Project.fileExtension) ?? .json]
+        panel.message = "Where is “\(entry.title)” now? Choose its project (\(entry.reference.fileName))"
+        var folder = URL(fileURLWithPath: entry.reference.path).deletingLastPathComponent()
+        while !FileManager.default.fileExists(atPath: folder.path(percentEncoded: false)), folder.pathComponents.count > 1 {
+            folder.deleteLastPathComponent()
+        }
+        panel.directoryURL = folder
+        return panel.runModal() == .OK ? panel.url : nil
+    }
+
     func isInWorkshopSetlist(_ song: LibrarySong) -> Bool {
         workshopEntries.contains { $0.url?.standardizedFileURL == song.url }
     }
@@ -358,6 +444,13 @@ extension AppModel {
             ("Lion Heart", 74, 274), ("Marchin", 72, 244), ("Midnight Version", 72, 252), ("Ras To The Bone", 78, 237),
             ("Riddimwise", 69, 348), ("Roots Steppa", 68, 238), ("Zion Gate Dub", 140, 303),
         ]
+        previewing = workshopEntries[4].url
+        previewDuration = 274
+        previewPosition = 96
+        previewPeaks = (0..<1096).map { i in
+            let x = Double(i)
+            return Float(max(0.08, min(1, (0.5 + 0.35 * sin(x / 90) * sin(x / 23)) * (0.5 + 0.5 * abs(sin(x * 7.31))))))
+        }
         library = titles.map { LibrarySong(url: URL(fileURLWithPath: "/demo/\($0.0).dubstem"), title: $0.0, bpm: $0.1, duration: $0.2) }
     }
 }

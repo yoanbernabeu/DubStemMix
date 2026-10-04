@@ -73,6 +73,13 @@ final class AppModel {
     var libraryScanning = false
     /// A song refused because it is already in the set: its line blinks.
     var workshopBlink: URL?
+    /// The song being listened to in the workshop (its project), its progress and its waveform.
+    var previewing: URL?
+    var previewPosition = 0.0
+    var previewDuration = 0.0
+    var previewPeaks: [Float] = []
+    @ObservationIgnored let previewPlayer = PreviewPlayer()
+    @ObservationIgnored var previewTicker: Task<Void, Never>?
     /// Music ▸ DubStemMix ▸ Setlists and Music ▸ DubStemMix; elsewhere for the self-checks.
     @ObservationIgnored var setlistsFolder = AppModel.defaultSetlistsFolder
     @ObservationIgnored var libraryFolder = AppModel.defaultLibraryFolder
