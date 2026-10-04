@@ -14,6 +14,7 @@ enum Preference {
     static let lastUpdateCheck = "updates.lastCheck"
     static let limiterOn = "master.limiterOn"
     static let recentDocuments = "documents.recent"
+    static let libraryExtra = "library.extra"
 }
 
 extension AppModel {

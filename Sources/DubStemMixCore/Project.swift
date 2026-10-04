@@ -170,13 +170,53 @@ public struct Rack: Codable, Equatable, Sendable {
     }
 }
 
+/// One line of a setlist: the song's project, and the colour and tag it has in this set (PRD § 13). The same song
+/// can open one set in red and close another in green.
+///
+/// Stored flat, as a `FileReference` with two optional keys: setlists written before colours and tags still open,
+/// and an older version of the app still reads the songs of a newer setlist.
+public struct SetlistSong: Codable, Equatable, Sendable {
+    /// Number of colours of the fixed palette; `color` is an index in it.
+    public static let colorCount = 8
+
+    public var file: FileReference
+    public var color: Int?
+    public var tag: String?
+
+    public init(_ file: FileReference, color: Int? = nil, tag: String? = nil) {
+        self.file = file
+        self.color = color
+        self.tag = tag
+    }
+
+    private enum CodingKeys: String, CodingKey { case color, tag }
+
+    public init(from decoder: Decoder) throws {
+        file = try FileReference(from: decoder)
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        color = try container.decodeIfPresent(Int.self, forKey: .color)
+        tag = try container.decodeIfPresent(String.self, forKey: .tag)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        try file.encode(to: encoder)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(color, forKey: .color)
+        try container.encodeIfPresent(tag, forKey: .tag)
+    }
+
+    public var path: String { file.path }
+    public var relativePath: String { file.relativePath }
+    public func resolve(relativeTo document: URL) -> URL? { file.resolve(relativeTo: document) }
+}
+
 /// Une setlist (.dubset) : une liste ordonnée de projets.
 public struct Setlist: Codable, Equatable, Sendable {
     public static let fileExtension = "dubset"
 
     public var version = 1
     public var name = ""
-    public var projects: [FileReference] = []
+    public var projects: [SetlistSong] = []
     /// The rack the whole set plays through (absent until a first song of the setlist is opened, and in setlists
     /// saved before it existed).
     public var rack: Rack?
@@ -191,6 +231,32 @@ public struct Setlist: Codable, Equatable, Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(self).write(to: url, options: .atomic)
+    }
+
+    /// Where `document` is in the set (the setlist being at `location`), whatever the spelling of its path.
+    public func index(of document: URL, at location: URL) -> Int? {
+        let document = document.standardizedFileURL
+        return projects.firstIndex { $0.resolve(relativeTo: location)?.standardizedFileURL == document }
+    }
+
+    /// Adds `document` at `index` (at the end when nil). A song already in the set is never added twice.
+    /// - Returns: false when it was already there.
+    @discardableResult
+    public mutating func insert(_ document: URL, at index: Int? = nil, location: URL) -> Bool {
+        guard self.index(of: document, at: location) == nil else { return false }
+        let song = SetlistSong(FileReference(document, relativeTo: location))
+        projects.insert(song, at: min(max(0, index ?? projects.count), projects.count))
+        return true
+    }
+
+    /// The same songs, referenced from a new place (Save As, a move to the setlists folder): relative paths follow.
+    public func moved(from old: URL, to new: URL) -> Setlist {
+        var copy = self
+        copy.projects = projects.map { song in
+            guard let found = song.resolve(relativeTo: old) else { return song }
+            return SetlistSong(FileReference(found, relativeTo: new), color: song.color, tag: song.tag)
+        }
+        return copy
     }
 }
 

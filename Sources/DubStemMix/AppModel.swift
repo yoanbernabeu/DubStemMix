@@ -61,6 +61,21 @@ final class AppModel {
     var stemsFolder = AppModel.storedStemsFolder()
     @ObservationIgnored var separationTask: Task<Void, Never>?
     @ObservationIgnored var pendingSong: URL?
+    // Setlist workshop (PRD § 13). See AppModel+Workshop.swift.
+    var editingSetlists = false
+    var workshopSetlists: [WorkshopSetlist] = []
+    var workshopURL: URL?
+    var workshopSetlist: Setlist?
+    var workshopEntries: [SetlistEntry] = []
+    /// Tags already used in the setlists folder, offered when tagging a line.
+    var workshopTags: [String] = []
+    var library: [LibrarySong] = []
+    var libraryScanning = false
+    /// A song refused because it is already in the set: its line blinks.
+    var workshopBlink: URL?
+    /// Music ▸ DubStemMix ▸ Setlists and Music ▸ DubStemMix; elsewhere for the self-checks.
+    @ObservationIgnored var setlistsFolder = AppModel.defaultSetlistsFolder
+    @ObservationIgnored var libraryFolder = AppModel.defaultLibraryFolder
     // Preparation mode (PRD § 12.6). See AppModel+Preparation.swift.
     var preparing = false
     var prepQueue = SplitQueue()
@@ -396,7 +411,7 @@ final class AppModel {
 
     /// - Returns: true when the key is a gesture (the event is consumed).
     private func handleGestureKey(_ key: String, down: Bool) -> Bool {
-        guard !preparing else { return false }
+        guard !preparing, !editingSetlists else { return false }
         switch key {
         case "d":
             mix.setDrop(down)
@@ -507,7 +522,7 @@ final class AppModel {
 
     /// With a song armed, Space launches it (the selector's drop); otherwise play / pause.
     func togglePlay() {
-        guard !preparing else { return }
+        guard !preparing, !editingSetlists else { return }
         if armedIndex != nil {
             launchArmed()
             return
@@ -588,7 +603,7 @@ final class AppModel {
                                                  ("Zion Gate Dub", 140, 303), ("Rockers Rise", 76, 221)]
         setlistEntries = songs.map { title, bpm, duration in
             let url = URL(fileURLWithPath: "/demo/\(title).dubstem")
-            return SetlistEntry(reference: FileReference(url, relativeTo: url), url: url, title: title, bpm: bpm, duration: duration)
+            return SetlistEntry(song: SetlistSong(FileReference(url, relativeTo: url)), url: url, title: title, bpm: bpm, duration: duration)
         }
         isPlaying = true
         duration = 252

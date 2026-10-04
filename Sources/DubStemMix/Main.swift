@@ -12,7 +12,7 @@ import SwiftUI
 //   swift run DubStemMix --download-models               télécharge les 4 réseaux htdemucs_ft (663 Mo) dans le dossier de l'app
 //   swift run DubStemMix --split <fichier> [--out dir] [--provider cpu|coreml-…] [--project]   sépare un morceau avec les vrais modèles et rapporte Σ stems vs mix
 //   swift run DubStemMix --check-prepare <dossier> <fichiers…>   file du mode préparation sur le vrai modèle, puis annulation
-//   swift run DubStemMix --snapshot out.png [--fx | --master | --inserts | --settings | --prepare]   rend l'interface (données de démo) dans un PNG
+//   swift run DubStemMix --snapshot out.png [--fx | --master | --inserts | --settings | --prepare | --setlists]   rend l'interface (données de démo) dans un PNG
 
 @main
 enum Main {
@@ -46,20 +46,22 @@ enum Main {
             SplitCheck.split(args[i + 1], out: out, provider: provider, threads: threads, project: args.contains("--project"))
         } else if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
             let page: MixController.Page = args.contains("--fx") ? .fx : args.contains("--master") ? .master : args.contains("--inserts") ? .inserts : .mix
-            snapshot(to: args[i + 1], page: page, settings: args.contains("--settings"), prepare: args.contains("--prepare"))
+            snapshot(to: args[i + 1], page: page, settings: args.contains("--settings"), prepare: args.contains("--prepare"),
+                     setlists: args.contains("--setlists"))
         } else {
             DubStemMixApp.main()
         }
     }
 
     @MainActor
-    private static func snapshot(to path: String, page: MixController.Page, settings: Bool, prepare: Bool) {
+    private static func snapshot(to path: String, page: MixController.Page, settings: Bool, prepare: Bool, setlists: Bool) {
         guard let model = try? AppModel(preview: true) else {
             print("Échec de la création du modèle de démonstration")
             exit(1)
         }
         model.mix.setPage(page)
         if prepare { model.loadPreviewPreparation() }
+        if setlists { model.loadPreviewWorkshop() }
         let renderer = settings
             ? ImageRenderer(content: AnyView(SettingsView(model: model)))
             : ImageRenderer(content: AnyView(RootView(model: model).frame(width: 1440, height: 900)))
@@ -122,6 +124,7 @@ struct DubStemMixApp: App {
                 Button("Save Project") { model?.saveProject() }.keyboardShortcut("s")
                 Button("Save Project As…") { model?.saveProject(askLocation: true) }.keyboardShortcut("s", modifiers: [.command, .shift])
                 Divider()
+                Button("Setlists…") { model?.openWorkshop() }
                 Button("New Setlist…") { model?.newSetlist() }
                 Button("Save Setlist As…") { model?.saveSetlistAs() }.disabled(model?.setlist == nil)
                 Button("Export Setlist…") { model?.exportSetlist() }.disabled(model?.setlist == nil || model?.exportTask != nil)

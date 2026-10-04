@@ -21,6 +21,17 @@ enum Theme {
     static let reverb = Color(hex: 0x7E9B5A)
     static let bus3 = Color(hex: 0xC2553A)
     static let rec = Color(hex: 0xE5412D)
+
+    /// The fixed palette of a setlist line's colour (PRD § 13), indexed by `SetlistSong.color`.
+    static let lineColors: [(name: String, color: Color)] = [
+        ("Red", Color(hex: 0xE5412D)), ("Rust", Color(hex: 0xC2553A)), ("Amber", Color(hex: 0xD9A441)),
+        ("Green", Color(hex: 0x7E9B5A)), ("Teal", Color(hex: 0x4E9C94)), ("Blue", Color(hex: 0x5B86B5)),
+        ("Purple", Color(hex: 0x8F6FB5)), ("Cream", Color(hex: 0xEDE3CF)),
+    ]
+
+    static func lineColor(_ index: Int?) -> Color? {
+        index.flatMap { lineColors.indices.contains($0) ? lineColors[$0].color : nil }
+    }
 }
 
 enum Bus: Int, CaseIterable {

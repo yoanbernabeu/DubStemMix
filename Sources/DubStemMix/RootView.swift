@@ -13,6 +13,8 @@ struct RootView: View {
         ZStack {
             if model.preparing {
                 PreparationView(model: model)
+            } else if model.editingSetlists {
+                WorkshopView(model: model)
             } else {
                 console
             }
@@ -1067,6 +1069,11 @@ private struct SetlistSection: View {
                         .help(model.setlist == nil ? "" : "Double-click to rename the setlist")
                 }
                 Spacer()
+                Button { model.openWorkshop() } label: {
+                    Text("EDIT").font(Fonts.mono(8.5, weight: 700)).foregroundStyle(Theme.textDim)
+                }
+                .buttonStyle(.plain)
+                .help("Edit setlists: build your sets in the setlist workshop")
                 if model.setlist != nil {
                     Button { model.closeSetlist() } label: {
                         Image(systemName: "xmark").font(.system(size: 8, weight: .bold)).foregroundStyle(Theme.textDim)
@@ -1225,7 +1232,7 @@ extension View {
 
 /// A title that turns into a text field on double-click (or when `editing` is set, e.g. from a context menu).
 /// Return commits, Escape cancels.
-private struct EditableTitle<Label: View>: View {
+struct EditableTitle<Label: View>: View {
     var text: String
     @Binding var editing: Bool
     var doubleClick = true

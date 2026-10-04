@@ -67,7 +67,7 @@ private func temporaryFolder() throws -> URL {
     defer { try? FileManager.default.removeItem(at: folder) }
     let document = folder.appending(path: "sunday.dubset")
     var setlist = Setlist(name: "SUNDAY SESSION")
-    setlist.projects = ["a", "b"].map { FileReference(folder.appending(path: "\($0).dubstem"), relativeTo: document) }
+    setlist.projects = ["a", "b"].map { SetlistSong(FileReference(folder.appending(path: "\($0).dubstem"), relativeTo: document)) }
     try setlist.save(to: document)
     #expect(try Setlist.load(from: document) == setlist)
 }
@@ -154,7 +154,7 @@ private func temporaryFolder() throws -> URL {
     let setlistURL = root.appending(path: "sets/Sunday.dubset")
     try files.createDirectory(at: setlistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     var setlist = Setlist(name: "SUNDAY")
-    setlist.projects = [first, second, root.appending(path: "nowhere.dubstem")].map { FileReference($0, relativeTo: setlistURL) }
+    setlist.projects = [first, second, root.appending(path: "nowhere.dubstem")].map { SetlistSong(FileReference($0, relativeTo: setlistURL)) }
     setlist.rack = Rack(reverbModel: "spring")
     try setlist.save(to: setlistURL)
 

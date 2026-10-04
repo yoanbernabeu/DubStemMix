@@ -73,7 +73,7 @@ public struct SetlistExport: Sendable {
                 plugins[Self.label(plugin), default: []].insert("\(title) (insert, strip \((Int(strip) ?? 0) + 1))")
             }
             projects.append((newDocument, project))
-            setlist.projects.append(FileReference(newDocument, relativeTo: setlistFile))
+            setlist.projects.append(SetlistSong(FileReference(newDocument, relativeTo: setlistFile), color: reference.color, tag: reference.tag))
         }
         report.songs = projects.count
         report.files = copies.count
