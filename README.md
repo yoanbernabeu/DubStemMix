@@ -108,18 +108,39 @@ Drop a full song (WAV, MP3, AIFF, FLAC, M4A…) in **SPLIT A SONG** in the sideb
 
 The separation runs on the CPU with [htdemucs_ft](https://github.com/facebookresearch/demucs) through ONNX Runtime. Count roughly 1.2× the song's length on an M3 Pro (a 5-minute tune takes about 6 minutes) and up to 9 GB of memory. The four model files (663 MB) are **not** in this repository, the releases or the app: they are downloaded from Hugging Face on first use, after asking you, into `~/Library/Application Support/DubStemMix/Models`. Their license status is described in [NOTICE](NOTICE).
 
+**A whole set at once.** Drop several songs, or a folder, in **PREPARE SONGS** under SPLIT A SONG, or File ▸ Prepare Songs…. They are split one after the other, and each one becomes a ready `.dubstem` project saved next to its stems: drums, bass, instruments and vocals on strips 1 to 4, the original in the pool, the tempo detected, the song's name as title. Nothing opens by itself. While the queue runs, the preparation screen replaces the console and playback is off. You can drop more songs onto it, remove or reorder the ones still waiting, or **CANCEL ALL** (finished songs stay on disk). The time left for the whole queue shows at the top. A file that fails is marked and the queue moves on to the next one. At the end, a macOS notification says how many songs are ready. Your open session is untouched: you find it again when you come back to the console.
+
+<p align="center"><img src="docs/screenshots/prepare.png" width="100%" alt="DubStemMix, Prepare Songs: a queue of six songs, one ready, one failed, one splitting, three waiting"></p>
+
 ## Projects, setlists, recording
 
 - **Save** (⌘S) writes a `.dubstem` project: which stems on which strips, effect settings, plugins and their state, inserts, KEEP marks, tempo. Fader and knob positions are not restored: the console is the truth. Once saved, changes are saved automatically. Files are referenced by absolute and relative path, so a moved folder still opens.
-- **Setlist** (`.dubset`): the sidebar lists the tunes of the set. Stopped, N / P (or a click on a row) load the next or previous one, at the top. While playing they arm it instead, see [Playing live](#playing-live). Drag rows to reorder, double-click the title to rename. Drop `.dubstem` files from the Finder onto the setlist to add them at the end; the total length of the set shows under its name. **New Setlist…** and **Save Setlist As…** are in the File menu.
+- **Setlist** (`.dubset`): the sidebar lists the tunes of the set. Stopped, N / P (or a click on a row) load the next or previous one, at the top. While playing they arm it instead, see [Playing live](#playing-live). Drag rows to reorder, double-click the title to rename. Drop `.dubstem` files from the Finder onto the setlist to add them at the end; the total length of the set shows under its name. Build and change your sets in the [setlist workshop](#building-a-set). **New Setlist…** and **Save Setlist As…** are in the File menu.
 - **Rename a tune**: double-click its title in the top bar, or right-click a setlist row → Rename…. The title you type is kept in the project.
 - **Take the set to another Mac**: **File → Export Setlist…** creates a new folder with the setlist and, for each tune, its project and every one of its files. Copy it anywhere, double-click the setlist, play. Audio Unit plugins can't be copied: `PLUGINS.txt` lists the ones to install (without them, the built-in effects stand in).
 - **The setlist's rack.** In a setlist, what is patched on the buses (the reverb and bus 3 effects, the bus-to-bus sends, the plugins on the buses) belongs to the setlist, not to each tune: the echo and the spring stay wired all night, like on a sound system. Each tune brings its stems, its effect settings, its tempo, its KEEP marks and its inserts, never a rewiring, so the tails of one tune ring into the next. The first tune opened gives the setlist its rack; change it while playing and the setlist keeps it. A tune prepared with another rack keeps it in its own file (shown `≠ RACK` in the list) and is played through the setlist's.
 - **The limiter is yours.** The master's safety limiter can be switched off: click `LIMITER ON` under the master fader (and again to bring it back). Instant, even while playing, remembered on this Mac. Without it, nothing stops the output or the recording from clipping above 0 dB: watch the red top of the master meter.
+- **Open Recent**: File ▸ Open Recent lists the last 10 projects and setlists you opened, newest first; a file that is gone is hidden until it comes back. The same list shows on a right-click on the Dock icon. Songs opened from the open setlist are not added: the setlist brings you back to them.
 - **REC** (⌘R) records the master, after the limiter, as 24-bit WAV in `~/Music/DubStemMix` (changeable in Settings): your version, ready to cut.
+
+## Building a set
+
+**EDIT** at the top of the setlist in the sidebar, or File ▸ Setlists…, opens the setlist workshop in place of the console (playback stops, your session stays open). Three columns:
+
+- **My setlists**: every setlist kept in Music ▸ DubStemMix ▸ Setlists. New, rename (double-click), duplicate, delete (to the Trash: the songs are not touched). A setlist kept elsewhere shows as `ELSEWHERE` and can be moved into the folder.
+- **Library**: every project in Music ▸ DubStemMix and in your stems folder, with its tempo and length, and a search by title. Drop a `.dubstem` from the Finder onto it to add one kept elsewhere: the library remembers it.
+- **The setlist**: drag songs from the library onto a line to put them there, or anywhere else in the column to add them at the end (double-click in the library works too). Drag lines to reorder; ⌫ or a right-click removes one. A song is never twice in the same set: its line blinks instead. Each line can have a **colour** (click the dot) and a **tag** (right-click), for this set only: the same song can open one set in red and close another one in green.
+
+▶ on any line plays the song's stems summed, raw, without effects, on the console's output (so on the sound system if it is plugged in); click in its waveform to jump anywhere. A song whose project is gone shows in red with ⚠, here and in the sidebar: right-click ▸ **Locate…**.
+
+Every change is saved at once (`SAVED · 18:42`); **SAVE** (⌘S) saves once more. **LOAD IN THE CONSOLE** makes the setlist the console's and goes back to it, without opening a song: N or a click starts where you want.
+
+<p align="center"><img src="docs/screenshots/setlists.png" width="100%" alt="DubStemMix setlist workshop: my setlists, the library, a set with colours and tags, one song being listened to"></p>
 
 ## Playing live
 
+- **A request in the middle of the set.** The **+** at the top of the setlist opens the library with a search: the song you pick goes in just after the one playing, without touching the music. Lines show their colour and tag; reorder with a right-click (Move up / Move down) or by dragging.
+- **Already played.** A tune played for 30 seconds or more this session is greyed with a ✓, still clickable. Forgotten when the app quits; nothing is written in the setlist.
 - **Signal before the fader.** Next to each strip's meter, a thin grey bar shows what its stems give before the fader and the mute: fader down or muted, you see whether the vocal or the horns are playing right now, and open on time.
 - **The end of the tune, visible.** The time left shows next to the clock, and the waveform turns orange in the last 30 seconds: time to arm the next tune.
 - **The next tune, armed.** While a tune plays, N / P (or a click on a row of the setlist) arm the next one: it blinks on the waveform, nothing is cut. **Space** drops it: the current tune stops dead, the armed one starts from the top, the effect tails go on. **R** pulls up into it: tape brake, then the next tune. N / P again arm another one; a click on the current tune cancels.
@@ -168,10 +189,10 @@ git clone https://github.com/yoanbernabeu/DubStemMix.git
 cd DubStemMix
 swift run DubStemMix          # runs the app from the package
 tools/make-app.sh 0.6.0 dist  # builds dist/DubStemMix.app and the zip
-swift test                    # 95 tests, no model or audio device needed
+swift test                    # 98 tests, no model or audio device needed
 ```
 
-Needs Xcode 26 (Swift 6.2). Useful self-checks without the UI: `--check-documents`, `--check-audio`, `--check-plugins`, `--check-plugin-crash`, `--download-models`, `--split <file>`. The screenshots above come from `--snapshot <file.png> [--fx | --master | --inserts | --settings]`, rendered with demo data.
+Needs Xcode 26 (Swift 6.2). Useful self-checks without the UI: `--check-documents`, `--check-audio`, `--check-plugins`, `--check-plugin-crash`, `--download-models`, `--split <file>` (add `--project` to also write the song's ready project next to its stems), `--check-prepare <out dir> <files…>` (runs the preparation queue on these files, then a second queue cancelled after 5 s). The screenshots above come from `--snapshot <file.png> [--fx | --master | --inserts | --settings | --prepare | --setlists]`, rendered with demo data.
 
 `PRD.md` is the product reference (in French): every decision, the console mapping, the milestones. `TODO.md` is what remains.
 

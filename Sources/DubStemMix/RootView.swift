@@ -13,6 +13,8 @@ struct RootView: View {
         ZStack {
             if model.preparing {
                 PreparationView(model: model)
+            } else if model.editingSetlists {
+                WorkshopView(model: model)
             } else {
                 console
             }
@@ -1068,6 +1070,14 @@ private struct SetlistSection: View {
                 }
                 Spacer()
                 if model.setlist != nil {
+                    AddSongButton(model: model)
+                }
+                Button { model.openWorkshop() } label: {
+                    Text("EDIT").font(Fonts.mono(8.5, weight: 700)).foregroundStyle(Theme.textDim)
+                }
+                .buttonStyle(.plain)
+                .help("Edit setlists: build your sets in the setlist workshop")
+                if model.setlist != nil {
                     Button { model.closeSetlist() } label: {
                         Image(systemName: "xmark").font(.system(size: 8, weight: .bold)).foregroundStyle(Theme.textDim)
                     }
@@ -1086,9 +1096,6 @@ private struct SetlistSection: View {
                 SmallButton(title: "LOCATE MISSING STEMS…", color: Theme.rec) { model.locateMissingStemsInSetlist() }
                     .help("One folder for the whole setlist: missing stems are looked for by name in it and its subfolders")
             }
-            if !model.title.isEmpty, model.setlistIndex == nil {
-                SmallButton(title: "+ ADD THIS SONG", color: Theme.textDim) { model.addCurrentProjectToSetlist() }
-            }
         }
         .padding(4)
         .background(RoundedRectangle(cornerRadius: 7).stroke(dropTargeted ? Theme.reverb : .clear, lineWidth: 1.5))
@@ -1106,6 +1113,8 @@ private struct SetlistSection: View {
                 let current = index == model.setlistIndex
                 let armed = index == model.armedIndex
                 let next = !armed && model.armedIndex == nil && (model.setlistIndex.map { index == $0 + 1 } ?? false)
+                let played = !current && model.wasPlayed(entry)
+                let color = Theme.lineColor(entry.song.color)
                 HStack(spacing: 9) {
                     Text(String(format: "%02d", index + 1))
                         .font(Fonts.mono(10))
@@ -1113,30 +1122,47 @@ private struct SetlistSection: View {
                     VStack(alignment: .leading, spacing: 1) {
                         EditableTitle(text: entry.title, editing: renamingBinding(entry), doubleClick: false,
                                       onCommit: { model.renameSetlistEntry(entry, to: $0) }) {
-                            Text((entry.problems.isEmpty ? "" : "⚠ ") + entry.title).lineLimit(1)
+                            Text((entry.problems.isEmpty && entry.url != nil ? "" : "⚠ ") + entry.title).lineLimit(1)
                         }
                         .font(Fonts.label(12.5, weight: current ? 800 : 600, width: 104))
                         .foregroundStyle(current ? Theme.bg : (entry.url == nil || !entry.problems.isEmpty ? Theme.rec : Theme.text))
-                        Text(details(entry, next: next, armed: armed))
-                            .font(Fonts.mono(9))
-                            .foregroundStyle(current ? Theme.bg.opacity(0.6) : (armed ? Theme.delay : (next ? Theme.reverb : Theme.textDim)))
-                            .lineLimit(1)
+                        HStack(spacing: 5) {
+                            if let tag = entry.song.tag {
+                                Text(tag.uppercased())
+                                    .font(Fonts.mono(8, weight: 700))
+                                    .foregroundStyle(current ? Theme.bg.opacity(0.7) : (color ?? Theme.textDim))
+                            }
+                            Text(details(entry, next: next, armed: armed))
+                                .font(Fonts.mono(9))
+                                .foregroundStyle(current ? Theme.bg.opacity(0.6) : (armed ? Theme.delay : (next ? Theme.reverb : Theme.textDim)))
+                        }
+                        .lineLimit(1)
                     }
                     Spacer(minLength: 0)
+                    if played {
+                        Text("✓").font(Fonts.mono(10, weight: 700)).foregroundStyle(Theme.textDim)
+                    }
                 }
                 .padding(.horizontal, 9)
                 .padding(.vertical, 6)
                 .background(RoundedRectangle(cornerRadius: 6).fill(current ? Theme.text : .clear))
+                .overlay(alignment: .leading) {
+                    if let color { UnevenRoundedRectangle(topLeadingRadius: 6, bottomLeadingRadius: 6).fill(color).frame(width: 3) }
+                }
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(armed ? Theme.delay : .clear, lineWidth: 1.5))
+                .opacity(played ? 0.45 : 1)
                 .contentShape(Rectangle())
-                .help(help(entry))
+                .help(played ? (["Already played this session"] + [help(entry)]).filter { !$0.isEmpty }.joined(separator: "\n") : help(entry))
                 .onTapGesture { model.openSetlistEntry(at: index) }
                 .setlistDrag(entry, model: model)
                 .contextMenu {
+                    if entry.url == nil {
+                        Button("Locate…") { model.locateSetlistSong(entry) }
+                        Divider()
+                    }
                     Button("Rename…") { renamingEntry = entry.id }.disabled(entry.url == nil)
                     Button("Move up") { model.moveInSetlist(entry, by: -1) }
                     Button("Move down") { model.moveInSetlist(entry, by: 1) }
-                    Button("Remove from setlist", role: .destructive) { model.removeFromSetlist(entry) }
                 }
             }
         }
@@ -1223,9 +1249,70 @@ extension View {
     }
 }
 
+/// "+" in the setlist's header: the library as a list with a search; the song picked goes in just after the one
+/// playing, without cutting the music (a request in the middle of the set).
+private struct AddSongButton: View {
+    var model: AppModel
+
+    @State private var open = false
+    @State private var query = ""
+
+    var body: some View {
+        Button { open = true } label: {
+            Image(systemName: "plus").font(.system(size: 9, weight: .bold)).foregroundStyle(Theme.textDim)
+        }
+        .buttonStyle(.plain)
+        .help("Add a song just after the one playing")
+        .popover(isPresented: $open, arrowEdge: .trailing) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(model.setlistIndex == nil ? "ADD AT THE END OF THE SET" : "ADD AFTER THE SONG PLAYING")
+                    .font(Fonts.mono(9.5, weight: 700))
+                    .foregroundStyle(Theme.textDim)
+                TextField("Search by title", text: $query)
+                    .textFieldStyle(.roundedBorder)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(SongLibrary.search(model.library, query)) { song in
+                            let inSet = model.setlistEntries.contains { $0.url?.standardizedFileURL == song.url }
+                            Button {
+                                model.insertAfterCurrent(song.url)
+                                open = false
+                            } label: {
+                                HStack {
+                                    Text(song.title).lineLimit(1)
+                                    Spacer()
+                                    Text(inSet ? "IN SET" : song.bpm.map { "\(Int($0.rounded())) BPM" } ?? "")
+                                        .font(Fonts.mono(9))
+                                        .foregroundStyle(Theme.textDim)
+                                }
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 6)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(inSet)
+                            .opacity(inSet ? 0.45 : 1)
+                        }
+                    }
+                }
+                .frame(height: 260)
+                if model.libraryScanning, model.library.isEmpty {
+                    Text("Looking for songs…").font(Fonts.mono(9.5)).foregroundStyle(Theme.textDim)
+                }
+            }
+            .padding(12)
+            .frame(width: 320)
+            .onAppear {
+                query = ""
+                model.scanLibrary()
+            }
+        }
+    }
+}
+
 /// A title that turns into a text field on double-click (or when `editing` is set, e.g. from a context menu).
 /// Return commits, Escape cancels.
-private struct EditableTitle<Label: View>: View {
+struct EditableTitle<Label: View>: View {
     var text: String
     @Binding var editing: Bool
     var doubleClick = true

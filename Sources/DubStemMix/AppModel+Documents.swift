@@ -5,7 +5,8 @@ import UniformTypeIdentifiers
 /// Une ligne de la setlist, avec ce qu'il faut pour l'afficher sans charger le morceau.
 struct SetlistEntry: Identifiable, Equatable {
     let id = UUID()
-    var reference: FileReference
+    var song: SetlistSong
+    var reference: FileReference { song.file }
     var url: URL?
     var title: String
     var bpm: Double?
@@ -87,6 +88,10 @@ extension AppModel {
 
     /// Enregistre dans le fichier du projet ; la première fois (ou pour « Save As »), demande où.
     func saveProject(askLocation: Bool = false) {
+        if editingSetlists, !askLocation { // ⌘S in the workshop saves the setlist being edited
+            saveWorkshopSetlist()
+            return
+        }
         var destination = askLocation ? nil : projectURL
         if destination == nil {
             guard !isPreview else { return }
@@ -105,6 +110,7 @@ extension AppModel {
         let project = currentProject(for: document)
         do {
             try project.save(to: document)
+            if document != projectURL { noteRecentDocument(document) } // first save or Save As
             projectURL = document
             savedProject = project
             errorMessage = nil
@@ -176,6 +182,7 @@ extension AppModel {
         }
         projectURL = document
         savedProject = currentProject(for: document)
+        if !throughSetlist { noteRecentDocument(document) }
         var warnings = missingPlugins.map { "\($0) is not installed (built-in effect used instead)" }
         warnings += restoreInserts().map { "\($0) is not installed (insert bypassed)" }
         if !unresolvedStems.isEmpty { warnings.insert("\(unresolvedStems.count) stem(s) not found", at: 0) }
@@ -262,6 +269,7 @@ extension AppModel {
         do {
             setlist = try Setlist.load(from: document)
             setlistURL = document
+            noteRecentDocument(document)
             disarm()
             refreshSetlistEntries()
             adoptSetlistRackForOpenSong()
@@ -276,7 +284,7 @@ extension AppModel {
         guard let projectURL, setlistIndex == nil else { return }
         if setlist == nil { setlist = Setlist(name: "SETLIST") }
         let anchor = setlistURL ?? projectURL
-        setlist?.projects.append(FileReference(projectURL, relativeTo: anchor))
+        setlist?.projects.append(SetlistSong(FileReference(projectURL, relativeTo: anchor)))
         refreshSetlistEntries()
         adoptSetlistRackForOpenSong()
         saveSetlist()
@@ -290,7 +298,7 @@ extension AppModel {
         if setlist == nil { setlist = Setlist(name: "SETLIST") }
         let anchor = setlistURL ?? first
         for document in documents where !isInSetlist(document) && !(setlist?.projects.contains { $0.resolve(relativeTo: anchor) == document } ?? false) {
-            setlist?.projects.append(FileReference(document, relativeTo: anchor))
+            setlist?.projects.append(SetlistSong(FileReference(document, relativeTo: anchor)))
         }
         refreshSetlistEntries()
         adoptSetlistRackForOpenSong()
@@ -316,13 +324,13 @@ extension AppModel {
     func removeFromSetlist(_ entry: SetlistEntry) {
         if entry.reference == armedSong { disarm() }
         if entry.url?.standardizedFileURL == projectURL?.standardizedFileURL { songRack = nil } // back on its own
-        setlist?.projects.removeAll { $0 == entry.reference }
+        setlist?.projects.removeAll { $0.file == entry.reference }
         refreshSetlistEntries()
         saveSetlist()
     }
 
     func moveInSetlist(_ entry: SetlistEntry, by offset: Int) {
-        guard var projects = setlist?.projects, let index = projects.firstIndex(of: entry.reference) else { return }
+        guard var projects = setlist?.projects, let index = projects.firstIndex(where: { $0.file == entry.reference }) else { return }
         let target = index + offset
         guard projects.indices.contains(target) else { return }
         projects.swapAt(index, target)
@@ -334,11 +342,50 @@ extension AppModel {
     /// Drag and drop: puts `entry` where `target` is (before it when moving up, after it when moving down).
     func moveInSetlist(_ entry: SetlistEntry, onto target: SetlistEntry) {
         guard var projects = setlist?.projects, entry != target,
-              let from = projects.firstIndex(of: entry.reference), let to = projects.firstIndex(of: target.reference)
+              let from = projects.firstIndex(where: { $0.file == entry.reference }), let to = projects.firstIndex(where: { $0.file == target.reference })
         else { return }
         let moved = projects.remove(at: from)
         projects.insert(moved, at: to)
         setlist?.projects = projects
+        refreshSetlistEntries()
+        saveSetlist()
+    }
+
+    /// A song asked for during the set: in just after the one playing (at the end when none is), without touching
+    /// the music. A song already in the setlist is refused.
+    func insertAfterCurrent(_ document: URL) {
+        guard var setlist else { return }
+        let anchor = setlistURL ?? document
+        guard setlist.insert(document, at: (setlistIndex ?? setlist.projects.count - 1) + 1, location: anchor) else {
+            errorMessage = "\(document.deletingPathExtension().lastPathComponent) is already in the setlist"
+            return
+        }
+        self.setlist = setlist
+        refreshSetlistEntries()
+        saveSetlist()
+    }
+
+    /// Feeds "already played": 30 s of playback of the open song, over the session.
+    func countPlayedTime() {
+        guard isPlaying, let song = projectURL?.standardizedFileURL, !playedSongs.contains(song) else { return }
+        playedSeconds[song, default: 0] += 1.0 / 30
+        if playedSeconds[song, default: 0] >= 30 { playedSongs.insert(song) }
+    }
+
+    func wasPlayed(_ entry: SetlistEntry) -> Bool {
+        entry.url.map { playedSongs.contains($0.standardizedFileURL) } ?? false
+    }
+
+    /// "Locate…" on a song of the console's setlist whose project can't be found.
+    func locateSetlistSong(_ entry: SetlistEntry) {
+        guard var setlist, let index = setlistEntries.firstIndex(of: entry), let found = Self.chooseProject(replacing: entry) else { return }
+        let anchor = setlistURL ?? found
+        guard setlist.index(of: found, at: anchor) == nil else {
+            errorMessage = "\(found.lastPathComponent) is already in the setlist"
+            return
+        }
+        setlist.projects[index].file = FileReference(found, relativeTo: anchor)
+        self.setlist = setlist
         refreshSetlistEntries()
         saveSetlist()
     }
@@ -404,11 +451,12 @@ extension AppModel {
         guard var setlist else { return }
         // Les chemins relatifs se calculent par rapport à l'emplacement définitif de la setlist.
         setlist.projects = setlistEntries.map { entry in
-            entry.url.map { FileReference($0, relativeTo: document) } ?? entry.reference
+            entry.url.map { SetlistSong(FileReference($0, relativeTo: document), color: entry.song.color, tag: entry.song.tag) } ?? entry.song
         }
         setlist.name = document.deletingPathExtension().lastPathComponent.uppercased()
         setlistURL = document
         self.setlist = setlist
+        noteRecentDocument(document)
     }
 
     // MARK: Export
@@ -456,13 +504,18 @@ extension AppModel {
 
     func refreshSetlistEntries() {
         guard let setlist else { return }
-        let anchor = setlistURL ?? projectURL ?? URL(fileURLWithPath: "/")
-        setlistEntries = setlist.projects.map { reference in
+        setlistEntries = entries(of: setlist, at: setlistURL ?? projectURL ?? URL(fileURLWithPath: "/"))
+    }
+
+    /// The setlist's lines as shown, each song read from its project (title, tempo, length, problems).
+    func entries(of setlist: Setlist, at anchor: URL) -> [SetlistEntry] {
+        setlist.projects.map { song in
+            let reference = song.file
             let url = reference.resolve(relativeTo: anchor)
             let project = url.flatMap { try? Project.load(from: $0) }
             let fallback = URL(fileURLWithPath: reference.path).deletingPathExtension().lastPathComponent
             var entry = SetlistEntry(
-                reference: reference, url: url,
+                song: song, url: url,
                 title: project.map { $0.title.isEmpty ? fallback : $0.title } ?? fallback,
                 bpm: project?.bpm, duration: project?.duration ?? 0
             )

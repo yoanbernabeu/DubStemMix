@@ -3,6 +3,7 @@ import { Image } from "astro:assets";
 import Section from "./Section.astro";
 import Led from "./Led.astro";
 import settings from "../assets/screenshots/settings.png";
+import prepare from "../assets/screenshots/prepare.png";
 const strips = [
   ["01", "DRUMS", "delay"],
   ["02", "BASS", "reverb"],
@@ -29,6 +30,12 @@ const strips = [
           </li>
         ))}
       </ul>
+      <p class="mt-8 max-w-3xl leading-relaxed text-cream/90">
+        <strong>A whole set at once.</strong> Drop several songs, or a folder, in <strong>PREPARE SONGS</strong> (or File ▸ Prepare
+        Songs…). They are split one after the other, and each one becomes a ready <span class="mono text-[0.85em] text-cream">.dubstem</span> project next to
+        its stems. Add songs while it runs, remove or reorder the waiting ones, or cancel all: finished songs stay. The time left
+        shows at the top, and a notification tells you when the set is ready.
+      </p>
       <p class="mt-8 text-sm leading-relaxed text-dim">
         The separation runs on the CPU with <span class="text-cream">htdemucs_ft</span> through ONNX Runtime: roughly 1.2× the song's
         length on an M3 Pro, up to 9 GB of memory. The four model files (663 MB) are not in the app: they are downloaded from
@@ -40,4 +47,8 @@ const strips = [
       <figcaption class="mono mt-3 text-[11px] text-dim">Settings (⌘,): device, buffer, folders, pre/post per bus, separation engine.</figcaption>
     </figure>
   </div>
+  <figure class="mt-12">
+    <Image src={prepare} alt="DubStemMix, Prepare Songs: a queue of six songs, one ready, one failed, one splitting, three waiting" width={1440} format="webp" loading="lazy" class="w-full border border-border" />
+    <figcaption class="mono mt-3 text-[11px] text-dim">Prepare Songs: one song after the other, a ready project for each.</figcaption>
+  </figure>
 </Section>

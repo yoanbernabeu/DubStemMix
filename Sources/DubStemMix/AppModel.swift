@@ -39,6 +39,9 @@ final class AppModel {
     var setlist: Setlist?
     var setlistURL: URL?
     var setlistEntries: [SetlistEntry] = []
+    /// File ▸ Open Recent and the Dock menu: the recent projects and setlists still on disk. See AppModel+Recent.swift.
+    var recentFiles: [URL] = []
+    @ObservationIgnored var recentDocuments = AppModel.storedRecentDocuments()
     @ObservationIgnored var autosaveCountdown = 0
 
     // Plugins Audio Unit. Voir AppModel+Plugins.swift.
@@ -58,6 +61,33 @@ final class AppModel {
     var stemsFolder = AppModel.storedStemsFolder()
     @ObservationIgnored var separationTask: Task<Void, Never>?
     @ObservationIgnored var pendingSong: URL?
+    // Setlist workshop (PRD § 13). See AppModel+Workshop.swift.
+    var editingSetlists = false
+    var workshopSetlists: [WorkshopSetlist] = []
+    var workshopURL: URL?
+    var workshopSetlist: Setlist?
+    var workshopEntries: [SetlistEntry] = []
+    /// Tags already used in the setlists folder, offered when tagging a line.
+    var workshopTags: [String] = []
+    var library: [LibrarySong] = []
+    var libraryScanning = false
+    /// A song refused because it is already in the set: its line blinks.
+    var workshopBlink: URL?
+    /// When the setlist being edited was last written (every change is), shown as "SAVED · 18:42".
+    var workshopSavedAt: Date?
+    /// Songs played at least 30 s this session: greyed with ✓ in the setlist, forgotten when the app quits.
+    var playedSongs: Set<URL> = []
+    @ObservationIgnored var playedSeconds: [URL: Double] = [:]
+    /// The song being listened to in the workshop (its project), its progress and its waveform.
+    var previewing: URL?
+    var previewPosition = 0.0
+    var previewDuration = 0.0
+    var previewPeaks: [Float] = []
+    @ObservationIgnored let previewPlayer = PreviewPlayer()
+    @ObservationIgnored var previewTicker: Task<Void, Never>?
+    /// Music ▸ DubStemMix ▸ Setlists and Music ▸ DubStemMix; elsewhere for the self-checks.
+    @ObservationIgnored var setlistsFolder = AppModel.defaultSetlistsFolder
+    @ObservationIgnored var libraryFolder = AppModel.defaultLibraryFolder
     // Preparation mode (PRD § 12.6). See AppModel+Preparation.swift.
     var preparing = false
     var prepQueue = SplitQueue()
@@ -148,6 +178,7 @@ final class AppModel {
         midi.onEvent = { [weak self] in self?.mix.handle($0) }
         mix.onPanic = { [weak self] in self?.panic() }
         watchActivation()
+        refreshRecentFiles()
         midi.onConnectionChange = { [weak self] connected in
             self?.midiConnected = connected
             self?.midiWarning = nil // a console plugged back in gets a fresh chance
@@ -176,6 +207,7 @@ final class AppModel {
         tickNotice()
         position = engine.position
         duration = engine.duration
+        countPlayedTime()
         for index in levels.indices {
             levels[index] = max(engine.meters.take(index), levels[index] * 0.85)
         }
@@ -392,7 +424,7 @@ final class AppModel {
 
     /// - Returns: true when the key is a gesture (the event is consumed).
     private func handleGestureKey(_ key: String, down: Bool) -> Bool {
-        guard !preparing else { return false }
+        guard !preparing, !editingSetlists else { return false }
         switch key {
         case "d":
             mix.setDrop(down)
@@ -503,7 +535,7 @@ final class AppModel {
 
     /// With a song armed, Space launches it (the selector's drop); otherwise play / pause.
     func togglePlay() {
-        guard !preparing else { return }
+        guard !preparing, !editingSetlists else { return }
         if armedIndex != nil {
             launchArmed()
             return
@@ -582,10 +614,13 @@ final class AppModel {
         setlist = Setlist(name: "SUNDAY SESSION")
         let songs: [(String, Double, Double)] = [("Roots Steppa", 68, 238), ("Midnight Version", 72, 252),
                                                  ("Zion Gate Dub", 140, 303), ("Rockers Rise", 76, 221)]
+        let marks: [String: (Int, String)] = ["Roots Steppa": (0, "Opener"), "Zion Gate Dub": (2, "Peak")]
         setlistEntries = songs.map { title, bpm, duration in
             let url = URL(fileURLWithPath: "/demo/\(title).dubstem")
-            return SetlistEntry(reference: FileReference(url, relativeTo: url), url: url, title: title, bpm: bpm, duration: duration)
+            let song = SetlistSong(FileReference(url, relativeTo: url), color: marks[title]?.0, tag: marks[title]?.1)
+            return SetlistEntry(song: song, url: url, title: title, bpm: bpm, duration: duration)
         }
+        playedSongs = [URL(fileURLWithPath: "/demo/Roots Steppa.dubstem")]
         isPlaying = true
         duration = 252
         position = 85.6

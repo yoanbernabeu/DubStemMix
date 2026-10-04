@@ -103,7 +103,12 @@ extension AppModel {
     }
 
     /// The console's actions (open, new session, split one song) wait until the preparation screen is left.
+    /// The setlist workshop too: back to the console first.
     func refusedWhilePreparing() -> Bool {
+        if editingSetlists {
+            errorMessage = "Go back to the console first"
+            return true
+        }
         guard preparing else { return false }
         errorMessage = "Go back to the console first (when the songs are prepared)"
         return true

@@ -12,7 +12,7 @@ import SwiftUI
 //   swift run DubStemMix --download-models               télécharge les 4 réseaux htdemucs_ft (663 Mo) dans le dossier de l'app
 //   swift run DubStemMix --split <fichier> [--out dir] [--provider cpu|coreml-…] [--project]   sépare un morceau avec les vrais modèles et rapporte Σ stems vs mix
 //   swift run DubStemMix --check-prepare <dossier> <fichiers…>   file du mode préparation sur le vrai modèle, puis annulation
-//   swift run DubStemMix --snapshot out.png [--fx | --master | --inserts | --settings | --prepare]   rend l'interface (données de démo) dans un PNG
+//   swift run DubStemMix --snapshot out.png [--fx | --master | --inserts | --settings | --prepare | --setlists]   rend l'interface (données de démo) dans un PNG
 
 @main
 enum Main {
@@ -46,20 +46,22 @@ enum Main {
             SplitCheck.split(args[i + 1], out: out, provider: provider, threads: threads, project: args.contains("--project"))
         } else if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
             let page: MixController.Page = args.contains("--fx") ? .fx : args.contains("--master") ? .master : args.contains("--inserts") ? .inserts : .mix
-            snapshot(to: args[i + 1], page: page, settings: args.contains("--settings"), prepare: args.contains("--prepare"))
+            snapshot(to: args[i + 1], page: page, settings: args.contains("--settings"), prepare: args.contains("--prepare"),
+                     setlists: args.contains("--setlists"))
         } else {
             DubStemMixApp.main()
         }
     }
 
     @MainActor
-    private static func snapshot(to path: String, page: MixController.Page, settings: Bool, prepare: Bool) {
+    private static func snapshot(to path: String, page: MixController.Page, settings: Bool, prepare: Bool, setlists: Bool) {
         guard let model = try? AppModel(preview: true) else {
             print("Échec de la création du modèle de démonstration")
             exit(1)
         }
         model.mix.setPage(page)
         if prepare { model.loadPreviewPreparation() }
+        if setlists { model.loadPreviewWorkshop() }
         let renderer = settings
             ? ImageRenderer(content: AnyView(SettingsView(model: model)))
             : ImageRenderer(content: AnyView(RootView(model: model).frame(width: 1440, height: 900)))
@@ -108,6 +110,13 @@ struct DubStemMixApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("New Session") { model?.newSession() }.keyboardShortcut("n")
                 Button("Open…") { model?.chooseFilesToOpen() }.keyboardShortcut("o")
+                Menu("Open Recent") {
+                    ForEach(model?.recentFiles ?? [], id: \.self) { url in
+                        Button(AppModel.recentLabel(url)) { model?.openRecent(url) }
+                    }
+                    Divider()
+                    Button("Clear Menu") { model?.clearRecentDocuments() }.disabled(model?.recentFiles.isEmpty ?? true)
+                }
                 Button("Split a Song…") { model?.chooseSongToSplit() }
                 Button("Prepare Songs…") { model?.chooseSongsToPrepare() }
             }
@@ -115,6 +124,7 @@ struct DubStemMixApp: App {
                 Button("Save Project") { model?.saveProject() }.keyboardShortcut("s")
                 Button("Save Project As…") { model?.saveProject(askLocation: true) }.keyboardShortcut("s", modifiers: [.command, .shift])
                 Divider()
+                Button("Setlists…") { model?.openWorkshop() }
                 Button("New Setlist…") { model?.newSetlist() }
                 Button("Save Setlist As…") { model?.saveSetlistAs() }.disabled(model?.setlist == nil)
                 Button("Export Setlist…") { model?.exportSetlist() }.disabled(model?.setlist == nil || model?.exportTask != nil)
@@ -157,6 +167,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Lancée via `swift run` (sans bundle), l'app doit demander elle-même à passer au premier plan.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Right-click on the Dock icon: the same recent files as File ▸ Open Recent.
+    @MainActor func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        guard let model else { return nil }
+        model.refreshRecentFiles()
+        guard !model.recentFiles.isEmpty else { return nil }
+        let menu = NSMenu()
+        for url in model.recentFiles {
+            let item = NSMenuItem(title: AppModel.recentLabel(url), action: #selector(openRecentFromDock(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = url
+            menu.addItem(item)
+        }
+        return menu
+    }
+
+    @MainActor @objc private func openRecentFromDock(_ item: NSMenuItem) {
+        guard let url = item.representedObject as? URL else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        model?.openRecent(url)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

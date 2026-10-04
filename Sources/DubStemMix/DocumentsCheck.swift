@@ -198,7 +198,7 @@ enum DocumentsCheck {
             try FileManager.default.copyItem(at: movedDocument, to: second)
             let setlistFile = moved.appending(path: "set.dubset")
             var setlist = Setlist(name: "CHECK")
-            setlist.projects = [movedDocument, second].map { FileReference($0, relativeTo: setlistFile) }
+            setlist.projects = [movedDocument, second].map { SetlistSong(FileReference($0, relativeTo: setlistFile)) }
             try setlist.save(to: setlistFile)
             model.open([setlistFile])
             check(model.setlistEntries.count == 2 && model.setlistIndex == 0, "setlist ouverte, morceau courant repéré")
@@ -328,6 +328,96 @@ enum DocumentsCheck {
             model.export(model.setlist!, at: exportedSet, to: exportFolder)
             wait { model.exportTask == nil }
             check(model.setlistExport == .failed("\"SHORT SET\" already exists, choose another name"), "jamais d'export par-dessus un dossier existant")
+
+            print("Atelier de setlist")
+            model.setlistsFolder = work.appending(path: "Setlists")
+            model.libraryFolder = moved
+            model.stemsFolder = work.appending(path: "no stems here")
+            model.open([copyFile]) // the console's setlist, outside the setlists folder
+            model.editingSetlists = true
+            let created = model.newWorkshopSetlist() ?? work
+            check(created.lastPathComponent == "New Setlist.dubset" && model.workshopURL == created.standardizedFileURL
+                  && model.workshopSetlist?.name == "NEW SETLIST", "nouvelle setlist créée dans le dossier des setlists, sélectionnée")
+            model.addToWorkshopSetlist([third, second, third, moved.appending(path: "bass.wav")])
+            check(model.workshopEntries.map { $0.url?.lastPathComponent } == ["third.dubstem", "second.dubstem"]
+                  && model.workshopBlink == third.standardizedFileURL, "ajout : pas de doublon (sa ligne clignote), le non-projet est ignoré")
+            let first = moved.appending(path: "first.dubstem")
+            try FileManager.default.copyItem(at: second, to: first)
+            model.addToWorkshopSetlist([first], at: 1)
+            check(model.workshopEntries.map { $0.url?.lastPathComponent } == ["third.dubstem", "first.dubstem", "second.dubstem"],
+                  "ajout à l'endroit lâché")
+            model.setColor(2, of: model.workshopEntries[0])
+            model.setTag("  Opener ", of: model.workshopEntries[0])
+            let tagged = try? Setlist.load(from: created)
+            check(tagged?.projects.first?.color == 2 && tagged?.projects.first?.tag == "Opener" && model.workshopTags.contains("Opener"),
+                  "couleur et tag enregistrés sur la ligne, tag proposé ensuite")
+            model.moveInWorkshop(model.workshopEntries[2], onto: model.workshopEntries[0])
+            model.removeFromWorkshop(model.workshopEntries[1])
+            check(model.workshopEntries.map { $0.url?.lastPathComponent } == ["second.dubstem", "first.dubstem"]
+                  && (try? Setlist.load(from: created))?.projects.count == 2, "réordonner et retirer, enregistré aussitôt")
+            model.renameWorkshopSetlist(created, to: "Sunday")
+            let renamed = model.setlistsFolder.appending(path: "Sunday.dubset")
+            check(model.workshopURL == renamed.standardizedFileURL && !FileManager.default.fileExists(atPath: created.path)
+                  && (try? Setlist.load(from: renamed))?.name == "SUNDAY", "renommée : le fichier suit le nom")
+            model.duplicateWorkshopSetlist(renamed)
+            let duplicate = model.setlistsFolder.appending(path: "Sunday copy.dubset")
+            check(model.workshopURL == duplicate.standardizedFileURL && model.workshopEntries.count == 2
+                  && model.workshopEntries.allSatisfy { $0.url != nil }, "dupliquée, les morceaux retrouvés depuis la copie")
+
+            let consoleSongs = model.setlistEntries.count
+            let consoleRack = model.setlist?.rack
+            model.refreshWorkshopSetlists()
+            check(model.workshopSetlists.first { $0.url == copyFile.standardizedFileURL }?.elsewhere == true
+                  && model.workshopSetlists.filter { !$0.elsewhere }.count == 2, "la setlist de la console, rangée ailleurs, est proposée")
+            model.selectWorkshopSetlist(copyFile)
+            model.removeFromWorkshop(model.workshopEntries[0])
+            check(model.setlistEntries.count == consoleSongs - 1 && model.setlist?.rack == consoleRack,
+                  "la console suit les changements de sa setlist, rack gardé")
+            model.moveToSetlistsFolder(copyFile)
+            let movedSet = model.setlistsFolder.appending(path: "Short Set.dubset")
+            check(model.setlistURL == movedSet && !FileManager.default.fileExists(atPath: copyFile.path)
+                  && model.setlistEntries.allSatisfy { $0.url != nil }, "déplacée dans le dossier des setlists, la console suit")
+
+            model.scanLibrary()
+            wait { !model.libraryScanning }
+            let titles = Set(model.library.map { $0.url.lastPathComponent })
+            check(titles.isSuperset(of: ["first.dubstem", "second.dubstem", "third.dubstem"]), "bibliothèque : les projets du dossier")
+            let outside = work.appending(path: "outside/far.dubstem")
+            try FileManager.default.createDirectory(at: outside.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: second, to: outside)
+            let storedExtra = UserDefaults.standard.stringArray(forKey: Preference.libraryExtra)
+            model.addToLibrary([outside])
+            wait { !model.libraryScanning }
+            check(model.library.contains { $0.url.lastPathComponent == "far.dubstem" }, "bibliothèque : un projet glissé d'ailleurs est gardé")
+            UserDefaults.standard.set(storedExtra, forKey: Preference.libraryExtra) // leave the real library as it was
+
+            print("Barre latérale : demande en plein set, déjà joué")
+            model.editingSetlists = false
+            model.openSetlistEntry(at: 0)
+            let countBefore = model.setlistEntries.count
+            model.insertAfterCurrent(outside)
+            check(model.setlistEntries.count == countBefore + 1 && model.setlistEntries[1].url?.lastPathComponent == "far.dubstem"
+                  && (try? Setlist.load(from: movedSet))?.projects.count == countBefore + 1, "« + » : inséré juste après le morceau en cours, enregistré")
+            model.insertAfterCurrent(outside)
+            check(model.setlistEntries.count == countBefore + 1, "« + » : doublon refusé")
+            model.isPlaying = true
+            for _ in 0..<(29 * 30) { model.countPlayedTime() }
+            let firstEntry = model.setlistEntries[0]
+            check(!model.wasPlayed(firstEntry), "pas encore « déjà joué » avant 30 s")
+            for _ in 0..<40 { model.countPlayedTime() }
+            check(model.wasPlayed(firstEntry) && !model.wasPlayed(model.setlistEntries[1]), "« déjà joué » après 30 s de lecture")
+            model.isPlaying = false
+
+            print("Atelier : SAVE et charger dans la console")
+            model.editingSetlists = true
+            model.selectWorkshopSetlist(duplicate)
+            let projectBeforeLoad = model.projectURL
+            model.saveWorkshopSetlist()
+            check(model.workshopSavedAt != nil && (try? Setlist.load(from: duplicate))?.projects.count == 2, "SAVE : la setlist est écrite")
+            model.loadWorkshopSetlistInConsole()
+            check(model.setlistURL?.standardizedFileURL == duplicate.standardizedFileURL && !model.editingSetlists
+                  && model.setlistEntries.count == 2 && model.projectURL == projectBeforeLoad,
+                  "chargée dans la console, atelier fermé, aucun morceau ouvert à sa place")
         } catch {
             print("  ❌ erreur inattendue : \(error)")
             failures += 1
