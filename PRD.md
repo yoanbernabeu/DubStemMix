@@ -177,7 +177,7 @@ Objectif : un son crédible pour le dub sans aucun plugin tiers.
 
 ### 5.10 Interface
 
-- Fenêtre unique, thème sombre lisible sur scène, **miroir de la console** : 8 tranches (3 potards colorés par bus, fader, vu-mètre, états mute/solo/throw, noms des stems) + master.
+- Fenêtre unique, thème sombre lisible sur scène, **miroir de la console** : 6 tranches de stems (3 potards colorés par bus, fader, vu-mètre, états mute/solo/throw, noms des stems), les 2 tranches d'effets (§ 14) + master.
 - Panneau FX (disposé comme la page FX de la console), indicateur de page MIX/FX.
 - Barre latérale setlist · transport + forme d'onde · tempo · REC.
 - Indicateurs d'état : MIDImix connectée/déconnectée, carte son, charge CPU / décrochages.
@@ -413,7 +413,7 @@ Cadré en interview le 4 octobre 2026. Construire un set dans un écran à part,
 - Inchangés : N / P, export de la setlist (§ 5.8), renommer un morceau.
 
 
-## 14. Tranches d'effets 7 et 8 (à valider)
+## 14. Tranches d'effets 7 et 8 (validé le 10 octobre 2026)
 
 Cadré en interview le 10 octobre 2026. Constat : changer de page en plein set est frustrant, car sur la page FX les potards ne sont plus des envois. On ne peut donc pas envoyer la voix dans le delay et tourner la vitesse du delay en même temps. Les tranches 7 et 8 deviennent des **tranches d'effets**, jouables sans quitter la page MIX.
 
@@ -441,4 +441,5 @@ Cadré en interview le 10 octobre 2026. Constat : changer de page en plein set e
 - Écarté : throw du mix entier (pas de place).
 - **Vitesse du delay et SYNC** : le potard suit SYNC comme le potard TIME (divisions calées sur le tempo ou millisecondes). ×2 divise le temps par deux dans les deux cas.
 - **Console seulement** pour ×2, tape stop et « tout dans les effets » : pas de touche clavier ni de bouton de geste à l'écran (décidé le 10/10/2026). HOLD garde sa touche H.
+- **Comportement fin** (codé le 10/10/2026) : les potards et faders des tranches 7-8 ne sautent jamais au premier contact, ils rattrapent la valeur comme sur la page FX. ×2 et tape stop agissent sur le delay intégré (sans effet avec un plugin sur le bus delay). Tape stop : freinage en ~0,9 s, redémarrage en ~0,35 s, la réinjection s'éteint avec la vitesse (ce qui revient après, c'est la musique jouée entre-temps). PANIC relâche HOLD et tape stop. Sur la page INSERTS, les potards 7-8 sont inertes (pas d'insert sur une tranche d'effets).
 - **À l'écran** : les tranches 7-8 gardent la forme d'une tranche (miroir de la console), mais sont **écartées des stems par un vide**, sur un fond teinté de la couleur de leur effet (7 ocre delay, 8 sauge reverb). En-tête « 7 DELAY » / « 8 SPACE », chaque potard, bouton et fader porte son libellé (SPEED, FB, REV · PHS, DLY→, REV→ · HOLD, ×2, FX ONLY, TAPE STOP · DLY RTN, REV RTN). On n'y dépose pas de stem.
