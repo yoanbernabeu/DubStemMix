@@ -575,7 +575,6 @@ final class AppModel {
             ("SKANK", ["guitar.wav"], [0.62, 0.30, 0], 0.72, 0.55),
             ("KEYS", ["organ.wav", "piano.wav"], [0.25, 0.40, 0.55], 0.66, 0.48),
             ("HORNS", ["horns.wav"], [0.45, 0.52, 0], 0.70, 0),
-            ("PERC", ["percussion.wav"], [0.10, 0.35, 0.30], 0.60, 0.40),
             ("VOX", ["lead vocal.wav", "backing.wav"], [0.70, 0.45, 0], 0.76, 0),
         ]
         for (strip, (name, stems, sends, fader, level)) in demo.enumerated() {
@@ -586,7 +585,7 @@ final class AppModel {
             levels[AudioEngine.stripPreMeter(strip)] = level > 0 ? min(1, level * 1.1) : 0.6 // muted strips still play
         }
         mix.toggleMute(strip: 4)
-        mix.toggleMute(strip: 6)
+        mix.toggleMute(strip: 5)
         mix.setThrow(strip: 2, true)
         mix.setKeep(strip: 0, true)
         mix.setKeep(strip: 1, true)

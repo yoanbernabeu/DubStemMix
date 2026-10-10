@@ -1,7 +1,8 @@
 import DubStemMixCore
 import SwiftUI
 
-// Miroir de la MIDImix : 8 tranches (3 potards, MUTE, REC ARM/throw, fader) + colonne master.
+// Miroir de la MIDImix : 6 tranches de stems (3 potards, MUTE, REC ARM/throw, fader), les 2 tranches d'effets
+// (PRD § 14) + colonne master.
 
 // Chaque tranche a deux zones : en haut les potards (envois, ou réglages d'effets sur la page FX),
 // en bas ce qui appartient au stem sur les deux pages (nom, MUTE, THROW, fader).
@@ -45,6 +46,11 @@ struct ConsoleView: View {
                 .frame(width: 70)
             ForEach(0..<AudioEngine.stripCount, id: \.self) { index in
                 StripView(model: model, index: index)
+            }
+            // The effect strips stand apart from the stems: they hold none (PRD § 14).
+            ForEach(Array(MixController.effectStrips), id: \.self) { index in
+                EffectStripView(model: model, index: index)
+                    .padding(.leading, index == MixController.effectStrips.lowerBound ? 14 : 0)
             }
             MasterView(model: model)
                 .frame(width: 118)
@@ -281,41 +287,8 @@ private struct StripView: View {
         }
     }
 
-    /// Page FX : le potard pilote un paramètre d'effet, aux couleurs de son bus.
     private func fxCell(_ parameter: FXParameter) -> some View {
-        let value = model.mix.fx[parameter] ?? 0
-        let color = parameter.bus.map { Bus(rawValue: $0.rawValue)!.color } ?? Theme.text // master: cream
-        // A bus-to-bus send: arc in its source's color, pointer and arrow in its target's, dimmed when it feeds no bus.
-        let sendTarget = parameter.isBusSend ? parameter.bus.flatMap { model.busRouting.target(of: $0) } : nil
-        let targetColor = sendTarget.map { Bus(rawValue: $0.rawValue)!.color }
-        let unrouted = parameter.isBusSend && sendTarget == nil
-        return VStack(spacing: 2) {
-            Knob(
-                value: Binding(get: { value }, set: { model.mix.setFX(parameter, $0) }),
-                color: color,
-                ghost: model.mix.fxGhost(parameter),
-                size: 54,
-                pointer: targetColor
-            )
-            .opacity(unrouted ? 0.4 : 1)
-            fxLabel(parameter, color: color, targetColor: targetColor)
-                .font(Fonts.label(9.5, weight: 800))
-                .tracking(0.6)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Text(model.mix.fxDisplay(parameter))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .font(Fonts.mono(10))
-                .foregroundStyle(Theme.text)
-        }
-    }
-
-    private func fxLabel(_ parameter: FXParameter, color: Color, targetColor: Color?) -> Text {
-        guard parameter.isBusSend, let source = parameter.bus else { return Text(model.fxLabel(parameter)).foregroundStyle(color) }
-        let target = model.busRouting.target(of: source).map(model.busShortName) ?? "—"
-        return Text(model.busShortName(source)).foregroundStyle(color)
-            + Text("→" + target).foregroundStyle(targetColor ?? Theme.textDim)
+        FXKnobCell(model: model, parameter: parameter)
     }
 
     /// Bus hébergeant un plugin : le potard est une macro, affectée par l'utilisateur à un paramètre du plugin.
@@ -493,6 +466,190 @@ private struct StripView: View {
                     .font(Fonts.mono(9.5))
                     .foregroundStyle(Theme.textDim)
             }
+        }
+    }
+}
+
+/// Le potard pilote un paramètre d'effet, aux couleurs de son bus (page FX, MASTER, et tranches d'effets).
+private struct FXKnobCell: View {
+    var model: AppModel
+    var parameter: FXParameter
+    /// Label in place of the parameter's own (the effect strips name what they play: "DLY SPEED").
+    var label: String?
+
+    var body: some View {
+        let value = model.mix.fx[parameter] ?? 0
+        let color = parameter.bus.map { Bus(rawValue: $0.rawValue)!.color } ?? Theme.text // master: cream
+        // A bus-to-bus send: arc in its source's color, pointer and arrow in its target's, dimmed when it feeds no bus.
+        let sendTarget = parameter.isBusSend ? parameter.bus.flatMap { model.busRouting.target(of: $0) } : nil
+        let targetColor = sendTarget.map { Bus(rawValue: $0.rawValue)!.color }
+        let unrouted = parameter.isBusSend && sendTarget == nil
+        return VStack(spacing: 2) {
+            Knob(
+                value: Binding(get: { value }, set: { model.mix.setFX(parameter, $0) }),
+                color: color,
+                ghost: model.mix.fxGhost(parameter),
+                size: 54,
+                pointer: targetColor
+            )
+            .opacity(unrouted ? 0.4 : 1)
+            fxLabel(color: color, targetColor: targetColor)
+                .font(Fonts.label(9.5, weight: 800))
+                .tracking(0.6)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(model.mix.fxDisplay(parameter))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .font(Fonts.mono(10))
+                .foregroundStyle(Theme.text)
+        }
+    }
+
+    private func fxLabel(color: Color, targetColor: Color?) -> Text {
+        guard parameter.isBusSend, let source = parameter.bus else { return Text(label ?? model.fxLabel(parameter)).foregroundStyle(color) }
+        let target = model.busRouting.target(of: source).map(model.busShortName) ?? "—"
+        return Text(model.busShortName(source)).foregroundStyle(color)
+            + Text("→" + target).foregroundStyle(targetColor ?? Theme.textDim)
+    }
+}
+
+/// Strips 7 and 8 (PRD § 14): no stem, they play the effects. On the MIX page their knobs reach the delay, reverb
+/// and bus 3 without leaving the sends; on the other pages they keep that page's role. Their buttons are held
+/// gestures and their faders the delay and reverb returns, the same on every page.
+private struct EffectStripView: View {
+    var model: AppModel
+    var index: Int
+
+    private var offset: Int { index - MixController.effectStrips.lowerBound }
+    private var title: String { offset == 0 ? "DELAY" : "SPACE" }
+    private var color: Color { offset == 0 ? Theme.delay : Theme.reverb }
+    private var returnParameter: FXParameter { MixController.effectFader(strip: index)! }
+    private var returnBus: SendBus { returnParameter.bus! }
+    private var gestures: [MixController.EffectGesture] {
+        MixController.EffectGesture.allCases.filter { $0.button.strip == index }.sorted { $0.button.mute && !$1.button.mute }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header.frame(height: headerHeight)
+
+            VStack(spacing: 0) {
+                ForEach(0..<3, id: \.self) { row in
+                    knobCell(row).frame(height: knobCellHeight)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .background(knobZoneBackground)
+
+            Text(title)
+                .font(Fonts.label(14, weight: 850, width: 118))
+                .tracking(0.8)
+                .foregroundStyle(color)
+                .frame(height: namePlateHeight)
+
+            VStack(spacing: 6) {
+                ForEach(gestures, id: \.self) { gesture in
+                    MomentaryButton(title: gesture.label, active: model.mix.gestures.contains(gesture), activeColor: color) {
+                        model.mix.setGesture(gesture, $0)
+                    }
+                    .help(help(gesture))
+                }
+                Color.clear.frame(height: 18) // where the stem strips have KEEP
+            }
+
+            HStack(alignment: .center, spacing: 8) {
+                Fader(
+                    value: Binding(get: { model.mix.fx[returnParameter] ?? 0 }, set: { model.mix.setFX(returnParameter, $0) }),
+                    ghost: model.mix.fxGhost(returnParameter)
+                )
+                LiveMeter(model: model, index: AudioEngine.busReturnMeter(returnBus))
+                    .help("What the \(model.busLabel(returnBus).lowercased()) gives back")
+            }
+            .padding(.vertical, 14)
+            .frame(maxHeight: .infinity)
+
+            VStack(spacing: 1) {
+                Text(model.fxLabel(returnParameter))
+                    .font(Fonts.mono(9.5))
+                    .foregroundStyle(Theme.textDim)
+                Text(model.mix.fxDisplay(returnParameter))
+                    .font(Fonts.mono(9.5))
+                    .foregroundStyle(Theme.text)
+            }
+            .frame(height: 42, alignment: .top)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 8).fill(color.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(color.opacity(0.45), lineWidth: 1))
+    }
+
+    private var header: some View {
+        HStack(spacing: 5) {
+            Text("\(index + 1)")
+                .font(Fonts.mono(10))
+                .foregroundStyle(Theme.textDim)
+            if let group = pageGroup {
+                Text(group.title)
+                    .font(Fonts.label(11, weight: 850))
+                    .tracking(1.2)
+                    .foregroundStyle(group.color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+    }
+
+    /// On MIX, the effect strip's own name; elsewhere, what the page gives these knobs (none on INSERTS).
+    private var pageGroup: (title: String, color: Color)? {
+        switch model.mix.page {
+        case .mix: (title, color)
+        case .inserts: nil
+        case .fx, .master: fxGroup(strip: index, model: model)
+        }
+    }
+
+    @ViewBuilder
+    private var knobZoneBackground: some View {
+        if model.mix.page != .mix, let group = pageGroup {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(group.color.opacity(0.07))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(group.color.opacity(0.35), lineWidth: 1))
+        }
+    }
+
+    @ViewBuilder
+    private func knobCell(_ row: Int) -> some View {
+        if model.mix.page == .mix, let parameter = MixController.effectKnob(strip: index, row: row) {
+            FXKnobCell(model: model, parameter: parameter, label: label(parameter))
+        } else if model.mix.page != .mix, case let .parameter(parameter) = model.mix.cell(strip: index, row: row) {
+            FXKnobCell(model: model, parameter: parameter)
+        } else {
+            Circle()
+                .stroke(Theme.border, style: StrokeStyle(lineWidth: 1.5, dash: [3, 4]))
+                .frame(width: 44, height: 44)
+        }
+    }
+
+    /// The effect strips say which effect each knob plays: they mix delay, reverb and bus 3 on one strip.
+    private func label(_ parameter: FXParameter) -> String? {
+        switch parameter {
+        case .delayTime: "DLY SPEED"
+        case .delayFeedback: "DLY FEEDBACK"
+        case .reverbDecay: "REV LENGTH"
+        case .phaserRate: "\(model.busShortName(.bus3)) RATE"
+        default: nil
+        }
+    }
+
+    private func help(_ gesture: MixController.EffectGesture) -> String {
+        switch gesture {
+        case .hold: "Hold: the delay loops on itself (key H)"
+        case .double: "Hold: the delay goes twice as fast, the echoes jump an octave up"
+        case .fxOnly: "Hold: only the effects are heard; the stems keep feeding them"
+        case .tapeStop: "Hold: the delay's tape brakes to a standstill; let go and it speeds up again"
         }
     }
 }
