@@ -6,6 +6,7 @@ export const site = {
   releases: "https://github.com/yoanbernabeu/DubStemMix/releases",
   latest: "https://github.com/yoanbernabeu/DubStemMix/releases/latest",
   videoId: "bo1voaD_10Q",
+  brewCommand: "brew install --cask yoanbernabeu/tap/dubstemmix",
   installCommand:
     "curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/DubStemMix/main/install.sh | sh",
   author: { name: "YoanDev", url: "https://yoandev.co" },

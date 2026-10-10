@@ -10,19 +10,21 @@ Five minutes, from nothing to a console that answers. You need an **Apple Silico
 
 ## Install the app
 
-Open the Terminal (Applications ▸ Utilities ▸ Terminal), paste this line and press Return:
+Open the Terminal (Applications ▸ Utilities ▸ Terminal), paste one of these lines and press Return.
+
+**With Homebrew**, the simplest if you already use it:
+
+```sh
+brew install --cask yoanbernabeu/tap/dubstemmix
+```
+
+**Without Homebrew**, one line:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/DubStemMix/main/install.sh | sh
 ```
 
-It downloads the latest release, puts `DubStemMix.app` in `/Applications`, clears the macOS quarantine flag and opens the app. Run the same line again later to update.
-
-**With Homebrew:**
-
-```sh
-brew install --cask yoanbernabeu/tap/dubstemmix
-```
+Both download the latest release, put `DubStemMix.app` in `/Applications` and clear the macOS quarantine flag; the script also opens the app. After that, the app updates itself (see [Updates](#updates)).
 
 **By hand, if you prefer:** download `DubStemMix-<version>.zip` from the [releases page](https://github.com/yoanbernabeu/DubStemMix/releases), unzip it and move `DubStemMix.app` to `/Applications`.
 
@@ -33,7 +35,7 @@ DubStemMix is free and has no Apple Developer account behind it, so it is not no
 - **System Settings ▸ Privacy & Security**, scroll down, click **Open Anyway**.
 - Or in the Terminal: `xattr -dr com.apple.quarantine /Applications/DubStemMix.app`
 
-The install script already does the second one for you.
+Homebrew and the install script already do the second one for you.
 
 ## The first launch
 
