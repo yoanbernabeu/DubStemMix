@@ -145,7 +145,9 @@ extension AppModel {
         if !project.title.isEmpty { titleOverride = project.title }
         mix.setTempo(project.bpm) // avant de poser les stems : un tempo enregistré n'est pas re-détecté
         mix.setDelaySync(project.delaySync)
-        stripNames = Dictionary(uniqueKeysWithValues: (project.stripNames ?? [:]).compactMap { key, name in Int(key).map { ($0, name) } })
+        stripNames = Dictionary(uniqueKeysWithValues: (project.stripNames ?? [:]).compactMap { key, name in
+            Int(key).flatMap { (0..<AudioEngine.stripCount).contains($0) ? ($0, name) : nil }
+        })
         for strip in project.keep ?? [] where mix.strips.indices.contains(strip) { mix.setKeep(strip: strip, true) }
         var missingPlugins: [String] = []
         if throughSetlist {
@@ -165,7 +167,8 @@ extension AppModel {
         unresolvedInserts = project.inserts ?? [:]
         for entry in project.stems {
             if let url = entry.file.resolve(relativeTo: document) {
-                assign([url], toStrip: min(max(0, entry.strip), AudioEngine.stripCount - 1))
+                // Strips 7 and 8 hold no stems any more (PRD § 14): an older project's stems there wait in the pool.
+                if (0..<AudioEngine.stripCount).contains(entry.strip) { assign([url], toStrip: entry.strip) } else { addToPool([url]) }
             } else {
                 unresolvedStems.append(entry)
             }
@@ -225,7 +228,7 @@ extension AppModel {
             let candidate = folder.appending(path: entry.file.fileName)
             guard FileManager.default.fileExists(atPath: candidate.path) else { continue }
             unresolvedStems.removeAll { $0 == entry }
-            assign([candidate], toStrip: entry.strip)
+            if (0..<AudioEngine.stripCount).contains(entry.strip) { assign([candidate], toStrip: entry.strip) } else { addToPool([candidate]) }
         }
         errorMessage = unresolvedStems.isEmpty ? nil : "\(unresolvedStems.count) stem(s) still not found"
     }

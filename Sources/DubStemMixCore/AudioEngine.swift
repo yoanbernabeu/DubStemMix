@@ -107,7 +107,8 @@ public protocol MixEngineControl: AnyObject {
 /// tranches et master travaillent donc 6 dB sous l'unité, rattrapés par l'étage de gain final.
 @MainActor
 public final class AudioEngine: MixEngineControl {
-    public static let stripCount = 8
+    /// Stem strips: the console's strips 1 to 6. Strips 7 and 8 play the effects (PRD § 14).
+    public static let stripCount = 6
     public static let masterMeter = stripCount
     /// What enters each send bus, then what its effect gives back (before the return level), for the bus cards.
     public static func busInputMeter(_ bus: SendBus) -> Int { stripCount + 1 + bus.rawValue }
@@ -241,10 +242,10 @@ public final class AudioEngine: MixEngineControl {
     private var returnBusBase: Int { Self.stripCount }
     private var masterOutput: AVAudioNode?
 
-    /// Input of a send bus taking strip `strip` before its fader (post-fader sends use inputs 0…7).
+    /// Input of a send bus taking strip `strip` before its fader (post-fader sends use the first `stripCount` inputs).
     private func preBus(_ bus: SendBus, strip: Int) -> Int { Self.stripCount + strip }
 
-    /// Input of each send bus taking what the other buses send it (strips use 0…15).
+    /// Input of each send bus taking what the other buses send it (after the strips' post and pre inputs).
     private var portalInput: Int { Self.stripCount * 2 }
 
     /// Where each bus's return is sent besides the master (issue #1).

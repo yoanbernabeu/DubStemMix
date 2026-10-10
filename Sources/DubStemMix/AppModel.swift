@@ -111,8 +111,8 @@ final class AppModel {
     var throwTarget = ThrowTarget.delay
     /// Where each bus's return is sent besides the master (issue #1).
     var busRouting = BusRouting.standard
-    /// HOLD held (H): the delay loops on itself.
-    var holding = false
+    /// HOLD held (H, or MUTE of strip 7): the delay loops on itself.
+    var holding: Bool { mix.holding }
 
     // Preferences. See AppModel+Settings.swift.
     /// Per bus (`SendBus.rawValue`): send taken before the fader and mute.
@@ -452,8 +452,7 @@ final class AppModel {
     }
 
     func setHold(_ on: Bool) {
-        holding = on
-        engine.setHold(on)
+        mix.setGesture(.hold, on)
     }
 
     /// CRASH hits the spring; on the plate the gesture does nothing and says so.

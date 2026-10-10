@@ -166,6 +166,91 @@ final class FakeSurface: ControlSurface {
     #expect(mix.knobGhost(strip: 0, row: 1) == nil)
 }
 
+// MARK: - Effect strips 7 and 8 (PRD § 14)
+
+@MainActor @Test func effectStripKnobsPlayTheEffectsOnTheMixPage() {
+    let engine = FakeEngine()
+    let mix = MixController(engine: engine)
+    #expect(mix.strips.count == 6)
+    let time = FXParameter.delayTime.defaultValue
+    // No jump at the first touch: the knob catches the delay time up first.
+    mix.handle(.knob(strip: 6, row: 0, value: 0.1))
+    #expect(mix.fx[.delayTime] == time)
+    #expect(mix.fxGhost(.delayTime) == 0.1)
+    mix.handle(.knob(strip: 6, row: 0, value: time + 0.1)) // crossed: caught
+    #expect(mix.fx[.delayTime] == time + 0.1)
+    #expect(engine.fx[.delayTime] == FXParameter.delayTime.value(time + 0.1))
+    for (strip, row, parameter) in [(6, 1, FXParameter.delayFeedback), (6, 2, .reverbDecay),
+                                    (7, 0, .phaserRate), (7, 1, .delayToReverb), (7, 2, .reverbSend)] {
+        let current = mix.fx[parameter] ?? 0
+        mix.handle(.knob(strip: strip, row: row, value: current))
+        mix.handle(.knob(strip: strip, row: row, value: min(1, current + 0.05)))
+        #expect(mix.fx[parameter] == min(1, current + 0.05), "\(parameter)")
+    }
+}
+
+@MainActor @Test func effectStripFadersHoldTheReturnsOnEveryPage() {
+    let engine = FakeEngine()
+    let mix = MixController(engine: engine)
+    let delayReturn = FXParameter.delayReturn.defaultValue
+    mix.handle(.fader(strip: 6, value: delayReturn))
+    mix.handle(.fader(strip: 6, value: 0.3))
+    #expect(mix.fx[.delayReturn] == 0.3)
+    for page in [MixController.Page.fx, .master, .inserts, .mix] {
+        mix.setPage(page)
+        mix.handle(.fader(strip: 7, value: mix.fx[.reverbReturn] ?? 0))
+        mix.handle(.fader(strip: 7, value: 0.2))
+        #expect(mix.fx[.reverbReturn] == 0.2, "\(page)")
+        mix.handle(.fader(strip: 7, value: 0.5))
+        #expect(mix.fx[.reverbReturn] == 0.5, "\(page)")
+    }
+    // From the screen, the fader has to catch up again.
+    mix.setFX(.delayReturn, 0.9)
+    #expect(mix.fxGhost(.delayReturn) == 0.3)
+}
+
+@MainActor @Test func effectStripKnobsKeepTheirPagesElsewhere() {
+    let engine = FakeEngine()
+    let mix = MixController(engine: engine)
+    mix.setPage(.fx)
+    let current = mix.fx[.delayReturn] ?? 0
+    mix.handle(.knob(strip: 6, row: 0, value: current))
+    mix.handle(.knob(strip: 6, row: 0, value: current - 0.1))
+    #expect(mix.fx[.delayReturn] == current - 0.1) // FX page: strip 7's top knob is still the delay return
+    #expect(mix.fx[.delayTime] == FXParameter.delayTime.defaultValue)
+    mix.setPage(.inserts)
+    mix.handle(.knob(strip: 7, row: 0, value: 0.9)) // no insert on an effect strip: nothing happens
+    #expect(mix.cell(strip: 7, row: 0) == nil)
+}
+
+@MainActor @Test func effectStripButtonsAreHeldGestures() {
+    let engine = FakeEngine(), surface = FakeSurface()
+    let mix = MixController(engine: engine, surface: surface)
+    let gestures: [(SurfaceButton, Int, MixController.EffectGesture, (FakeEngine) -> Bool)] = [
+        (.mute, 6, .hold, \.hold), (.recArm, 6, .double, \.double),
+        (.mute, 7, .fxOnly, \.dryCut), (.recArm, 7, .tapeStop, \.tapeStop),
+    ]
+    for (button, strip, gesture, engineState) in gestures {
+        func state() -> Bool {
+            let led = button == .mute ? surface.muteLeds[strip] : surface.recLeds[strip]
+            return mix.gestures.contains(gesture) && engineState(engine) && led
+        }
+        mix.handle(.button(button, strip: strip, pressed: true))
+        let held = state()
+        #expect(held, "\(gesture)")
+        mix.handle(.button(button, strip: strip, pressed: false))
+        let released = !state()
+        #expect(released, "\(gesture)")
+    }
+    // FX ONLY leaves mute and solo alone: the faders are untouched.
+    mix.handle(.button(.mute, strip: 7, pressed: true))
+    #expect(engine.faders[0] > 0 && mix.strips.allSatisfy { !$0.mute })
+    mix.handle(.button(.mute, strip: 7, pressed: false))
+    // SOLO + MUTE on an effect strip does nothing.
+    mix.handle(.button(.solo, strip: 6, pressed: true))
+    #expect(mix.strips.allSatisfy { !$0.solo })
+}
+
 // MARK: - Moteur audio (rendu hors ligne, au sample près)
 
 /// Gain d'un stem à travers le moteur hors ligne : 6 dB de marge sur la tranche et sur le master.

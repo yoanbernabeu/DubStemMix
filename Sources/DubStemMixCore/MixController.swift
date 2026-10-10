@@ -58,7 +58,38 @@ public final class MixController {
         }
     }
 
+    /// Strips on the console: 6 stem strips, then the 2 effect strips (PRD § 14).
+    public static let surfaceStripCount = 8
+    public static let effectStrips = AudioEngine.stripCount..<surfaceStripCount
+
+    /// What the buttons of the effect strips do while held (PRD § 14). HOLD also has its key, H.
+    public enum EffectGesture: Sendable, CaseIterable {
+        case hold, double, fxOnly, tapeStop
+
+        /// The button playing it: strip 7 (index 6) MUTE / REC ARM, then strip 8.
+        public var button: (strip: Int, mute: Bool) {
+            switch self {
+            case .hold: (6, true)
+            case .double: (6, false)
+            case .fxOnly: (7, true)
+            case .tapeStop: (7, false)
+            }
+        }
+
+        public var label: String {
+            switch self {
+            case .hold: "HOLD"
+            case .double: "×2"
+            case .fxOnly: "FX ONLY"
+            case .tapeStop: "TAPE STOP"
+            }
+        }
+    }
+
     public private(set) var strips = [Strip](repeating: Strip(), count: AudioEngine.stripCount)
+    /// Effect strip gestures being held.
+    public private(set) var gestures: Set<EffectGesture> = []
+    public var holding: Bool { gestures.contains(.hold) }
     public private(set) var master = 0.8
     public private(set) var page = Page.mix
     /// DROP held: every strip not marked KEEP is cut, without touching mute or solo.
@@ -108,13 +139,18 @@ public final class MixController {
     @ObservationIgnored private var bankDown: (left: Date?, right: Date?) = (nil, nil)
     @ObservationIgnored private var pageBeforeBank: Page?
     private static let panicWindow = 1.5
-    private var knobs = [[Physical]](repeating: [Physical](repeating: Physical(), count: 3), count: AudioEngine.stripCount)
-    private var faders = [Physical](repeating: Physical(), count: AudioEngine.stripCount)
+    private var knobs = [[Physical]](repeating: [Physical](repeating: Physical(), count: 3), count: surfaceStripCount)
+    private var faders = [Physical](repeating: Physical(), count: surfaceStripCount)
     private var masterFader = Physical()
 
     public init(engine: MixEngineControl, surface: ControlSurface? = nil) {
         self.engine = engine
         self.surface = surface
+        // An effect parameter must not jump at the first touch: the effect strips' controls catch up first.
+        for strip in Self.effectStrips {
+            faders[strip].picked = false
+            for row in knobs[strip].indices { knobs[strip][row].picked = false }
+        }
         for strip in strips.indices { applyAll(strip: strip) }
         engine.setMasterGain(Self.faderGain(master))
         for (parameter, value) in fx { engine.setFX(parameter, engineValue(parameter, value)) }
@@ -131,6 +167,12 @@ public final class MixController {
     public func handle(_ event: SurfaceEvent) {
         switch event {
         case let .knob(strip, row, value):
+            if page == .mix, let parameter = Self.effectKnob(strip: strip, row: row) {
+                if pickUp(&knobs[strip][row], physical: value, current: fx[parameter] ?? 0, adoptUnknown: false) {
+                    applyFX(parameter, value)
+                }
+                return
+            }
             switch page {
             case .mix:
                 if pickUp(&knobs[strip][row], physical: value, current: strips[strip].sends[row]) {
@@ -159,17 +201,29 @@ public final class MixController {
                 }
             }
         case let .fader(strip, value):
-            if pickUp(&faders[strip], physical: value, current: strips[strip].fader) {
+            if let parameter = Self.effectFader(strip: strip) {
+                if pickUp(&faders[strip], physical: value, current: fx[parameter] ?? 0, adoptUnknown: false) {
+                    applyFX(parameter, value)
+                }
+            } else if pickUp(&faders[strip], physical: value, current: strips[strip].fader) {
                 applyFader(strip: strip, value)
             }
         case let .master(value):
             if pickUp(&masterFader, physical: value, current: master) { applyMaster(value) }
         case let .button(.mute, strip, pressed):
-            if pressed { toggleMute(strip: strip) }
+            if let gesture = Self.effectGesture(strip: strip, mute: true) {
+                setGesture(gesture, pressed)
+            } else if pressed {
+                toggleMute(strip: strip)
+            }
         case let .button(.solo, strip, pressed):
-            if pressed { toggleSolo(strip: strip) }
+            if pressed, strips.indices.contains(strip) { toggleSolo(strip: strip) }
         case let .button(.recArm, strip, pressed):
-            setThrow(strip: strip, pressed)
+            if let gesture = Self.effectGesture(strip: strip, mute: false) {
+                setGesture(gesture, pressed)
+            } else {
+                setThrow(strip: strip, pressed)
+            }
         case let .button(.bankLeft, _, pressed):
             bank(left: true, pressed)
         case let .button(.bankRight, _, pressed):
@@ -200,13 +254,15 @@ public final class MixController {
 
     /// Un contrôle qui ne « tient » pas la valeur n'agit qu'après l'avoir rejointe ou croisée.
     /// Le tout premier message (SEND ALL au démarrage) est adopté tel quel : la console fait foi.
-    private func pickUp(_ control: inout Physical, physical: Double, current: Double) -> Bool {
+    /// - Parameter adoptUnknown: whether a control whose position is still unknown takes over at once (nil: only
+    ///   on the MIX page). An effect parameter must not jump at the first touch.
+    private func pickUp(_ control: inout Physical, physical: Double, current: Double, adoptUnknown: Bool? = nil) -> Bool {
         defer { control.value = physical }
         if control.picked { return true }
         let near = abs(physical - current) <= Self.pickupWindow
         // Position physique encore inconnue : sur la page MIX la console fait foi, mais un paramètre
         // d'effet ne doit pas sauter au premier effleurement d'un potard.
-        let crossed = control.value.map { ($0 - current) * (physical - current) <= 0 } ?? (page == .mix)
+        let crossed = control.value.map { ($0 - current) * (physical - current) <= 0 } ?? (adoptUnknown ?? (page == .mix))
         control.picked = near || crossed
         return control.picked
     }
@@ -224,18 +280,72 @@ public final class MixController {
     /// Position « fantôme » du potard physique — seulement pour la page qu'il pilote en ce moment.
     public func knobGhost(strip: Int, row: Int) -> Double? { page == .mix ? ghost(knobs[strip][row]) : nil }
 
+    /// Ghost of the knob or fader driving a parameter right now (on the effect strips too).
     public func fxGhost(_ parameter: FXParameter) -> Double? {
+        if let strip = Self.fader(for: parameter), let ghost = ghost(faders[strip]) { return ghost }
         guard let (strip, row) = knob(for: parameter) else { return nil }
         return ghost(knobs[strip][row])
     }
 
-    /// The knob driving a parameter on the current page, if the page shows it.
+    /// The knob driving a parameter on the current page, if the page shows it (on MIX, an effect strip's).
     private func knob(for parameter: FXParameter) -> (strip: Int, row: Int)? {
+        if page == .mix {
+            for (offset, column) in FXParameter.effectStripLayout.enumerated() {
+                if let row = column.firstIndex(of: parameter) { return (Self.effectStrips.lowerBound + offset, row) }
+            }
+            return nil
+        }
         guard let layout = page.layout else { return nil }
         for (strip, column) in layout.enumerated() {
             if let row = column.firstIndex(of: parameter) { return (strip, row) }
         }
         return nil
+    }
+
+    // MARK: Effect strips (PRD § 14)
+
+    /// The parameter an effect strip's knob plays on the MIX page.
+    public static func effectKnob(strip: Int, row: Int) -> FXParameter? {
+        guard effectStrips.contains(strip) else { return nil }
+        return FXParameter.effectStripLayout[strip - effectStrips.lowerBound][row]
+    }
+
+    /// The return an effect strip's fader holds, on every page.
+    public static func effectFader(strip: Int) -> FXParameter? {
+        guard effectStrips.contains(strip) else { return nil }
+        return FXParameter.effectStripFaders[strip - effectStrips.lowerBound]
+    }
+
+    private static func fader(for parameter: FXParameter) -> Int? {
+        FXParameter.effectStripFaders.firstIndex(of: parameter).map { effectStrips.lowerBound + $0 }
+    }
+
+    static func effectGesture(strip: Int, mute: Bool) -> EffectGesture? {
+        EffectGesture.allCases.first { $0.button == (strip, mute) }
+    }
+
+    /// From the console, or the screen. Releasing gives everything back as it was.
+    public func setGesture(_ gesture: EffectGesture, _ on: Bool) {
+        guard gestures.contains(gesture) != on else { return }
+        if on { gestures.insert(gesture) } else { gestures.remove(gesture) }
+        switch gesture {
+        case .hold: engine.setHold(on)
+        case .double: engine.setDelayDouble(on)
+        case .fxOnly: engine.setDryCut(on)
+        case .tapeStop: engine.setTapeStop(on)
+        }
+        lightGesture(gesture)
+    }
+
+    /// PANIC emptied the delay: HOLD and tape stop let go, whatever the buttons say.
+    public func releaseDelayGestures() {
+        for gesture in [EffectGesture.hold, .tapeStop] { setGesture(gesture, false) }
+    }
+
+    private func lightGesture(_ gesture: EffectGesture) {
+        let (strip, mute) = gesture.button
+        let on = gestures.contains(gesture)
+        if mute { surface?.setMuteLed(strip: strip, on) } else { surface?.setRecLed(strip: strip, on) }
     }
 
     public func faderGhost(strip: Int) -> Double? { ghost(faders[strip]) }
@@ -251,6 +361,7 @@ public final class MixController {
     public func setFX(_ parameter: FXParameter, _ value: Double) {
         applyFX(parameter, value)
         if let (strip, row) = knob(for: parameter) { release(&knobs[strip][row], to: value) }
+        if let strip = Self.fader(for: parameter) { release(&faders[strip], to: value) }
     }
 
     /// Changement de page : les potards ne sont pas motorisés, chacun devra rattraper
@@ -260,7 +371,7 @@ public final class MixController {
         for strip in knobs.indices {
             for row in knobs[strip].indices {
                 let target: Double? = switch newPage {
-                case .mix: strips[strip].sends[row]
+                case .mix: Self.effectKnob(strip: strip, row: row).map { fx[$0] ?? 0 } ?? strips[strip].sends[row]
                 case .fx, .master, .inserts: cellValue(strip: strip, row: row)
                 }
                 if let target, let physical = knobs[strip][row].value {
@@ -335,6 +446,8 @@ public final class MixController {
             surface?.setSoloLed(strip: i, strip.solo)
             surface?.setRecLed(strip: i, strip.throwing)
         }
+        for strip in Self.effectStrips { surface?.setSoloLed(strip: strip, false) }
+        for gesture in EffectGesture.allCases { lightGesture(gesture) }
         surface?.setBankLeds(left: page != .fx, right: page != .mix)
     }
 
@@ -372,6 +485,7 @@ public final class MixController {
         case .master:
             return FXParameter.masterLayout[strip][row].map(FXCell.parameter)
         case .inserts:
+            guard strips.indices.contains(strip) else { return nil }
             if strips[strip].insertHosted { return .insertMacro(strip, row) }
             if let kind = strips[strip].insert, row < kind.knobCount { return .insert(strip, row) }
             return nil
