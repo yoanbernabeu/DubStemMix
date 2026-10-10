@@ -53,6 +53,27 @@ jobs:
         run: |
           gh release upload "$GITHUB_REF_NAME" dist/DubStemMix-*.zip --clobber
 
+      # brew install --cask yoanbernabeu/tap/dubstemmix: point the cask at the zip just uploaded.
+      # HOMEBREW_TAP_DEPLOY_KEY is a write deploy key of yoanbernabeu/homebrew-tap, and of that repository only.
+      - name: Update the Homebrew cask
+        if: github.event_name == 'release'
+        env:
+          DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          SHA="$(shasum -a 256 "dist/DubStemMix-$VERSION.zip" | cut -d' ' -f1)"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/tap_key
+          chmod 600 ~/.ssh/tap_key
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/tap_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone --depth 1 git@github.com:yoanbernabeu/homebrew-tap.git tap
+          cd tap
+          sed -i '' -E "s/^  version \".*\"/  version \"$VERSION\"/; s/^  sha256 \".*\"/  sha256 \"$SHA\"/" Casks/dubstemmix.rb
+          git diff --quiet && { echo "Cask already at $VERSION"; exit 0; }
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -am "DubStemMix $VERSION"
+          git push
+
       - name: Keep the zip as a workflow artifact
         uses: actions/upload-artifact@v4
         with:

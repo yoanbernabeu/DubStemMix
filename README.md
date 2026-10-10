@@ -16,7 +16,9 @@ Free and open source (MIT). macOS 15 or later, Apple Silicon. Native Swift and C
 curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/DubStemMix/main/install.sh | sh
 ```
 
-It installs (or updates) `DubStemMix.app` in `/Applications`, clears the Gatekeeper quarantine flag and opens the app. The app is signed ad hoc, not notarized. Details, manual install and first steps: [Install and plug in](https://yoanbernabeu.github.io/DubStemMix/docs/install/).
+Or with Homebrew: `brew install --cask yoanbernabeu/tap/dubstemmix`.
+
+The script installs (or updates) `DubStemMix.app` in `/Applications`, clears the Gatekeeper quarantine flag and opens the app. The app is signed ad hoc, not notarized. Details, manual install and first steps: [Install and plug in](https://yoanbernabeu.github.io/DubStemMix/docs/install/).
 
 ## Using it
 

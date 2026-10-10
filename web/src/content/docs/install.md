@@ -18,6 +18,12 @@ curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/DubStemMix/main/instal
 
 It downloads the latest release, puts `DubStemMix.app` in `/Applications`, clears the macOS quarantine flag and opens the app. Run the same line again later to update.
 
+**With Homebrew:**
+
+```sh
+brew install --cask yoanbernabeu/tap/dubstemmix
+```
+
 **By hand, if you prefer:** download `DubStemMix-<version>.zip` from the [releases page](https://github.com/yoanbernabeu/DubStemMix/releases), unzip it and move `DubStemMix.app` to `/Applications`.
 
 ## Get past Gatekeeper

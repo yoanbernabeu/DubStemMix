@@ -13,6 +13,7 @@ Answer the user in French. Nothing leaves the machine (commit, push, tag, releas
 - Written by hand, and forgotten without this skill:
   - `web/src/site.ts` → `version: "X.Y.Z"` (badge and download name on the landing page). The page is redeployed by `.github/workflows/pages.yml` on any push to main touching `web/`.
   - `README.md` → the example `tools/make-app.sh X.Y.Z dist` in "Build from source".
+- The Homebrew cask (`yoanbernabeu/homebrew-tap`, `Casks/dubstemmix.rb`) is bumped by `release.yml` itself (deploy key `HOMEBREW_TAP_DEPLOY_KEY`): nothing to do by hand, just check the tap got a "DubStemMix X.Y.Z" commit.
 - Release title: `DubStemMix X.Y.Z`. Tag: `vX.Y.Z`, on main.
 
 ## Steps
