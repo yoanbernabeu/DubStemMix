@@ -1,6 +1,6 @@
 # DubStemMix
 
-> Free, open-source (MIT) dub mixing console for macOS, built for the Akai MIDImix. Put the stems of a tune on the eight faders and cut your own dub live, the way it was done at King Tubby's: pull the vocal, throw the snare into the echo, drop everything but bass and drums, let the spring crash. No DAW, no session to prepare, nothing to map.
+> Free, open-source (MIT) dub mixing console for macOS, built for the Akai MIDImix. Put the stems of a tune on six faders, play the effects on the last two, and cut your own dub live, the way it was done at King Tubby's: pull the vocal, throw the snare into the echo, drop everything but bass and drums, let the spring crash. No DAW, no session to prepare, nothing to map.
 
 Made by YoanDev (https://yoandev.co). Source, releases and issues: https://github.com/yoanbernabeu/DubStemMix
 
@@ -16,13 +16,14 @@ Made by YoanDev (https://yoandev.co). Source, releases and issues: https://githu
 
 ## The board
 
-Eight strips mirrored on screen. Per strip: three knobs, MUTE, REC ARM, a fader. BANK LEFT / BANK RIGHT switch what the knobs do; faders stay strip volumes.
+Eight strips mirrored on screen: 1 to 6 hold the stems, 7 and 8 play the effects. Per strip: three knobs, MUTE, REC ARM, a fader. BANK LEFT / BANK RIGHT switch what the knobs do; stem faders stay strip volumes.
 
 - MIX page: knobs are sends to DELAY, REVERB, BUS 3.
 - FX page: knobs drive the built-in effects (delay time, feedback, wow, filters, reverb decay, damping, tone, phaser rate, depth) and the three returns.
 - MASTER page: the big knob, the kills, the dubplate colour, delay heads and ping-pong.
 - INSERTS page: each strip's insert (sub-octave, auto-wah, or a plugin's macros).
 - MUTE cuts a strip; SOLO held + MUTE solos in place. REC ARM held is the dub throw: the strip goes at full into the delay and/or reverb, pre-fader and pre-mute.
+- Effect strips 7 and 8 (MIX page): knobs are delay speed, delay feedback, reverb length, phaser rate and the delay / reverb bus-to-bus sends; faders are the delay and reverb returns on every page; buttons held are HOLD, x2 (delay twice as fast), FX ONLY (dry sound out, effects still fed) and TAPE STOP (the delay's tape brakes to a standstill).
 - Effects sit on shared buses: cutting a strip never kills an echo or reverb tail already on its way. Sends are post-fader by default, switchable to pre-fader per bus.
 
 ## Gestures (keyboard or master column buttons)

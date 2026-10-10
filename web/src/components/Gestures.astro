@@ -2,7 +2,7 @@
 import Section from "./Section.astro";
 const gestures = [
   { keys: ["D"], hold: true, name: "Drop", text: "Everything cut but the strips marked KEEP. Mark bass and drums, hold D, you are on the riddim." },
-  { keys: ["H"], hold: true, name: "Hold", text: "The delay closes on itself, input shut, feedback at unity. Cut all the rest, the echo keeps turning." },
+  { keys: ["H"], hold: true, name: "Hold", text: "The delay closes on itself, input shut, feedback at unity. Cut all the rest, the echo keeps turning. Also MUTE of strip 7." },
   { keys: ["C"], hold: false, name: "Crash", text: "Hit the spring. Perry's thunder, Tubby's spring shot (select Built-in · Spring on the REVERB card)." },
   { keys: ["R"], hold: false, name: "Pull-up", text: "The selector's rewind. Tape brake on the whole master, back to the top, play." },
   { keys: ["T"], hold: false, name: "Tap tempo", text: "Tap the tempo; the delay time can lock to it, 1/16 to 1/2, dotted included." },
@@ -12,7 +12,8 @@ const gestures = [
 ---
 <Section id="gestures" index="04" title="Gestures" kicker="keyboard, or the buttons in the master column">
   <p class="max-w-3xl text-lg leading-relaxed text-cream/90">
-    They never touch your mutes: release, and the mix is exactly as it was.
+    They never touch your mutes: release, and the mix is exactly as it was. On the console, strips 7 and 8 add their own held
+    gestures (HOLD, ×2, FX ONLY, TAPE STOP): see The board above.
   </p>
   <ul class="mt-10 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
     {gestures.map((g) => (
