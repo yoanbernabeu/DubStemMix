@@ -91,6 +91,10 @@ No. Everything works with the mouse and the keyboard: knobs, faders, MUTE (⌥-c
 
 Only the MIDImix today. But the app never talks to the MIDImix directly: the MIDImix is a **profile**, plain data saying which control is which. A controller with the same shape (8 strips with 3 knobs, a fader and buttons, two bank buttons, a master fader), such as the Novation Launch Control XL, can be added by writing its profile. See the [FAQ in the README](https://github.com/yoanbernabeu/DubStemMix#faq), and open an issue or a pull request.
 
+### Is there a Windows or Linux version?
+
+No. The interface and the audio engine are built on Apple frameworks (SwiftUI, Core Audio, Audio Units) that only exist on macOS: a port would mean rewriting a large part of the app, not just recompiling it. The code is open source (MIT) if someone wants to try.
+
 ### Does it run on Intel Macs?
 
 The releases are built for Apple Silicon only, and nothing has been tested on Intel. Building from the source code may work, with no promise.
@@ -98,6 +102,18 @@ The releases are built for Apple Silicon only, and nothing has been tested on In
 ### Which audio files can I load?
 
 WAV, AIFF, FLAC, MP3, M4A and CAF, any sample rate, any length. Several stems can share a strip.
+
+### Does splitting a song send my music anywhere?
+
+No. The separation runs on your Mac, inside the app: the htdemucs_ft model (Demucs) through ONNX Runtime, on the processor, with no Python and nothing else to install. The only download is the model itself, once, after asking you. Your songs never leave the Mac. See [Stems and splitting](../stems/).
+
+### Where do I get the stems of my favourite tunes?
+
+You don't need to find them: drop the full song and the app splits it into drums, bass, instruments and vocals. To play out (gigs, releases, streams), buy the official stems or ask the rights holders, so you have the licence to use them.
+
+### Can I use my VST plugins?
+
+DubStemMix loads **Audio Unit** plugins, the Mac format; most plugin makers ship their effects as both VST and Audio Unit. A plugin can replace a built-in effect on a bus, or sit in a strip's insert: one plugin per slot. To chain effects, [patch the buses](../effects/#patching-the-buses) into each other (delay → phaser → reverb). Freer effect chains are discussed in [issue #1](https://github.com/yoanbernabeu/DubStemMix/issues/1).
 
 ### What about latency?
 

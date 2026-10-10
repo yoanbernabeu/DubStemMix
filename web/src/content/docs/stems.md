@@ -16,6 +16,8 @@ A **stem** is one part of a tune in its own audio file: the drums, the bass, the
 
 Any audio file works: WAV, AIFF, FLAC, MP3, M4A, CAF, any sample rate, any length. Files of different lengths are fine: the longest one sets the length of the tune.
 
+> **Playing out? Use stems you have the rights to.** Splitting your favourite records is perfect to learn and play at home. For a gig, a release or a stream, buy the official stems or ask the rights holders: splitting a song does not give you the licence to use it.
+
 ## Put stems on the strips
 
 1. **Drop the folder** (or the files) anywhere in the window. They land in the sidebar under **STEMS TO PLACE**. Non-audio files (an Ableton `.asd`, for instance) are ignored.

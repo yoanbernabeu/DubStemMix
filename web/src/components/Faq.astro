@@ -3,9 +3,11 @@ import Section from "./Section.astro";
 const faq = [
   ["Do I need the Akai MIDImix?", "No. Everything works with the mouse and the keyboard: knobs, faders, MUTE (⌥-click for solo), THROW, pages, gestures. The console adds the hands."],
   ["Other controllers?", "Only the MIDImix today. The mix logic never sees it directly: the MIDImix is a profile, plain data. A controller with the same shape (8 strips with 3 knobs, a fader and buttons, two bank buttons, a master fader), like the Novation Launch Control XL, needs only a profile. Pull requests welcome."],
-  ["Intel Macs?", "The releases are built for Apple Silicon and nothing has been tested on Intel. Building from source may work; no promise."],
+  ["Windows, Linux, Intel Macs?", "macOS on Apple Silicon only. The interface and the audio engine are built on Apple frameworks (SwiftUI, Core Audio, Audio Units), so a Windows or Linux version would mean rewriting a large part of the app. Intel Macs are untested; building from source may work."],
+  ["Does splitting a song send my music anywhere?", "No. The separation (Demucs, htdemucs_ft) runs on your Mac, inside the app, with no Python to install. Only the model is downloaded, once, after asking you."],
+  ["Can I use my VST plugins?", "DubStemMix loads Audio Unit plugins, the Mac format most plugin makers ship alongside VST: on a bus in place of a built-in effect, or as a strip insert. Chain effects by patching the buses into each other."],
   ["Why does macOS complain at first launch?", "The app is signed ad hoc, not notarized: no Apple Developer account. Open Anyway once, or use the install script, which clears the quarantine flag."],
-  ["Which stems can I load?", "Any audio files (WAV, AIFF, FLAC, MP3, M4A, CAF), any sample rate, any length; several stems can share a strip. Stems exported from a DAW, bought as multitracks, or split by the app itself."],
+  ["Which stems can I load?", "Any audio files (WAV, AIFF, FLAC, MP3, M4A, CAF), any sample rate, any length; several stems can share a strip. Stems exported from a DAW, bought as multitracks, or split by the app itself. To play out (gigs, releases, streams), use stems you have the rights to."],
   ["How does it compare with a DAW or DJ software?", "Ableton Live, Logic Pro, Serato, rekordbox, Traktor, djay, VirtualDJ and Mixxx are great at producing or DJing. DubStemMix does one thing: a live dub mix of one tune's stems, ready on the MIDImix, for free. Each comparison is on the Compare page."],
   ["Is it free?", "Yes, free and open source under the MIT license. Bugs and ideas go in the GitHub issues."],
 ];
