@@ -16,6 +16,13 @@
 // - Ping-pong: the width blends from plain stereo (each channel its own loop) to a mono input entering
 //   the left loop whose repeats cross over to the right and back.
 // - HOLD: input closed and feedback at unity, filters and saturation out of the loop: the echo holds itself.
+//
+// Effect strip gestures (PRD § 14):
+// - ×2: the time target is halved; the usual glide makes the repeats slide an octave up, and back on release.
+// - Tape stop: the playback side of the tape slows down to a standstill (every head reads further and further
+//   behind, so the pitch falls) and its output fades with the speed. On release the tape speeds up again and
+//   the heads glide back to their place. Recording goes on all along; the feedback fades with the speed, so
+//   what comes back after the stop is the music played meanwhile.
 
 #include "dub_internal.h"
 
@@ -30,7 +37,12 @@ typedef struct {
     float lowCut[2][2]; // [canal][étage]
     float highCut[2][2];
     double wowPhase, flutterPhase;
+    float tapeSpeed;    // tape stop: 1 = normal, 0 = standstill
+    float stopLag;      // samples the heads have fallen behind while the tape braked
 } DelayState;
+
+#define TAPE_STOP_SECONDS 0.9f  // from full speed to standstill
+#define TAPE_START_SECONDS 0.35f
 
 // Head patterns: which of the three heads sound (PRD § 11.4).
 static const int kHeadPatterns[7][3] = {
@@ -47,6 +59,8 @@ static void delay_prepare(DubEffect *e) {
     s->inputGain = 1.0f;
     s->pingPong = dub_param(e, DUB_DELAY_PINGPONG);
     s->wowPhase = s->flutterPhase = 0.0;
+    s->tapeSpeed = 1.0f;
+    s->stopLag = 0.0f;
 }
 
 static void delay_process(DubEffect *e, const float *inL, const float *inR, float *outL, float *outR, int frames) {
@@ -55,8 +69,11 @@ static void delay_process(DubEffect *e, const float *inL, const float *inR, floa
     const float *in[2] = { inL, inR };
     float *out[2] = { outL, outR };
 
-    const float targetDelay = dub_clamp(dub_param(e, DUB_DELAY_TIME), 0.02f, 3.5f) * sr;
+    const float doubled = dub_param(e, DUB_DELAY_DOUBLE) >= 0.5f ? 0.5f : 1.0f;
+    const float targetDelay = dub_clamp(dub_param(e, DUB_DELAY_TIME), 0.02f, 3.5f) * doubled * sr;
     const int hold = dub_param(e, DUB_DELAY_HOLD) >= 0.5f;
+    const int stopping = dub_param(e, DUB_DELAY_STOP) >= 0.5f;
+    const float brake = 1.0f / (TAPE_STOP_SECONDS * sr), restart = 1.0f / (TAPE_START_SECONDS * sr);
     const float targetFeedback = hold ? 1.0f : dub_clamp(dub_param(e, DUB_DELAY_FEEDBACK), 0.0f, 1.15f);
     const float targetInput = hold ? 0.0f : 1.0f;
     const float targetPingPong = dub_clamp(dub_param(e, DUB_DELAY_PINGPONG), 0.0f, 1.0f);
@@ -83,6 +100,18 @@ static void delay_process(DubEffect *e, const float *inL, const float *inR, floa
         s->feedback += (targetFeedback - s->feedback) * smooth;
         s->inputGain += (targetInput - s->inputGain) * smooth;
         s->pingPong += (targetPingPong - s->pingPong) * smooth;
+        if (stopping) {
+            // Braking like a motor losing power: slow at first, then faster. The heads fall behind by what the
+            // tape no longer moves.
+            s->tapeSpeed = dub_clamp(s->tapeSpeed - brake * (0.35f + 1.3f * (1.0f - s->tapeSpeed)), 0.0f, 1.0f);
+            s->stopLag = fminf(s->stopLag + 1.0f - s->tapeSpeed, maxDelay);
+        } else if (s->tapeSpeed < 1.0f || s->stopLag > 0.0f) {
+            s->tapeSpeed = fminf(1.0f, s->tapeSpeed + restart);
+            s->stopLag += (0.0f - s->stopLag) * glide;
+            if (s->stopLag < 0.5f) s->stopLag = 0.0f;
+        }
+        // The output follows the speed (squared: the last stretch is heard as stopping, as with the pull-up).
+        const float tapeGain = s->tapeSpeed * s->tapeSpeed;
         const float pp = s->pingPong;
         const float mono = 0.5f * (in[0][n] + in[1][n]);
         s->wowPhase += wowInc;
@@ -99,7 +128,7 @@ static void delay_process(DubEffect *e, const float *inL, const float *inR, floa
             float sum = 0.0f;
             for (int h = 0; h < 3; h++) {
                 if (!heads[h]) continue;
-                sum += dub_line_tap_frac(&s->line[c], dub_clamp(base * (float)(h + 1), 4.0f, maxDelay));
+                sum += dub_line_tap_frac(&s->line[c], dub_clamp(base * (float)(h + 1) + s->stopLag, 4.0f, maxDelay));
             }
             headSum[c] = sum * outScale;
             headMean[c] = sum * fbScale;
@@ -108,7 +137,8 @@ static void delay_process(DubEffect *e, const float *inL, const float *inR, floa
             // Ping-pong: the input enters the left loop only, each loop feeds the other.
             const float input = (1.0f - pp) * in[c][n] + pp * (c == 0 ? mono : 0.0f);
             const float returned = (1.0f - pp) * headMean[c] + pp * headMean[1 - c];
-            float x = s->inputGain * input + s->feedback * returned;
+            // A tape at a standstill recirculates nothing: the loop fades with the speed, it never sticks on one sample.
+            float x = s->inputGain * input + s->feedback * tapeGain * returned;
             if (!hold) {
                 for (int stage = 0; stage < 2; stage++) { // coupe-bas 12 dB/oct
                     s->lowCut[c][stage] += lowCutA * (x - s->lowCut[c][stage]);
@@ -123,7 +153,7 @@ static void delay_process(DubEffect *e, const float *inL, const float *inR, floa
                 x = dub_clamp(x, -1.0f, 1.0f); // held loop: no colouring, just a hard ceiling
             }
             dub_line_push(&s->line[c], x);
-            out[c][n] = headSum[c];
+            out[c][n] = headSum[c] * tapeGain;
         }
     }
 }
@@ -151,6 +181,8 @@ void dub_delay_install(DubEffect *e) {
     dub_effect_set(e, DUB_DELAY_HEADS, 0.0f);
     dub_effect_set(e, DUB_DELAY_PINGPONG, 0.0f);
     dub_effect_set(e, DUB_DELAY_HOLD, 0.0f);
+    dub_effect_set(e, DUB_DELAY_DOUBLE, 0.0f);
+    dub_effect_set(e, DUB_DELAY_STOP, 0.0f);
     e->state = s;
     e->prepare = delay_prepare;
     e->process = delay_process;

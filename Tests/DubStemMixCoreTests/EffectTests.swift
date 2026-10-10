@@ -150,6 +150,39 @@ private func energy(_ samples: ArraySlice<Float>) -> Float { samples.reduce(0) {
     #expect(abs(output[peak]) > 0.05)
 }
 
+/// FX ONLY (PRD § 14): the direct sound leaves the master, the post-fader send still feeds the delay.
+@MainActor @Test func dryCutKeepsFeedingTheEffects() throws {
+    func render(dryCut: Bool) throws -> [Float] {
+        let engine = try AudioEngine(offline: true, effects: true)
+        let url = FileManager.default.temporaryDirectory.appending(path: "dsm-dry-\(UUID().uuidString).wav")
+        let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 48_000)!
+        buffer.frameLength = 48_000
+        for channel in 0..<2 { buffer.floatChannelData![channel][1000] = 1 }
+        try AVAudioFile(forWriting: url, settings: format.settings, commonFormat: .pcmFormatFloat32, interleaved: false).write(from: buffer)
+        try engine.addStem(url: url, name: "impulse", strip: 0)
+        engine.setFaderGain(strip: 0, 1)
+        engine.setSendGain(.delay, strip: 0, 1)
+        engine.setMasterGain(1)
+        engine.setFX(.delayTime, 0.1)
+        engine.setFX(.delayFeedback, 0)
+        engine.setFX(.delayWow, 0)
+        engine.setFX(.delayLowCut, 10)
+        engine.setFX(.delayHighCut, 20_000)
+        engine.setFX(.delayReturn, 1)
+        engine.setDryCut(dryCut)
+        engine.loop = false
+        _ = try engine.renderOffline(frames: 96_000)
+        engine.play()
+        return try engine.renderOffline(frames: 24_000)
+    }
+    let direct = AudioEngine.offlineStartDelay + 1000
+    let normal = try render(dryCut: false), cut = try render(dryCut: true)
+    #expect(abs(normal[direct]) > 0.1)
+    #expect(abs(cut[direct]) < 1e-4, "direct sound gone: \(cut[direct])")
+    #expect(energy(cut[(direct + 4700)..<(direct + 4900)]) > 0.5 * energy(normal[(direct + 4700)..<(direct + 4900)]))
+}
+
 /// Energy reaching the master when a thrown impulse can only get out through `exit` (issue #1):
 /// the other returns are closed, so anything heard came through a bus-to-bus send.
 @MainActor private func energyThrough(
@@ -559,6 +592,45 @@ private func makeDelay(time: Float = 0.1) -> OpaquePointer {
     dub_effect_set(delay, Int32(DUB_DELAY_HOLD), 0)
     let released = run(delay, input: Array(signal[72_000...])).left
     #expect(energy(released[19_200..<24_000]) < 0.2 * energy(held[0..<4800])) // decays again at 30 %
+}
+
+// MARK: - Effect strip gestures: ×2 and tape stop (PRD § 14)
+
+private func firstPeak(_ samples: [Float]) -> Int {
+    samples.indices.max { abs(samples[$0]) < abs(samples[$1]) }!
+}
+
+private func zeroCrossings(_ samples: ArraySlice<Float>) -> Int {
+    zip(samples.dropLast(), samples.dropFirst()).filter { ($0 < 0) != ($1 < 0) }.count
+}
+
+@Test func doubleHalvesTheTimeThenGivesItBack() {
+    let delay = makeDelay(time: 0.2)
+    defer { dub_effect_destroy(delay) }
+    dub_effect_set(delay, Int32(DUB_DELAY_DOUBLE), 1)
+    _ = run(delay, input: [Float](repeating: 0, count: 48_000)) // the glide settles
+    #expect(abs(firstPeak(run(delay, input: impulse(24_000)).left) - 4800) <= 4)
+    dub_effect_set(delay, Int32(DUB_DELAY_DOUBLE), 0)
+    _ = run(delay, input: [Float](repeating: 0, count: 48_000))
+    #expect(abs(firstPeak(run(delay, input: impulse(24_000)).left) - 9600) <= 4)
+}
+
+@Test func tapeStopBrakesToSilenceThenStartsAgain() {
+    let delay = makeDelay(time: 0.1)
+    defer { dub_effect_destroy(delay) }
+    dub_effect_set(delay, Int32(DUB_DELAY_FEEDBACK), 0.5)
+    let tone = (0..<240_000).map { 0.3 * sin(Float($0) * 0.06) }
+    let before = run(delay, input: Array(tone[0..<24_000])).left
+    dub_effect_set(delay, Int32(DUB_DELAY_STOP), 1)
+    let braking = run(delay, input: Array(tone[24_000..<96_000])).left
+    // The pitch falls while the tape slows, then nothing comes out at a standstill.
+    #expect(zeroCrossings(braking[9600..<19_200]) < zeroCrossings(before[14_400..<24_000]))
+    #expect(energy(braking[62_400..<72_000]) < 1e-6 * energy(before[14_400..<24_000]))
+    #expect(braking.allSatisfy { $0.isFinite && abs($0) <= 1.5 })
+    dub_effect_set(delay, Int32(DUB_DELAY_STOP), 0)
+    let after = run(delay, input: Array(tone[96_000..<192_000])).left
+    let back = energy(after[86_400..<96_000]), normal = energy(before[14_400..<24_000])
+    #expect(back > 0.7 * normal && back < 1.4 * normal, "\(back) vs \(normal)")
 }
 
 // MARK: - Spring reverb and CRASH (PRD § 11.4)

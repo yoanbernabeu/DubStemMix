@@ -77,6 +77,11 @@ final class FakeEngine: MixEngineControl {
     var insertValues: [String: Double] = [:]
     func setInsertParameter(strip: Int, index: Int, _ normalized: Double) { insertValues["\(strip)-\(index)"] = normalized }
     func setInsertMacro(strip: Int, index: Int, _ normalized: Double) { macros["insert\(strip)-\(index)"] = normalized }
+    var hold = false, double = false, tapeStop = false, dryCut = false
+    func setHold(_ on: Bool) { hold = on }
+    func setDelayDouble(_ on: Bool) { double = on }
+    func setTapeStop(_ on: Bool) { tapeStop = on }
+    func setDryCut(_ on: Bool) { dryCut = on }
 }
 
 @MainActor
