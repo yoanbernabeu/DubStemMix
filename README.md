@@ -45,7 +45,7 @@ git clone https://github.com/yoanbernabeu/DubStemMix.git
 cd DubStemMix
 swift run DubStemMix          # runs the app from the package
 swift test                    # unit tests, no model or audio device needed
-tools/make-app.sh 0.11.0 dist  # builds dist/DubStemMix.app and the zip
+tools/make-app.sh 0.12.0 dist  # builds dist/DubStemMix.app and the zip
 ```
 
 Command-line modes of the app binary (`swift run DubStemMix --check-audio`…):
