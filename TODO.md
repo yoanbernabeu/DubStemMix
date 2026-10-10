@@ -58,5 +58,5 @@
 - [x] Moteur : ×2 et tape stop dans le delay, FX ONLY (son sec coupé, envois ouverts).
 - [x] Console : tranches 1-6 pour les stems, potards / faders / boutons des tranches 7-8 ; anciens stems sur 7-8 → réserve.
 - [x] Écran : tranches 7-8 teintées, écartées des stems.
-- [ ] **[toi]** Essayer en vrai à la MIDImix : vitesse du delay en tournant le potard 7 du haut, HOLD puis ×2, tape stop sur un écho, FX ONLY sur la voix envoyée dans le delay, faders 7-8 en changeant de page.
+- [x] **[toi]** Essayé et validé à la MIDImix le 10/10 : vitesse du delay en tournant le potard 7 du haut, HOLD puis ×2, tape stop sur un écho, FX ONLY sur la voix envoyée dans le delay, faders 7-8 en changeant de page.
 - [ ] Doc (README, site, captures) une fois l'essai validé.
