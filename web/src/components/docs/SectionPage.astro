@@ -1,0 +1,13 @@
+---
+// One docs or compare page, rendered from its Markdown file.
+import { render, type CollectionEntry } from "astro:content";
+import Docs from "../../layouts/Docs.astro";
+import type { SectionKey } from "../../sections";
+
+interface Props { section: SectionKey; entry: CollectionEntry<SectionKey> }
+const { section, entry } = Astro.props;
+const { Content, headings } = await render(entry);
+---
+<Docs section={section} title={entry.data.title} seoTitle={entry.data.seoTitle} description={entry.data.description} slug={entry.id} headings={headings}>
+  <Content />
+</Docs>

@@ -1,0 +1,9 @@
+---
+import SectionPage from "../../components/docs/SectionPage.astro";
+import { pagesOf } from "../../sections";
+
+export async function getStaticPaths() {
+  return (await pagesOf("compare")).map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+---
+<SectionPage section="compare" entry={Astro.props.entry} />

@@ -16,7 +16,7 @@
 }
 
 /* Same tokens as Theme.swift: one colour per bus, functional colour coding, no decorative gradient. */
-@theme {
+@theme static {
   --color-*: initial;
   --color-bg: #14110f;
   --color-surface: #1e1a17;
@@ -116,4 +116,30 @@
   font-variation-settings: "wght" 700;
   font-size: 0.85rem;
   color: var(--color-cream);
+}
+
+/* Docs pages: the Markdown body, in the console's type and colours. */
+@layer components {
+  .doc { @apply text-[17px] leading-relaxed text-cream/90; }
+  .doc > * + * { @apply mt-5; }
+  .doc h2 { @apply label-wide mt-14 scroll-mt-20 border-t border-border pt-8 text-xl text-cream sm:text-2xl; }
+  .doc h3 { @apply label mt-10 text-sm text-cream; }
+  .doc a { @apply text-cream underline decoration-border underline-offset-4 hover:decoration-cream; }
+  .doc strong { @apply text-cream; }
+  .doc em { @apply text-dim; }
+  .doc ul { @apply list-disc space-y-2 pl-5 marker:text-delay; }
+  .doc ol { @apply list-decimal space-y-2 pl-6 marker:text-delay marker:mono; }
+  .doc code { @apply mono rounded border border-border bg-surface px-1.5 py-0.5 text-[0.85em] text-cream; }
+  .doc pre { @apply overflow-x-auto rounded border-[1.5px] border-border !bg-surface p-4 text-sm leading-relaxed; }
+  .doc pre code { @apply border-0 bg-transparent p-0 text-[0.9em]; }
+  .doc kbd { @apply keycap h-7 min-w-7 align-middle text-[0.8rem]; }
+  .doc img { @apply mt-6 h-auto max-w-full rounded border-[1.5px] border-border; }
+  .doc blockquote { @apply rounded border-l-[3px] border-delay bg-surface px-5 py-4 text-base text-cream/85; }
+  .doc blockquote > * + * { @apply mt-3; }
+  .doc table { @apply block w-full overflow-x-auto text-[15px]; }
+  .doc thead th { @apply label border-b-[1.5px] border-border px-4 py-2 text-left text-[11px] text-dim; }
+  .doc td { @apply border-b border-border px-4 py-2.5 align-top; }
+  .doc td:first-child { @apply whitespace-nowrap; }
+  .doc .not-doc a { @apply no-underline; }
+  .doc .not-doc { @apply list-none pl-0; }
 }

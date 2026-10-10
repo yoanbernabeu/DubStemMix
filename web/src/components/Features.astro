@@ -16,16 +16,18 @@ const pages = [
   { id: "master", label: "MASTER", reach: "BANK RIGHT again", knobs: "the big knob, the kills, the dubplate colour, delay heads and ping-pong", image: master, alt: "MASTER page: big knob, kills, dubplate, delay heads" },
   { id: "inserts", label: "INSERTS", reach: "BANK RIGHT again", knobs: "each strip's insert: sub, auto-wah, or a plugin's macros", image: inserts, alt: "INSERTS page: sub on the bass, auto-wah on the skank" },
 ];
-const notes = [
-  ["MUTE", "cuts a strip; the LED shows the state. SOLO held + MUTE solos it, in place: the echo and reverb returns keep playing while everything else is gone."],
-  ["REC ARM held", "is the dub throw: the strip goes at full into the delay (or the reverb, or both), taken before the fader and the mute. Throw a cut vocal, hear only its echo."],
-  ["Shared buses", "like the sends of a real board: cutting a strip never kills an echo or a reverb tail already on its way. That is the whole point."],
-  ["Pre or post", "sends are post-fader by default; Settings switch any bus to pre-fader for the classic move: fader down, echo still running."],
-  ["Strips 7 and 8", "hold no stem: they play the effects. On MIX their knobs are the delay speed and feedback, the reverb length, the phaser rate and the bus-to-bus sends; their faders are the delay and reverb returns on every page; their buttons, held, are HOLD, ×2, FX ONLY and TAPE STOP."],
-  ["Bus to bus", "each bus stands on its own until you patch its return into another bus, from the bus card's Send to menu. A cable between the cards shows it: see Patch the buses below."],
-];
----
-<Section id="board" index="03" title="The board" kicker="six stem strips, two effect strips, mirrored on screen: what you touch is where you look">
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+// What the app does, in a sentence each; the docs hold the details.
+const features = [
+  { color: "delay", title: "The board", text: "Six stem strips, two effect strips, four knob pages. MUTE, solo in place, and the dub throw on REC ARM.", href: "/docs/the-board/" },
+  { color: "rec", title: "Gestures", text: "Drop to the riddim, hold the echo, crash the spring, pull up the tune, panic. One key or one button each.", href: "/docs/gestures/" },
+  { color: "reverb", title: "The sound", text: "Tape echo, plate and spring reverb, Bi-Phase phaser, King Tubby's big knob, kills, dubplate. All built in, buses you can patch.", href: "/docs/effects/" },
+  { color: "bus3", title: "Split a song", text: "No stems? Drop a full song: drums, bass, instruments and vocals on strips 1 to 4. Or prepare a whole set at once.", href: "/docs/stems/" },
+  { color: "cream", title: "Build a set", text: "Projects, setlists with a colour and a tag per tune, export to another Mac, 24-bit recording of your version.", href: "/docs/sets/" },
+  { color: "cream", title: "Play live", text: "Arm the next tune while one plays, drop it on Space or pull up into it. Requests mid-set, nothing that cuts by mistake.", href: "/docs/live/" },
+] as const;
+------
+<Section id="features" index="03" title="Features" kicker="six stem strips, two effect strips, mirrored on screen: what you touch is where you look">
   <p class="max-w-3xl text-lg leading-relaxed text-cream/90">
     Per strip: three knobs, MUTE, REC ARM, a fader. <strong>BANK LEFT / BANK RIGHT</strong> change what the knobs do;
     the stem faders stay strip volumes on every page. Four pages: flip through them below.
@@ -71,11 +73,14 @@ const notes = [
     ))}
   </div>
 
-  <ul class="mt-10 grid gap-6 sm:grid-cols-2">
-    {notes.map(([title, text]) => (
-      <li class="flex gap-4">
-        <Led color="delay" class="mt-2 shrink-0" />
-        <p class="text-sm leading-relaxed text-dim"><strong class="label text-cream">{title}</strong> {text}</p>
+  <ul class="mt-10 grid gap-px overflow-hidden rounded border-[1.5px] border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
+    {features.map((f) => (
+      <li class="bg-bg">
+        <a href={`${base}${f.href}`} class="flex h-full flex-col gap-3 p-6 transition-colors hover:bg-surface">
+          <h3 class="label flex items-center gap-2 text-sm" style={`color:var(--color-${f.color})`}><Led color={f.color} /> {f.title}</h3>
+          <p class="text-sm leading-relaxed text-dim">{f.text}</p>
+          <span class="label mt-auto pt-2 text-[11px] text-cream">Read the docs →</span>
+        </a>
       </li>
     ))}
   </ul>

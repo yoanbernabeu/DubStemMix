@@ -6,7 +6,7 @@ const steps = [
   ["Plug in the MIDImix", "On its factory mapping. The status line at the bottom left says “connected”, and warns you if the console sends something the factory mapping does not know."],
   ["Press SEND ALL", "The app now knows where every knob and fader sits. After a page change, a knob acts once it reaches the value it now drives, shown as a cream ghost mark until then. No jumps, no surprises mid-tune."],
   ["Drop a folder of stems", "Anywhere in the window, then drag each stem onto the strip you want. Nothing is placed for you: you decide what goes where, as you would patch a board."],
-  ["Play", "Space plays and pauses, Return goes back to the top, L loops the tune. No stems? Drop a full song in SPLIT A SONG, or a whole set in PREPARE SONGS."],
+  ["Play", "Space plays and pauses, Return goes back to the top, L loops the tune. No stems? Drop a full song in SPLIT A SONG, or a whole set in Prepare songs."],
 ];
 ---
 <Section id="install" index="02" title="Install" kicker="one line, from the latest release">
@@ -42,8 +42,9 @@ const steps = [
       </div>
     </div>
 
+    <div>
+    <p class="label mb-6 text-[11px] text-dim">The first riddim</p>
     <ol class="grid gap-6">
-      <li class="label text-[11px] text-dim">The first riddim</li>
       {steps.map(([title, text], i) => (
         <li class="grid grid-cols-[2.5rem_1fr] gap-4">
           <span class="mono pt-1 text-sm text-delay">0{i + 1}</span>
@@ -53,7 +54,11 @@ const steps = [
           </div>
         </li>
       ))}
+      <li class="pl-14">
+        <a href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/docs/first-dub/`} class="label inline-block rounded border-[1.5px] border-delay px-4 py-2 text-[11px] text-delay transition-colors hover:bg-delay hover:text-bg">Your first dub, step by step →</a>
+      </li>
     </ol>
+    </div>
   </div>
 </Section>
 

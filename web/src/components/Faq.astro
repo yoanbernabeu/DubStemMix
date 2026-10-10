@@ -1,14 +1,13 @@
 ---
 import Section from "./Section.astro";
 const faq = [
-  ["Only the Akai MIDImix?", "Today, yes: it is the console this was built and tested with. But the mix logic never sees the MIDImix. It receives abstract events (knob on strip 3, row 2; MUTE on strip 5; BANK RIGHT) and sends abstract LED states back. The MIDImix itself is a profile, plain data. A controller with the same geometry (8 strips with 3 knobs, a fader and MUTE / SOLO / REC ARM buttons, two bank buttons, a master fader) needs only a profile: the Novation Launch Control XL is the obvious candidate. Pull requests welcome."],
-  ["No controller at all?", "Everything works with the mouse and the keyboard: knobs, faders, MUTE (⌥-click for solo), THROW, pages, gestures. The console adds the hands."],
+  ["Do I need the Akai MIDImix?", "No. Everything works with the mouse and the keyboard: knobs, faders, MUTE (⌥-click for solo), THROW, pages, gestures. The console adds the hands."],
+  ["Other controllers?", "Only the MIDImix today. The mix logic never sees it directly: the MIDImix is a profile, plain data. A controller with the same shape (8 strips with 3 knobs, a fader and buttons, two bank buttons, a master fader), like the Novation Launch Control XL, needs only a profile. Pull requests welcome."],
   ["Intel Macs?", "The releases are built for Apple Silicon and nothing has been tested on Intel. Building from source may work; no promise."],
   ["Why does macOS complain at first launch?", "The app is signed ad hoc, not notarized: no Apple Developer account. Open Anyway once, or use the install script, which clears the quarantine flag."],
   ["Which stems can I load?", "Any audio files (WAV, AIFF, FLAC, MP3, M4A, CAF), any sample rate, any length; several stems can share a strip. Stems exported from a DAW, bought as multitracks, or split by the app itself."],
-  ["Latency?", "Set the buffer to 128 or 256 samples in Settings. Built-in effects add no latency; a plugin's latency is not compensated."],
-  ["Projects and setlists?", "⌘S writes a .dubstem project: stems, effects, plugins and their state, inserts, KEEP marks, tempo. Fader and knob positions are not restored: the console is the truth. A .dubset setlist lists the tunes of the set, built in the setlist workshop; N / P load the next or previous one while the tails of the previous tune keep going."],
-  ["Where does the separation model live?", "~/Library/Application Support/DubStemMix/Models, 663 MB. Settings ▸ Stem separation ▸ Delete. It is never bundled with the app."],
+  ["How does it compare with a DAW or DJ software?", "Ableton Live, Logic Pro, Serato, rekordbox, Traktor, djay, VirtualDJ and Mixxx are great at producing or DJing. DubStemMix does one thing: a live dub mix of one tune's stems, ready on the MIDImix, for free. Each comparison is on the Compare page."],
+  ["Is it free?", "Yes, free and open source under the MIT license. Bugs and ideas go in the GitHub issues."],
 ];
 // FAQPage structured data, from the same list, so the page and the markup never drift.
 const faqLd = {
@@ -22,7 +21,7 @@ const faqLd = {
 };
 ---
 <script is:inline type="application/ld+json" set:html={JSON.stringify(faqLd)} />
-<Section id="faq" index="08" title="FAQ">
+<Section id="faq" index="04" title="FAQ">
   <div class="mx-auto max-w-3xl divide-y divide-border border-y border-border">
     {faq.map(([q, a]) => (
       <details class="group py-4">
@@ -34,4 +33,8 @@ const faqLd = {
       </details>
     ))}
   </div>
+  <p class="mx-auto mt-8 max-w-3xl text-sm text-dim">
+    More answers, and fixes for common problems, in <a href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/docs/settings/`} class="text-cream underline decoration-border underline-offset-4 hover:decoration-cream">Settings and help</a>.
+    How it compares with Ableton Live, Serato, Amp FreQQ and others: <a href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/compare/`} class="text-cream underline decoration-border underline-offset-4 hover:decoration-cream">Compare</a>.
+  </p>
 </Section>

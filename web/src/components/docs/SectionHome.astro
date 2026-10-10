@@ -1,0 +1,26 @@
+---
+// The home of a section: its intro, anything passed in, then every page in reading order.
+import Docs from "../../layouts/Docs.astro";
+import { sections, pagesOf, type SectionKey } from "../../sections";
+
+interface Props { section: SectionKey }
+const { section } = Astro.props;
+const info = sections[section];
+const pages = await pagesOf(section);
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+---
+<Docs section={section} title={info.title} seoTitle={info.seoTitle} description={info.description}>
+  <p>{info.intro}</p>
+  <slot />
+  <ol class="not-doc mt-10 grid gap-4 sm:grid-cols-2">
+    {pages.map((p, i) => (
+      <li>
+        <a href={`${base}${info.root}${p.id}/`} class="block h-full rounded border-[1.5px] border-border bg-surface p-5 transition-colors hover:border-cream">
+          {info.numbered && <span class="mono text-[11px] text-delay">{String(i + 1).padStart(2, "0")}</span>}
+          <span class="label mt-2 block text-sm text-cream">{p.data.title}</span>
+          <span class="mt-2 block text-sm leading-relaxed text-dim">{p.data.description}</span>
+        </a>
+      </li>
+    ))}
+  </ol>
+</Docs>

@@ -4,25 +4,33 @@ import { site } from "../site";
 import { getImage } from "astro:assets";
 import mix from "../assets/screenshots/mix.png";
 
-interface Props { title?: string; description?: string }
-const { title = site.title, description = site.description } = Astro.props;
+interface Props {
+  title?: string;
+  description?: string;
+  // Path of this page without the site base, with its trailing slash.
+  path?: string;
+  // Structured data for this page; the landing page's when left out.
+  jsonLd?: object;
+}
+const { title = site.title, description = site.description, path = "/" } = Astro.props;
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 const absolute = (path: string) => new URL(`${base}${path}`, Astro.site).href;
-const canonical = absolute("/");
+const home = absolute("/");
+const canonical = absolute(path);
 const ogImage = absolute("/og.png");
 const screenshot = await getImage({ src: mix, format: "png", width: 1440 });
 
 // Structured data: the app itself, for search engines and answer engines.
-const jsonLd = {
+const homeJsonLd = {
   "@context": "https://schema.org",
   "@graph": [
     {
       "@type": "SoftwareApplication",
-      "@id": `${canonical}#app`,
+      "@id": `${home}#app`,
       name: site.name,
       alternateName: "Dub Stem Mix",
-      url: canonical,
+      url: home,
       description: site.description,
       applicationCategory: "MultimediaApplication",
       applicationSubCategory: "Audio mixing",
@@ -35,7 +43,7 @@ const jsonLd = {
       isAccessibleForFree: true,
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       image: absolute("/og.png"),
-      screenshot: absolute(screenshot.src),
+      screenshot: new URL(screenshot.src, Astro.site).href,
       featureList: [
         "Six stems on the faders of an Akai MIDImix, two effect strips, mirrored on screen",
         "Sends to a tape dub delay, a plate or spring reverb and a phaser or flanger, on shared buses",
@@ -47,27 +55,28 @@ const jsonLd = {
         "Projects, setlists and 24-bit master recording",
       ],
       keywords: site.keywords.join(", "),
-      author: { "@id": `${canonical}#author` },
+      author: { "@id": `${home}#author` },
       sameAs: [site.repo],
       codeRepository: site.repo,
     },
     {
       "@type": "Person",
-      "@id": `${canonical}#author`,
+      "@id": `${home}#author`,
       name: site.author.name,
       url: site.author.url,
     },
     {
       "@type": "WebSite",
-      "@id": `${canonical}#website`,
-      url: canonical,
+      "@id": `${home}#website`,
+      url: home,
       name: site.name,
       description: site.description,
       inLanguage: "en",
-      publisher: { "@id": `${canonical}#author` },
+      publisher: { "@id": `${home}#author` },
     },
   ],
 };
+const jsonLd = Astro.props.jsonLd ?? homeJsonLd;
 ---
 <!doctype html>
 <html lang="en">
@@ -90,7 +99,7 @@ const jsonLd = {
     <link rel="apple-touch-icon" sizes="180x180" href={`${base}/apple-touch-icon.png`} />
 
     <!-- Open Graph: Facebook, WhatsApp, LinkedIn, Slack, Discord, iMessage… -->
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={path === "/" ? "website" : "article"} />
     <meta property="og:site_name" content={site.name} />
     <meta property="og:locale" content="en_US" />
     <meta property="og:url" content={canonical} />

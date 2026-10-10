@@ -1,0 +1,40 @@
+---
+import SectionHome from "../../components/docs/SectionHome.astro";
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+// One line per tool, the details on each page. Checked in October 2026.
+const rows = [
+  ["DubStemMix", "", "a dub console for one tune's stems, on the Akai MIDImix", "free, open source"],
+  ["Amp FreQQ", "amp-freqq", "a sound-system preamp and dub station for stereo tracks", "from £125"],
+  ["Ableton Live", "ableton-live", "a complete DAW", "from €79"],
+  ["Logic Pro", "logic-pro", "a complete studio on Mac", "$199.99"],
+  ["Serato DJ Pro", "serato-dj-pro", "a DJ app with real-time stems", "$299 or monthly"],
+  ["rekordbox", "rekordbox", "DJ software for Pioneer DJ gear, with stems", "free plan, paid from €10/month"],
+  ["Traktor Pro 4", "traktor-pro", "a four-deck DJ app with stems", "$149"],
+  ["djay Pro", "djay-pro", "a DJ app for every device, with Neural Mix", "free, PRO subscription"],
+  ["VirtualDJ", "virtualdj", "an all-round DJ app with stems", "free at home, paid from €4/month"],
+  ["Mixxx", "mixxx", "a free, open-source DJ app", "free, open source"],
+];
+---
+<SectionHome section="compare">
+  <h2 id="why">Why DubStemMix</h2>
+  <ul>
+    <li><strong>Made for one thing</strong>: the dub version. The stems of a tune on six faders, three dub sends each, the throw, the drop, the spring crash.</li>
+    <li><strong>Ready as it opens</strong>: nothing to build, nothing to map on the Akai MIDImix.</li>
+    <li><strong>Stem separation included</strong>: any song becomes drums, bass, instruments and vocals.</li>
+    <li><strong>Free and open source</strong>, MIT.</li>
+  </ul>
+  <h2 id="at-a-glance">At a glance</h2>
+  <table>
+    <thead><tr><th>Tool</th><th>What it is</th><th>Price</th></tr></thead>
+    <tbody>
+      {rows.map(([name, slug, what, price]) => (
+        <tr>
+          <td>{slug ? <a href={`${base}/compare/${slug}/`}>{name}</a> : <strong>{name}</strong>}</td>
+          <td>{what}</td>
+          <td>{price}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+  <h2 id="each-comparison">Each comparison</h2>
+</SectionHome>
