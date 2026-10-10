@@ -6,7 +6,7 @@
 
 Free and open source (MIT). macOS 15 or later (built and tested on macOS 26), Apple Silicon.
 
-▶ [Watch it in action on YouTube](https://www.youtube.com/watch?v=k314RyG2htE)
+▶ [Watch it in action on YouTube](https://www.youtube.com/watch?v=bo1voaD_10Q)
 
 <p align="center"><img src="docs/screenshots/mix.png" width="100%" alt="DubStemMix, MIX page: six stem strips with sends to delay, reverb and phaser, then the two effect strips"></p>
 

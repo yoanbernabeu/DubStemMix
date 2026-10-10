@@ -5,7 +5,7 @@ export const site = {
   repo: "https://github.com/yoanbernabeu/DubStemMix",
   releases: "https://github.com/yoanbernabeu/DubStemMix/releases",
   latest: "https://github.com/yoanbernabeu/DubStemMix/releases/latest",
-  videoId: "k314RyG2htE",
+  videoId: "bo1voaD_10Q",
   installCommand:
     "curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/DubStemMix/main/install.sh | sh",
   author: { name: "YoanDev", url: "https://yoandev.co" },
