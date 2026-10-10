@@ -77,6 +77,12 @@ public protocol MixEngineControl: AnyObject {
     /// Strip insert (PRD § 11.5): a built-in insert's parameter, or a macro of a plugin insert (0…1).
     func setInsertParameter(strip: Int, index: Int, _ normalized: Double)
     func setInsertMacro(strip: Int, index: Int, _ normalized: Double)
+    /// Held gestures (PRD § 11.4, § 14): the delay loops on itself, goes twice as fast, or its tape stops.
+    func setHold(_ on: Bool)
+    func setDelayDouble(_ on: Bool)
+    func setTapeStop(_ on: Bool)
+    /// FX ONLY (PRD § 14): the strips leave the master but keep feeding the send buses.
+    func setDryCut(_ on: Bool)
 }
 
 /// Graphe validé au jalon M0 :
@@ -101,7 +107,8 @@ public protocol MixEngineControl: AnyObject {
 /// tranches et master travaillent donc 6 dB sous l'unité, rattrapés par l'étage de gain final.
 @MainActor
 public final class AudioEngine: MixEngineControl {
-    public static let stripCount = 8
+    /// Stem strips: the console's strips 1 to 6. Strips 7 and 8 play the effects (PRD § 14).
+    public static let stripCount = 6
     public static let masterMeter = stripCount
     /// What enters each send bus, then what its effect gives back (before the return level), for the bus cards.
     public static func busInputMeter(_ bus: SendBus) -> Int { stripCount + 1 + bus.rawValue }
@@ -185,6 +192,7 @@ public final class AudioEngine: MixEngineControl {
     public static let macroCount = 6
     private var sendGains = [[Float]](repeating: [0, 0, 0], count: stripCount)
     private var throwing = [Bool](repeating: false, count: stripCount)
+    private var dryCut = false
     private var switchingDevice = false
     /// Pull-up (PRD § 11.3): tape brake on the master, real time only.
     private var varispeed: AVAudioUnitVarispeed?
@@ -234,10 +242,10 @@ public final class AudioEngine: MixEngineControl {
     private var returnBusBase: Int { Self.stripCount }
     private var masterOutput: AVAudioNode?
 
-    /// Input of a send bus taking strip `strip` before its fader (post-fader sends use inputs 0…7).
+    /// Input of a send bus taking strip `strip` before its fader (post-fader sends use the first `stripCount` inputs).
     private func preBus(_ bus: SendBus, strip: Int) -> Int { Self.stripCount + strip }
 
-    /// Input of each send bus taking what the other buses send it (strips use 0…15).
+    /// Input of each send bus taking what the other buses send it (after the strips' post and pre inputs).
     private var portalInput: Int { Self.stripCount * 2 }
 
     /// Where each bus's return is sent besides the master (issue #1).
@@ -610,6 +618,24 @@ public final class AudioEngine: MixEngineControl {
         effects[.delay]?.set(DUB_DELAY_HOLD, on ? 1 : 0)
     }
 
+    /// ×2: half the delay time while held, the repeats glide an octave up and back.
+    public func setDelayDouble(_ on: Bool) {
+        effects[.delay]?.set(DUB_DELAY_DOUBLE, on ? 1 : 0)
+    }
+
+    /// Tape stop: the delay's tape brakes to a standstill while held, and speeds up again on release.
+    public func setTapeStop(_ on: Bool) {
+        effects[.delay]?.set(DUB_DELAY_STOP, on ? 1 : 0)
+    }
+
+    /// FX ONLY: each strip's way to the master closes (the mixer glides it), its sends stay open.
+    public func setDryCut(_ on: Bool) {
+        dryCut = on
+        for strip in 0..<Self.stripCount {
+            faderMixers[strip].destination(forMixer: engine.mainMixerNode, bus: strip)?.volume = on ? 0 : 1
+        }
+    }
+
     /// CRASH: hits the spring. Does nothing on the plate (the caller tells the user).
     public func crash() {
         guard reverbModel == .spring, plugins[.reverb] == nil else { return }
@@ -630,6 +656,7 @@ public final class AudioEngine: MixEngineControl {
     /// reset, and it takes its input again. Strips, mutes, knobs and playback are left alone.
     public func clearEffects() {
         setHold(false)
+        setTapeStop(false)
         for bus in SendBus.allCases {
             if let plugin = plugins[bus] {
                 clearPlugin(plugin, on: bus)

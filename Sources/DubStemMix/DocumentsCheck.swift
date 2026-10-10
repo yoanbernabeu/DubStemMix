@@ -97,6 +97,18 @@ enum DocumentsCheck {
             check(!model.engine.isPlaying && model.engine.position == 0, "morceau chargé à l'arrêt, au début")
             check(!model.hasUnsavedChanges, "aucun changement en attente juste après l'ouverture")
 
+            print("Ancien projet avec un stem sur la tranche 7")
+            var older = try Project.load(from: document)
+            older.stems[0].strip = 6
+            let olderDocument = work.appending(path: "song/older.dubstem")
+            try older.save(to: olderDocument)
+            model.openProject(olderDocument)
+            check(model.engine.stems.map(\.strip) == [4] && model.pool.contains { $0.url.lastPathComponent == files[0].lastPathComponent },
+                  "tranches 7-8 réservées aux effets : le stem revient dans la réserve")
+            model.projectURL = nil
+            model.clear()
+            try FileManager.default.removeItem(at: olderDocument)
+
             print("Dossier déplacé, puis stem manquant")
             let moved = work.appending(path: "moved")
             try FileManager.default.moveItem(at: work.appending(path: "song"), to: moved)

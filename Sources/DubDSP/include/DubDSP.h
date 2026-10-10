@@ -39,6 +39,8 @@ enum {
     DUB_DELAY_HEADS = 5,    // Space Echo head pattern, 0 … 6: 1, 2, 3, 1+2, 2+3, 1+3, 1+2+3 (heads at 1×, 2×, 3× the time)
     DUB_DELAY_PINGPONG = 6, // 0 … 1: repeats alternate left / right (0 = plain stereo, as before)
     DUB_DELAY_HOLD = 7,     // ≥ 0.5: input closed, feedback at unity — the loop holds itself
+    DUB_DELAY_DOUBLE = 8,   // ≥ 0.5: half the time, the repeats glide an octave up (×2 gesture, PRD § 14)
+    DUB_DELAY_STOP = 9,     // ≥ 0.5: tape stop — the tape brakes and the repeats fall to silence; < 0.5 it speeds up again
 };
 enum {
     DUB_PLATE_DECAY = 0,    // coefficient de décroissance (0 … 0,98)

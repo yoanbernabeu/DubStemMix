@@ -11,7 +11,7 @@ import inserts from "../assets/screenshots/inserts.png";
 // The board opens on FX: the hero above already shows MIX.
 const initial = 1;
 const pages = [
-  { id: "mix", label: "MIX", reach: "BANK LEFT", knobs: "sends to DELAY, REVERB, BUS 3", image: mix, alt: "MIX page: eight strips with sends to delay, reverb and phaser" },
+  { id: "mix", label: "MIX", reach: "BANK LEFT", knobs: "sends to DELAY, REVERB, BUS 3", image: mix, alt: "MIX page: six stem strips with sends to delay, reverb and phaser, then the two effect strips" },
   { id: "fx", label: "FX", reach: "BANK RIGHT", knobs: "delay time, feedback, wow, filters, reverb decay, damping, tone, phaser rate, depth… the three returns and the bus-to-bus sends", image: fx, alt: "FX page: the knobs drive the tape delay, the reverb and the phaser" },
   { id: "master", label: "MASTER", reach: "BANK RIGHT again", knobs: "the big knob, the kills, the dubplate colour, delay heads and ping-pong", image: master, alt: "MASTER page: big knob, kills, dubplate, delay heads" },
   { id: "inserts", label: "INSERTS", reach: "BANK RIGHT again", knobs: "each strip's insert: sub, auto-wah, or a plugin's macros", image: inserts, alt: "INSERTS page: sub on the bass, auto-wah on the skank" },
@@ -21,13 +21,14 @@ const notes = [
   ["REC ARM held", "is the dub throw: the strip goes at full into the delay (or the reverb, or both), taken before the fader and the mute. Throw a cut vocal, hear only its echo."],
   ["Shared buses", "like the sends of a real board: cutting a strip never kills an echo or a reverb tail already on its way. That is the whole point."],
   ["Pre or post", "sends are post-fader by default; Settings switch any bus to pre-fader for the classic move: fader down, echo still running."],
+  ["Strips 7 and 8", "hold no stem: they play the effects. On MIX their knobs are the delay speed and feedback, the reverb length, the phaser rate and the bus-to-bus sends; their faders are the delay and reverb returns on every page; their buttons, held, are HOLD, ×2, FX ONLY and TAPE STOP."],
   ["Bus to bus", "each bus stands on its own until you patch its return into another bus, from the bus card's Send to menu. A cable between the cards shows it: see Patch the buses below."],
 ];
 ---
-<Section id="board" index="03" title="The board" kicker="eight strips, mirrored on screen: what you touch is where you look">
+<Section id="board" index="03" title="The board" kicker="six stem strips, two effect strips, mirrored on screen: what you touch is where you look">
   <p class="max-w-3xl text-lg leading-relaxed text-cream/90">
     Per strip: three knobs, MUTE, REC ARM, a fader. <strong>BANK LEFT / BANK RIGHT</strong> change what the knobs do;
-    the faders stay strip volumes on every page. Four pages: flip through them below.
+    the stem faders stay strip volumes on every page. Four pages: flip through them below.
   </p>
 
   <div id="pages" class="mt-10 rounded border-[1.5px] border-border bg-surface">

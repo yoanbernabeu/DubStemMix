@@ -121,7 +121,7 @@ extension AppModel {
     func panic() {
         guard !isPreview else { return }
         engine.clearEffects()
-        holding = false
+        mix.releaseDelayGestures()
         panicFlash = .now
         showNotice("FX cleared")
     }

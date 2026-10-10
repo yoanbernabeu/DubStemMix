@@ -50,3 +50,13 @@
 - [x] Créer une skill Claude Code de release qui pense à monter le numéro de version partout, site de doc compris. Endroits repérés : `web/src/site.ts` (`version`, encore à 0.6.0 alors que le dernier tag est v0.9.0), l'exemple `tools/make-app.sh 0.6.0 dist` du README, le tag git, la release GitHub.
 - [x] **[toi]** Cadrer la skill (04/10) : elle prépare tout, montre numéro + fichiers + notes, et publie seulement après ton OK ; numéro proposé (mineur), notes rédigées par elle. Rangée dans `.claude/skills/release/`.
 - [x] **[toi]** Premier essai avec `/release` : 0.10.0 publiée le 04/10 (site remis à jour).
+
+## 6. Tranches d'effets 7 et 8 (cadré le 10/10, PRD § 14)
+
+- [x] Points ouverts tranchés le 10/10 : console seulement pour les nouveaux gestes ; colonnes teintées écartées des stems.
+- [x] **[toi]** Relire le PRD § 14 et valider avant qu'on code (validé le 10/10).
+- [x] Moteur : ×2 et tape stop dans le delay, FX ONLY (son sec coupé, envois ouverts).
+- [x] Console : tranches 1-6 pour les stems, potards / faders / boutons des tranches 7-8 ; anciens stems sur 7-8 → réserve.
+- [x] Écran : tranches 7-8 teintées, écartées des stems.
+- [x] **[toi]** Essayé et validé à la MIDImix le 10/10 : vitesse du delay en tournant le potard 7 du haut, HOLD puis ×2, tape stop sur un écho, FX ONLY sur la voix envoyée dans le delay, faders 7-8 en changeant de page.
+- [x] Doc : README (« The effect strips »), site (The board, Gestures, accroche, llms.txt), captures MIX / FX / MASTER / INSERTS refaites.

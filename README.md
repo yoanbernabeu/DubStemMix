@@ -2,13 +2,13 @@
 
 # DubStemMix
 
-**Version excursion for the Akai MIDImix.** Take the stems of a tune, put them on eight faders, and cut your own version the way it was done at King Tubby's: pull the vocal, throw the snare into the echo, drop everything but bass and drums, let the spring crash. No DAW, no session to prepare, nothing to map. Plug the console, drop a folder of stems, play.
+**Version excursion for the Akai MIDImix.** Take the stems of a tune, put them on six faders, keep two more to play the effects, and cut your own version the way it was done at King Tubby's: pull the vocal, throw the snare into the echo, drop everything but bass and drums, let the spring crash. No DAW, no session to prepare, nothing to map. Plug the console, drop a folder of stems, play.
 
 Free and open source (MIT). macOS 15 or later (built and tested on macOS 26), Apple Silicon.
 
 ▶ [Watch it in action on YouTube](https://www.youtube.com/watch?v=k314RyG2htE)
 
-<p align="center"><img src="docs/screenshots/mix.png" width="100%" alt="DubStemMix, MIX page: eight strips with sends to delay, reverb and phaser"></p>
+<p align="center"><img src="docs/screenshots/mix.png" width="100%" alt="DubStemMix, MIX page: six stem strips with sends to delay, reverb and phaser, then the two effect strips"></p>
 
 ## Install
 
@@ -38,7 +38,7 @@ No stems? Drop a full song in **SPLIT A SONG** and get drums, bass, instruments 
 
 ## The board
 
-Eight strips, mirrored on screen so what you touch is where you look. Per strip: three knobs, MUTE, REC ARM, a fader. BANK LEFT / BANK RIGHT change what the knobs do; the faders stay strip volumes on every page.
+Eight strips, mirrored on screen so what you touch is where you look: strips 1 to 6 hold the stems, strips 7 and 8 play the effects (see [The effect strips](#the-effect-strips)). Per strip: three knobs, MUTE, REC ARM, a fader. BANK LEFT / BANK RIGHT change what the knobs do; the stem faders stay strip volumes on every page.
 
 | Page | Reach it | The knobs are |
 |---|---|---|
@@ -53,11 +53,26 @@ Eight strips, mirrored on screen so what you touch is where you look. Per strip:
 - Sends are post-fader by default; Settings (⌘,) switch any bus to pre-fader for the classic move: fader down, echo still running.
 - **Bus to bus**: any bus return can be patched into another bus, see [Patching the buses](#patching-the-buses).
 
+### The effect strips
+
+Strips 7 and 8 hold no stem: they put the effects under your hands without leaving the MIX page, so you can send the vocal into the delay with one hand and bend the echo with the other.
+
+| | Strip 7 · DELAY | Strip 8 · SPACE |
+|---|---|---|
+| Top knob | delay speed (ms, or a division with SYNC) | phaser rate (bus 3) |
+| Middle knob | delay feedback, up to self-oscillation | delay → its chosen bus |
+| Bottom knob | reverb length | reverb → its chosen bus |
+| Fader | delay return | reverb return |
+| MUTE (hold) | **HOLD**: the delay loops on itself | **FX ONLY**: the dry sound leaves, the stems keep feeding the effects |
+| REC ARM (hold) | **×2**: the delay goes twice as fast, the echoes jump an octave up | **TAPE STOP**: the delay's tape brakes to a standstill, and speeds up again when you let go |
+
+The knobs are a second way to reach the FX page's settings: they catch the value up before acting, like any knob after a page change. On the other pages the knobs of strips 7 and 8 keep that page's role; their faders hold the returns on every page, so changing page never changes the sound. The LEDs stay lit while you hold a gesture. ×2 and TAPE STOP play the built-in delay (not a plugin on the delay bus).
+
 <p align="center"><img src="docs/screenshots/fx.png" width="100%" alt="DubStemMix, FX page: the knobs drive the tape delay, the reverb and the phaser"></p>
 
 ## Gestures
 
-Keyboard or the buttons in the master column. They never touch your mutes: release, and the mix is exactly as it was.
+Keyboard or the buttons in the master column (HOLD also on strip 7, and the effect strips' own gestures, see above). They never touch your mutes: release, and the mix is exactly as it was.
 
 | Key | Gesture |
 |---|---|
@@ -189,7 +204,7 @@ git clone https://github.com/yoanbernabeu/DubStemMix.git
 cd DubStemMix
 swift run DubStemMix          # runs the app from the package
 tools/make-app.sh 0.10.0 dist  # builds dist/DubStemMix.app and the zip
-swift test                    # 98 tests, no model or audio device needed
+swift test                    # 109 tests, no model or audio device needed
 ```
 
 Needs Xcode 26 (Swift 6.2). Useful self-checks without the UI: `--check-documents`, `--check-audio`, `--check-plugins`, `--check-plugin-crash`, `--download-models`, `--split <file>` (add `--project` to also write the song's ready project next to its stems), `--check-prepare <out dir> <files…>` (runs the preparation queue on these files, then a second queue cancelled after 5 s). The screenshots above come from `--snapshot <file.png> [--fx | --master | --inserts | --settings | --prepare | --setlists]`, rendered with demo data.

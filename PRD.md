@@ -177,7 +177,7 @@ Objectif : un son crédible pour le dub sans aucun plugin tiers.
 
 ### 5.10 Interface
 
-- Fenêtre unique, thème sombre lisible sur scène, **miroir de la console** : 8 tranches (3 potards colorés par bus, fader, vu-mètre, états mute/solo/throw, noms des stems) + master.
+- Fenêtre unique, thème sombre lisible sur scène, **miroir de la console** : 6 tranches de stems (3 potards colorés par bus, fader, vu-mètre, états mute/solo/throw, noms des stems), les 2 tranches d'effets (§ 14) + master.
 - Panneau FX (disposé comme la page FX de la console), indicateur de page MIX/FX.
 - Barre latérale setlist · transport + forme d'onde · tempo · REC.
 - Indicateurs d'état : MIDImix connectée/déconnectée, carte son, charge CPU / décrochages.
@@ -412,3 +412,34 @@ Cadré en interview le 4 octobre 2026. Construire un set dans un écran à part,
 - **Charger dans la console** : « LOAD IN THE CONSOLE » fait de la setlist éditée celle de la console et ferme l'atelier. Aucun morceau n'est ouvert : N ou un clic choisit par où commencer. Ajouté le 4 octobre 2026.
 - Inchangés : N / P, export de la setlist (§ 5.8), renommer un morceau.
 
+
+## 14. Tranches d'effets 7 et 8 (validé le 10 octobre 2026)
+
+Cadré en interview le 10 octobre 2026. Constat : changer de page en plein set est frustrant, car sur la page FX les potards ne sont plus des envois. On ne peut donc pas envoyer la voix dans le delay et tourner la vitesse du delay en même temps. Les tranches 7 et 8 deviennent des **tranches d'effets**, jouables sans quitter la page MIX.
+
+- **Pour de bon** : 6 tranches de stems (1 à 6), 7 et 8 toujours d'effets. Pas de réglage. La séparation (tranches 1 à 4) n'est pas concernée. Un ancien projet qui aurait des stems sur 7 ou 8 les retrouve dans la réserve.
+- **Disposition** (page MIX) :
+
+| | Tranche 7 — Delay | Tranche 8 — Espace |
+|---|---|---|
+| Potard haut | Vitesse du delay | Vitesse du phaser (bus 3) |
+| Potard milieu | Feedback du delay | Renvoi Delay → (destination choisie) |
+| Potard bas | Longueur de la reverb | Renvoi Reverb → (destination choisie) |
+| Fader | **Retour Delay** | **Retour Reverb** |
+| MUTE (maintenu) | **HOLD** | **Tout dans les effets** |
+| REC ARM (maintenu) | **×2** | **Tape stop** |
+
+- **Les potards sont un second accès** aux réglages existants : tourner la vitesse du delay en tranche 7 change la même valeur que le potard Time de la page FX (rattrapage des potards comme aujourd'hui). Le son de ces réglages ne change pas.
+- **Les faders 7 et 8 gardent leur rôle sur toutes les pages** : changer de page ne change jamais le son. Les potards des tranches 7-8 sur les pages FX, MASTER et INSERTS restent ceux d'aujourd'hui (retours et renvois sur FX, etc.).
+- **Restent sur la page FX** : retour et renvoi du bus 3, profondeur du phaser.
+- **Gestes** (LED allumée tant qu'on tient, comme le throw ; au relâchement, tout revient comme avant) :
+  - **HOLD** : le geste existant (touche H), désormais aussi sur la console.
+  - **×2** : tant qu'on tient, le delay va deux fois plus vite (les échos montent d'une octave en glissant) ; au relâchement, il revient à sa vitesse.
+  - **Tape stop** : tant qu'on tient, la bande du delay freine et les échos s'effondrent ; au relâchement, elle remonte à vitesse normale. Le reste du morceau continue.
+  - **Tout dans les effets** : tant qu'on tient, le son sec disparaît, il ne reste que les effets. Les stems **continuent de nourrir** les effets (on entend le morceau « en échos »). Les états MUTE / SOLO ne sont pas touchés.
+- Chaque nouveau geste est neutre tant qu'on ne le joue pas : rien ne change dans le son d'un morceau existant.
+- Écarté : throw du mix entier (pas de place).
+- **Vitesse du delay et SYNC** : le potard suit SYNC comme le potard TIME (divisions calées sur le tempo ou millisecondes). ×2 divise le temps par deux dans les deux cas.
+- **Console seulement** pour ×2, tape stop et « tout dans les effets » : pas de touche clavier ni de bouton de geste à l'écran (décidé le 10/10/2026). HOLD garde sa touche H.
+- **Comportement fin** (codé le 10/10/2026) : les potards et faders des tranches 7-8 ne sautent jamais au premier contact, ils rattrapent la valeur comme sur la page FX. ×2 et tape stop agissent sur le delay intégré (sans effet avec un plugin sur le bus delay). Tape stop : freinage en ~0,9 s, redémarrage en ~0,35 s, la réinjection s'éteint avec la vitesse (ce qui revient après, c'est la musique jouée entre-temps). PANIC relâche HOLD et tape stop. Sur la page INSERTS, les potards 7-8 sont inertes (pas d'insert sur une tranche d'effets).
+- **À l'écran** : les tranches 7-8 gardent la forme d'une tranche (miroir de la console), mais sont **écartées des stems par un vide**, sur un fond teinté de la couleur de leur effet (7 ocre delay, 8 sauge reverb). En-tête « 7 DELAY » / « 8 SPACE », chaque potard, bouton et fader porte son libellé (SPEED, FB, REV · PHS, DLY→, REV→ · HOLD, ×2, FX ONLY, TAPE STOP · DLY RTN, REV RTN). On n'y dépose pas de stem.

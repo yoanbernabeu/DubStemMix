@@ -27,7 +27,7 @@ const echoes = [0.62, 0.4, 0.25, 0.14, 0.07];
     </h1>
     <div class="mt-10 grid gap-8 md:grid-cols-[1fr_auto] md:items-end">
       <p class="animate-rise max-w-2xl text-lg leading-relaxed text-cream/90 sm:text-xl" style="animation-delay:.55s">
-        Eight stems on eight faders, the way it was done at King Tubby's: pull the vocal, throw the snare into the echo,
+        Six stems on six faders, two more to play the effects, the way it was done at King Tubby's: pull the vocal, throw the snare into the echo,
         drop everything but bass and drums, let the spring crash. <strong>No DAW, no session to prepare, nothing to map.</strong>{" "}
         Plug the Akai MIDImix, drop a folder of stems, play.
       </p>
@@ -41,12 +41,12 @@ const echoes = [0.62, 0.4, 0.25, 0.14, 0.07];
   <figure class="animate-rise mx-auto max-w-6xl px-4 pb-16 sm:px-6 sm:pb-24" style="animation-delay:.8s">
     <div class="flex items-center gap-3 border-x border-t border-border bg-surface px-4 py-2">
       {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <Led color="delay" on={n !== 4 && n !== 7} />)}
-      <span class="mono ml-2 text-[11px] text-dim">MIX · eight strips · sends to DELAY, REVERB, BUS 3</span>
+      <span class="mono ml-2 text-[11px] text-dim">MIX · six stem strips · two effect strips</span>
       <span class="mono ml-auto hidden items-center gap-2 text-[11px] text-dim sm:flex"><Led color="reverb" blink /> MIDImix connected</span>
     </div>
     <Image
       src={mix}
-      alt="DubStemMix, MIX page: eight strips with sends to delay, reverb and phaser, master column on the right"
+      alt="DubStemMix, MIX page: six stem strips with sends to delay, reverb and phaser, two effect strips, master column on the right"
       widths={[720, 1100, 1440]}
       sizes="(min-width: 1152px) 1100px, 100vw"
       format="webp"

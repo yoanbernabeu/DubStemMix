@@ -34,6 +34,16 @@ public enum FXParameter: String, CaseIterable, Sendable {
         [.delayToReverb, .reverbSend, .bus3Send],
     ]
 
+    /// Effect strips 7 and 8 on the MIX page (PRD § 14), top to bottom: a second way to reach these parameters,
+    /// so the effects can be played without leaving the sends.
+    public static let effectStripLayout: [[FXParameter]] = [
+        [.delayTime, .delayFeedback, .reverbDecay],
+        [.phaserRate, .delayToReverb, .reverbSend],
+    ]
+
+    /// Faders of strips 7 and 8, the same on every page: changing page never changes what they hold.
+    public static let effectStripFaders: [FXParameter] = [.delayReturn, .reverbReturn]
+
     /// MASTER page (PRD § 11.2): strips 1 to 8, top to bottom. Strip 4 (delay heads, ping-pong) comes with M7.
     public static let masterLayout: [[FXParameter?]] = [
         [.masterHighPass, nil, nil],
