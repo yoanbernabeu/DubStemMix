@@ -42,6 +42,7 @@ Ableton Live + MIDImix fait techniquement la même chose, mais demande un DAW pa
 | Sortie audio | **Stéréo simple** (pas de cue casque en v1) |
 | Contrôleurs | **MIDImix uniquement en v1**, mapping isolé dans un profil pour en ajouter d'autres |
 | Effets dub v2 (22/09/2026) | **Chaîne master + inserts par tranche**, tout sauf la sirène (§ 11). Réglages sur une **troisième page** de la console (BANK RIGHT), gestes momentanés au **clavier et à l'écran**. Ordre : master (M6) → delay/reverb (M7) → inserts (M8) |
+| Sirène et Syndrum (16/10/2026) | Tranches 5 et 6 vides = **sirène** et **Syndrum** par défaut, libérées en y déposant un stem (§ 15) |
 
 ## 4. Matériel : Akai MIDImix
 
@@ -463,3 +464,30 @@ Cadré en interview le 10 octobre 2026. Constat : changer de page en plein set e
 - **Console seulement** pour ×2, tape stop et « tout dans les effets » : pas de touche clavier ni de bouton de geste à l'écran (décidé le 10/10/2026). HOLD garde sa touche H.
 - **Comportement fin** (codé le 10/10/2026) : les potards et faders des tranches 7-8 ne sautent jamais au premier contact, ils rattrapent la valeur comme sur la page FX. ×2 et tape stop agissent sur le delay intégré (sans effet avec un plugin sur le bus delay). Tape stop : freinage en ~0,9 s, redémarrage en ~0,35 s, la réinjection s'éteint avec la vitesse (ce qui revient après, c'est la musique jouée entre-temps). PANIC relâche HOLD et tape stop. Sur la page INSERTS, les potards 7-8 sont inertes (pas d'insert sur une tranche d'effets).
 - **À l'écran** : les tranches 7-8 gardent la forme d'une tranche (miroir de la console), mais sont **écartées des stems par un vide**, sur un fond teinté de la couleur de leur effet (7 ocre delay, 8 sauge reverb). En-tête « 7 DELAY » / « 8 SPACE », chaque potard, bouton et fader porte son libellé (SPEED, FB, REV · PHS, DLY→, REV→ · HOLD, ×2, FX ONLY, TAPE STOP · DLY RTN, REV RTN). On n'y dépose pas de stem.
+
+## 15. Sirène et Syndrum sur les tranches 5 et 6 (validé le 16 octobre 2026)
+
+Cadré en interview le 16 octobre 2026. Constat : la séparation donne 4 stems (tranches 1 à 4), donc les tranches 5 et 6 restent le plus souvent vides. Revient sur deux décisions : la sirène écartée de la v2 (§ 11, 22/09/2026) et les tranches 1 à 6 réservées aux stems (§ 14).
+
+- **Par défaut**, une tranche 5 vide est une **sirène dub**, une tranche 6 vide un **Syndrum** (le tambour électronique « piou » des dubs de la fin des années 70).
+- **Libérable en y déposant un stem** : un stem posé sur la 5 ou la 6 en fait une tranche de stem pour ce morceau, comme aujourd'hui. On retire le dernier stem : l'instrument revient. Rien à régler. La séparation (tranches 1 à 4) n'est pas concernée ; un projet qui a des stems sur 5 ou 6 ne change pas.
+- **Disposition** (page MIX) :
+
+| | Tranche 5 — Sirène | Tranche 6 — Syndrum |
+|---|---|---|
+| Potard haut | Hauteur | Hauteur |
+| Potard milieu | Vitesse de la modulation (le « wou-wou ») | Longueur de la chute |
+| Potard bas | Envoi Delay | Envoi Delay |
+| Fader | Volume | Volume |
+| MUTE | **Maintenu : la sirène sonne** | **Un coup par appui** |
+| REC ARM (maintenu) | **Montée** : la hauteur grimpe, redescend au relâchement | **Roulement** calé sur le tempo |
+
+- **Dans les effets** : par défaut, les deux passent seulement par le bus delay (potard bas) ; la queue d'écho continue après qu'on a lâché. Les envois **reverb** et **bus 3** se règlent **à la souris** sur la tranche à l'écran (0 par défaut, enregistrés dans le projet) : plus de place sur la console.
+- **DROP** : les instruments restent audibles (on les joue exprès).
+- **Console seulement** pour jouer la sirène et le Syndrum, comme les gestes du § 14 : pas de touche clavier.
+- **Son de la sirène** : onde **carrée** par défaut (le son des sirènes dub classiques, celui qui perce le mix et sonne le mieux dans le delay). Menu à l'écran pour passer en **triangle** (plus doux, plus « flûté »). Le « wou-wou » suit une modulation en triangle (la hauteur monte et descend en continu).
+- **Roulement du Syndrum** : valeur réglable à la souris sur la tranche (croches, doubles croches, triolets) ; doubles croches par défaut. Enregistrée dans le projet.
+- Neutre tant qu'on ne joue pas : un morceau existant sonne exactement pareil.
+- LED allumée tant qu'on tient, comme le throw.
+- **Autres pages** : sur FX, MASTER et INSERTS, les potards 5-6 gardent leur rôle d'aujourd'hui (phaser sur FX…). **L'insert de tranche reste possible** sur un instrument (la sirène dans l'auto-wah, un plugin AU…), piloté sur la page INSERTS comme pour un stem.
+- **À l'écran** : en-tête « 5 SIREN » / « 6 SYNDRUM », libellés PITCH, RATE, DLY · HOLD, RISE / PITCH, DECAY, DLY · HIT, ROLL, la zone de dépôt reste visible pour y glisser un stem.

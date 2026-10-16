@@ -18,4 +18,4 @@
 ## Jouer des sons
 
 - **Sampler** : quelques emplacements de sons courts (jingles, voix, bruitages) à déclencher en live.
-- **Sirène dub** : écartée de la v2 le 22/09/2026 (« un instrument, pas un effet »), gardée ici pour mémoire.
+- **Sirène dub** : écartée de la v2 le 22/09/2026, reprise le 16/10/2026 sur la tranche 5 avec un Syndrum sur la 6 (PRD § 15).
