@@ -89,6 +89,8 @@ public final class MixController {
     public private(set) var strips = [Strip](repeating: Strip(), count: AudioEngine.stripCount)
     /// Effect strip gestures being held.
     public private(set) var gestures: Set<EffectGesture> = []
+    /// Instrument gestures being held (PRD § 15).
+    public private(set) var instrumentGestures: Set<InstrumentGesture> = []
     public var holding: Bool { gestures.contains(.hold) }
     public private(set) var master = 0.8
     public private(set) var page = Page.mix
@@ -151,6 +153,10 @@ public final class MixController {
             faders[strip].picked = false
             for row in knobs[strip].indices { knobs[strip][row].picked = false }
         }
+        // The instrument strips start empty: their knobs drive saved settings, which must not jump either.
+        for strip in Instrument.strips {
+            for row in knobs[strip].indices { knobs[strip][row].picked = false }
+        }
         for strip in strips.indices { applyAll(strip: strip) }
         engine.setMasterGain(Self.faderGain(master))
         for (parameter, value) in fx { engine.setFX(parameter, engineValue(parameter, value)) }
@@ -167,7 +173,7 @@ public final class MixController {
     public func handle(_ event: SurfaceEvent) {
         switch event {
         case let .knob(strip, row, value):
-            if page == .mix, let parameter = Self.effectKnob(strip: strip, row: row) {
+            if page == .mix, let parameter = mixKnob(strip: strip, row: row) {
                 if pickUp(&knobs[strip][row], physical: value, current: fx[parameter] ?? 0, adoptUnknown: false) {
                     applyFX(parameter, value)
                 }
@@ -213,6 +219,8 @@ public final class MixController {
         case let .button(.mute, strip, pressed):
             if let gesture = Self.effectGesture(strip: strip, mute: true) {
                 setGesture(gesture, pressed)
+            } else if let instrument = instrument(strip: strip) {
+                setInstrumentGesture(.on(instrument, mute: true), pressed)
             } else if pressed {
                 toggleMute(strip: strip)
             }
@@ -221,6 +229,8 @@ public final class MixController {
         case let .button(.recArm, strip, pressed):
             if let gesture = Self.effectGesture(strip: strip, mute: false) {
                 setGesture(gesture, pressed)
+            } else if let instrument = instrument(strip: strip) {
+                setInstrumentGesture(.on(instrument, mute: false), pressed)
             } else {
                 setThrow(strip: strip, pressed)
             }
@@ -293,6 +303,9 @@ public final class MixController {
             for (offset, column) in FXParameter.effectStripLayout.enumerated() {
                 if let row = column.firstIndex(of: parameter) { return (Self.effectStrips.lowerBound + offset, row) }
             }
+            for instrument in Instrument.allCases where self.instrument(strip: instrument.strip) != nil {
+                if let row = instrument.knobs.firstIndex(of: parameter) { return (instrument.strip, row) }
+            }
             return nil
         }
         guard let layout = page.layout else { return nil }
@@ -300,6 +313,53 @@ public final class MixController {
             if let row = column.firstIndex(of: parameter) { return (strip, row) }
         }
         return nil
+    }
+
+    // MARK: Instrument strips (PRD § 15)
+
+    /// The instrument a strip plays: strip 5 or 6 while it holds no stem.
+    public func instrument(strip: Int) -> Instrument? {
+        guard let instrument = Instrument(strip: strip), strips[strip].stems.isEmpty else { return nil }
+        return instrument
+    }
+
+    /// What a knob plays on the MIX page when it is not a send: an effect strip's or an instrument's parameter.
+    private func mixKnob(strip: Int, row: Int) -> FXParameter? {
+        Self.effectKnob(strip: strip, row: row) ?? instrument(strip: strip)?.knobs[row]
+    }
+
+    /// From the console, or the screen. A hit fires on the press; releasing the others stops them.
+    public func setInstrumentGesture(_ gesture: InstrumentGesture, _ on: Bool) {
+        guard instrumentGestures.contains(gesture) != on else { return }
+        if on { instrumentGestures.insert(gesture) } else { instrumentGestures.remove(gesture) }
+        engine.setInstrument(gesture, on)
+        lightInstrumentGesture(gesture)
+    }
+
+    /// PANIC: the siren and the roll stop, whatever the buttons say.
+    public func releaseInstruments() {
+        for gesture in InstrumentGesture.allCases { setInstrumentGesture(gesture, false) }
+    }
+
+    private func lightInstrumentGesture(_ gesture: InstrumentGesture) {
+        let strip = gesture.instrument.strip
+        guard instrument(strip: strip) != nil else { return }
+        let on = instrumentGestures.contains(gesture)
+        if gesture.onMute { surface?.setMuteLed(strip: strip, on) } else { surface?.setRecLed(strip: strip, on) }
+    }
+
+    /// A strip became an instrument strip, or a stem strip again: gestures let go, its MUTE and throw (now the
+    /// instrument's buttons) cleared, sends and knobs follow what the strip is.
+    private func instrumentChanged(strip: Int, from old: Instrument?) {
+        for gesture in InstrumentGesture.allCases where gesture.instrument == old { setInstrumentGesture(gesture, false) }
+        if instrument(strip: strip) != nil {
+            if strips[strip].mute { strips[strip].mute = false }
+            if strips[strip].throwing { setThrow(strip: strip, false) }
+        }
+        surface?.setMuteLed(strip: strip, strips[strip].mute)
+        surface?.setRecLed(strip: strip, strips[strip].throwing)
+        applyAll(strip: strip)
+        if page == .mix { catchUp(strip: strip) }
     }
 
     // MARK: Effect strips (PRD § 14)
@@ -368,20 +428,23 @@ public final class MixController {
     /// la valeur de ce qu'il pilote désormais (sauf s'il s'y trouve déjà).
     public func setPage(_ newPage: Page) {
         page = newPage
-        for strip in knobs.indices {
-            for row in knobs[strip].indices {
-                let target: Double? = switch newPage {
-                case .mix: Self.effectKnob(strip: strip, row: row).map { fx[$0] ?? 0 } ?? strips[strip].sends[row]
-                case .fx, .master, .inserts: cellValue(strip: strip, row: row)
-                }
-                if let target, let physical = knobs[strip][row].value {
-                    knobs[strip][row].picked = abs(physical - target) <= Self.pickupWindow
-                } else {
-                    knobs[strip][row].picked = false
-                }
+        for strip in knobs.indices { catchUp(strip: strip) }
+        surface?.setBankLeds(left: newPage != .fx, right: newPage != .mix) // MASTER lights both
+    }
+
+    /// The strip's knobs drive new targets: each holds only if it already sits on its target.
+    private func catchUp(strip: Int) {
+        for row in knobs[strip].indices {
+            let target: Double? = switch page {
+            case .mix: mixKnob(strip: strip, row: row).map { fx[$0] ?? 0 } ?? strips[strip].sends[row]
+            case .fx, .master, .inserts: cellValue(strip: strip, row: row)
+            }
+            if let target, let physical = knobs[strip][row].value {
+                knobs[strip][row].picked = abs(physical - target) <= Self.pickupWindow
+            } else {
+                knobs[strip][row].picked = false
             }
         }
-        surface?.setBankLeds(left: newPage != .fx, right: newPage != .mix) // MASTER lights both
     }
 
     public func setFader(strip: Int, _ value: Double) {
@@ -415,8 +478,10 @@ public final class MixController {
     }
 
     public func setStems(strip: Int, name: String, stems: [StemInfo]) {
+        let old = instrument(strip: strip)
         strips[strip].name = name
         strips[strip].stems = stems
+        if instrument(strip: strip) != old { instrumentChanged(strip: strip, from: old) }
     }
 
     // MARK: DROP (PRD § 11.6)
@@ -434,8 +499,9 @@ public final class MixController {
     }
 
     /// Solo « in place » : dès qu'une tranche est en solo, seules les tranches en solo passent.
+    /// An instrument stays audible through DROP: it is played on purpose (PRD § 15).
     public func isAudible(strip: Int) -> Bool {
-        if dropping, !strips[strip].keep { return false }
+        if dropping, !strips[strip].keep, instrument(strip: strip) == nil { return false }
         return strips.contains(where: \.solo) ? strips[strip].solo : !strips[strip].mute
     }
 
@@ -448,6 +514,7 @@ public final class MixController {
         }
         for strip in Self.effectStrips { surface?.setSoloLed(strip: strip, false) }
         for gesture in EffectGesture.allCases { lightGesture(gesture) }
+        for gesture in InstrumentGesture.allCases { lightInstrumentGesture(gesture) }
         surface?.setBankLeds(left: page != .fx, right: page != .mix)
     }
 
@@ -455,8 +522,14 @@ public final class MixController {
 
     private func applySend(strip: Int, row: Int, _ value: Double) {
         strips[strip].sends[row] = value
+        applySendGain(strip: strip, row: row)
+    }
+
+    /// A stem strip sends what its knobs say; an instrument strip, its instrument's send settings.
+    private func applySendGain(strip: Int, row: Int) {
         guard let bus = SendBus(rawValue: row) else { return }
-        engine.setSendGain(bus, strip: strip, Self.sendGain(value))
+        let position = instrument(strip: strip).map { fx[$0.sends[row]] ?? 0 } ?? strips[strip].sends[row]
+        engine.setSendGain(bus, strip: strip, Self.sendGain(position))
     }
 
     private func applyFader(strip: Int, _ value: Double) {
@@ -467,6 +540,9 @@ public final class MixController {
     private func applyFX(_ parameter: FXParameter, _ value: Double) {
         fx[parameter] = value
         engine.setFX(parameter, engineValue(parameter, value))
+        for instrument in Instrument.allCases {
+            if let row = instrument.sends.firstIndex(of: parameter) { applySendGain(strip: instrument.strip, row: row) }
+        }
     }
 
     // MARK: Plugins et potards macros
@@ -601,7 +677,11 @@ public final class MixController {
     public func setTempo(_ newValue: Double?) {
         bpm = newValue.map { min(300, max(30, $0)) }
         applyFX(.delayTime, fx[.delayTime] ?? 0)
+        applyFX(.syndrumRoll, fx[.syndrumRoll] ?? 0)
     }
+
+    /// Without a tempo, the Syndrum rolls as if at 120 BPM.
+    private static let rollTempo = 120.0
 
     public func setDelaySync(_ on: Bool) {
         delaySync = on
@@ -618,6 +698,10 @@ public final class MixController {
 
     private func engineValue(_ parameter: FXParameter, _ normalized: Double) -> Float {
         if parameter == .delayTime, let division = syncedDivision(normalized) { return Float(division.seconds) }
+        if parameter == .syndrumRoll {
+            let division = FXParameter.rollDivisions[Int(parameter.value(normalized))]
+            return Float(60 / (bpm ?? Self.rollTempo) * division.beats)
+        }
         return parameter.value(normalized)
     }
 

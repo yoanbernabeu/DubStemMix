@@ -83,11 +83,13 @@ public protocol MixEngineControl: AnyObject {
     func setTapeStop(_ on: Bool)
     /// FX ONLY (PRD § 14): the strips leave the master but keep feeding the send buses.
     func setDryCut(_ on: Bool)
+    /// The siren sounds or rises, the Syndrum hits (on press) or rolls (PRD § 15).
+    func setInstrument(_ gesture: InstrumentGesture, _ on: Bool)
 }
 
 /// Graphe validé au jalon M0 :
 ///
-///   lecteur ─▶ somme de tranche ─▶ insert ─▶ prise pré ─┬─▶ fader/mute ─┬─▶ master ─▶ chaîne master ─▶ frein (pull-up) ─▶ gain ─▶ limiteur ─▶ sortie
+///   lecteur (+ instrument, tranches 5-6) ─▶ somme de tranche ─▶ insert ─▶ prise pré ─┬─▶ fader/mute ─┬─▶ master ─▶ chaîne master ─▶ frein (pull-up) ─▶ gain ─▶ limiteur ─▶ sortie
 ///                                                       │               └─▶ 3 bus d'envoi (post-fader) ─▶ effet ─▶ retour ─▶ master
 ///                                                       └─▶ 3 send buses (before fader and mute: pre-fader sends, dub throw)
 ///                                                                       retour d'un bus ─▶ un autre bus (renvoi, issue #1)
@@ -98,6 +100,9 @@ public protocol MixEngineControl: AnyObject {
 ///
 /// Plate / spring, phaser / flanger and the built-in strip inserts are switches (dub_switch.c): one unit holding
 /// both kernels, so changing them never rewires the graph and never cuts a tail. Only plugins are swapped in.
+///
+/// Strips 5 and 6 sum their instrument (siren, Syndrum, PRD § 15) with their stems: silent until played, so a stem
+/// strip there sounds as before.
 ///
 /// Per strip (PRD § 11.5): the stems sum in a mixer, go through the insert (between two fixed neutral nodes,
 /// so swapping it never touches a mixer), then a unity "pre" mixer takes the pre-fader sends and the throw,
@@ -176,6 +181,10 @@ public final class AudioEngine: MixEngineControl {
     /// Bus-to-bus sends: a pass-through writer on each return, a reader on each bus input.
     private let portal = BusPortal()
     private var effects: [BuiltInEffect.Kind: BuiltInEffect] = [:]
+    /// The siren and the Syndrum, summed into strips 5 and 6 in every engine (with or without effects).
+    private var instruments: [BuiltInEffect.Kind: InstrumentVoice] = [:]
+    /// Input of strips 5 and 6's sum mixer taken by their instrument; the stems take the others.
+    private static let instrumentInput = 0
     /// Le nœud d'effet actuellement branché sur chaque bus (effet intégré ou plugin).
     private var effectNodes: [AVAudioNode?] = [nil, nil, nil]
     /// Nœuds neutres fixes de part et d'autre de chaque effet : changer d'effet à chaud ne touche ainsi jamais
@@ -270,6 +279,12 @@ public final class AudioEngine: MixEngineControl {
         for node in insertInlets + insertOutlets { engine.attach(node) }
 
         for i in 0..<Self.stripCount {
+            if let instrument = Instrument(strip: i) {
+                let voice = InstrumentVoice(instrument, format: format)
+                instruments[instrument.kind] = voice
+                engine.attach(voice.node)
+                engine.connect(voice.node, to: stripMixers[i], fromBus: 0, toBus: Self.instrumentInput, format: format)
+            }
             engine.connect(stripMixers[i], to: insertInlets[i], format: format)
             if withEffects {
                 let insert = BuiltInEffect(.insert) // straight through until an insert is chosen
@@ -490,7 +505,8 @@ public final class AudioEngine: MixEngineControl {
     /// Les bus sont attribués ici : `nextAvailableInputBus` ignore les connexions en éventail
     /// et propose des bus déjà pris. `stem` ne doit pas figurer dans `stems` pendant l'appel.
     private func connect(_ stem: inout Stem) {
-        let usedInputs = Set(stems.filter { $0.strip == stem.strip }.map(\.inputBus))
+        var usedInputs = Set(stems.filter { $0.strip == stem.strip }.map(\.inputBus))
+        if Instrument(strip: stem.strip) != nil { usedInputs.insert(Self.instrumentInput) }
         stem.inputBus = (0...).first { !usedInputs.contains($0) }!
         engine.connect(stem.player, to: stripMixers[stem.strip], fromBus: 0, toBus: stem.inputBus, format: stem.file.processingFormat)
     }
@@ -568,6 +584,7 @@ public final class AudioEngine: MixEngineControl {
         lastFX[parameter] = value
         if let (kind, index) = parameter.kernelParameter {
             effects[kind]?.set(index, value)
+            instruments[kind]?.set(index, value)
             return
         }
         // The return and the bus-to-bus send are separate: a return at zero never closes the send, and back.
@@ -644,6 +661,14 @@ public final class AudioEngine: MixEngineControl {
         for strip in 0..<Self.stripCount {
             faderMixers[strip].destination(forMixer: engine.mainMixerNode, bus: strip)?.volume = on ? 0 : 1
         }
+    }
+
+    // MARK: Instruments (PRD § 15)
+
+    public func setInstrument(_ gesture: InstrumentGesture, _ on: Bool) {
+        // A hit fires on the press; the kernel consumes it.
+        if gesture == .hit, !on { return }
+        instruments[gesture.instrument.kind]?.set(gesture.kernelParameter, on ? 1 : 0)
     }
 
     /// CRASH: hits the spring. Does nothing on the plate (the caller tells the user).

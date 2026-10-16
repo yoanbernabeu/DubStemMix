@@ -11,6 +11,9 @@ public final class BuiltInEffect {
         case reverbBus, bus3, insert
         /// The master's safety limiter (dub_limiter.c) and pull-up tape brake (dub_brake.c).
         case limiter, brake
+        /// Name the kernels of the instruments of strips 5 and 6 (dub_siren.c, dub_syndrum.c), which `InstrumentVoice`
+        /// plays as source nodes, not as effects.
+        case siren, syndrum
 
         var dspKind: DubEffectKind {
             switch self {
@@ -27,6 +30,8 @@ public final class BuiltInEffect {
             case .insert: DUB_EFFECT_INSERT
             case .limiter: DUB_EFFECT_LIMITER
             case .brake: DUB_EFFECT_BRAKE
+            case .siren: DUB_EFFECT_SIREN
+            case .syndrum: DUB_EFFECT_SYNDRUM
             }
         }
 
@@ -45,6 +50,8 @@ public final class BuiltInEffect {
             case .insert: "dins"
             case .limiter: "dlim"
             case .brake: "dbrk"
+            case .siren: "dsrn"
+            case .syndrum: "dsyn"
             }
             return AudioComponentDescription(
                 componentType: kAudioUnitType_Effect,

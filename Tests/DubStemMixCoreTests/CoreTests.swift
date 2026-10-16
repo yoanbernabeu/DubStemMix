@@ -82,6 +82,8 @@ final class FakeEngine: MixEngineControl {
     func setDelayDouble(_ on: Bool) { double = on }
     func setTapeStop(_ on: Bool) { tapeStop = on }
     func setDryCut(_ on: Bool) { dryCut = on }
+    var instruments: [InstrumentGesture: Bool] = [:]
+    func setInstrument(_ gesture: InstrumentGesture, _ on: Bool) { instruments[gesture] = on }
 }
 
 @MainActor

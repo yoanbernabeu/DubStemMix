@@ -323,7 +323,10 @@ private func energy(_ samples: ArraySlice<Float>) -> Float { samples.reduce(0) {
     #expect(FXParameter.delayReturn.display(0) == "−∞ dB")
     #expect(FXParameter.layout.count == 8 && FXParameter.layout.allSatisfy { $0.count == 3 })
     let onPages = Set((FXParameter.layout + FXParameter.masterLayout).flatMap { $0 }.compactMap { $0 })
-    #expect(onPages.count == FXParameter.allCases.count) // every parameter has a knob on one page
+        .union(FXParameter.instrumentLayout.flatMap { $0 })
+    // Set with the mouse on the instrument strips: the console has no knob left for them (PRD § 15).
+    let mouseOnly: Set<FXParameter> = [.sirenWave, .sirenReverb, .sirenBus3, .syndrumRoll, .syndrumReverb, .syndrumBus3]
+    #expect(onPages.union(mouseOnly).count == FXParameter.allCases.count) // every parameter has a knob on one page
 }
 
 // MARK: - Tempo

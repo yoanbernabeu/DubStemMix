@@ -21,6 +21,10 @@ public enum FXParameter: String, CaseIterable, Sendable {
     // Bus-to-bus sends (issue #1), with the delay's (`delayToReverb`, old name kept for existing projects)
     // on strip 8 of the FX page. Their targets live in `BusRouting`.
     case reverbSend, bus3Send
+    // Instruments of empty strips 5 and 6 (PRD § 15): the sound, then the sends (delay on the console, the other two
+    // with the mouse). Their sends are parameters, not strip sends: a stem placed on the strip gets its own back.
+    case sirenPitch, sirenRate, sirenWave, sirenDelay, sirenReverb, sirenBus3
+    case syndrumPitch, syndrumDecay, syndrumRoll, syndrumDelay, syndrumReverb, syndrumBus3
 
     /// Page FX (BANK RIGHT) : potards des tranches 1 à 8, du haut vers le bas. PRD § 5.3.
     public static let layout: [[FXParameter?]] = [
@@ -43,6 +47,24 @@ public enum FXParameter: String, CaseIterable, Sendable {
 
     /// Faders of strips 7 and 8, the same on every page: changing page never changes what they hold.
     public static let effectStripFaders: [FXParameter] = [.delayReturn, .reverbReturn]
+
+    /// Knobs of the instrument strips 5 and 6 on the MIX page (PRD § 15), top to bottom: the sound, then the delay send.
+    public static let instrumentLayout: [[FXParameter]] = [
+        [.sirenPitch, .sirenRate, .sirenDelay],
+        [.syndrumPitch, .syndrumDecay, .syndrumDelay],
+    ]
+
+    /// Sends of the instrument strips (delay, reverb, bus 3), per instrument.
+    public static let instrumentSends: [[FXParameter]] = [
+        [.sirenDelay, .sirenReverb, .sirenBus3],
+        [.syndrumDelay, .syndrumReverb, .syndrumBus3],
+    ]
+
+    /// Syndrum roll values, slowest first (in beats): eighths, eighth triplets, sixteenths.
+    public static let rollDivisions: [(label: String, beats: Double)] = [("1/8", 0.5), ("1/8T", 1.0 / 3), ("1/16", 0.25)]
+
+    /// Normalized value choosing a step of a stepped parameter (the middle of its range).
+    public static func step(_ index: Int, of count: Int) -> Double { (Double(index) + 0.5) / Double(count) }
 
     /// MASTER page (PRD § 11.2): strips 1 to 8, top to bottom. Strip 4 (delay heads, ping-pong) comes with M7.
     public static let masterLayout: [[FXParameter?]] = [
@@ -69,7 +91,11 @@ public enum FXParameter: String, CaseIterable, Sendable {
              .delayHeads, .delayPingPong: .delay
         case .reverbDecay, .reverbDamping, .reverbPredelay, .reverbLowCut, .reverbTone, .reverbReturn, .reverbSend: .reverb
         case .phaserRate, .phaserDepth, .phaserFeedback, .phaserCenter, .phaserStereo, .phaserReturn, .bus3Send: .bus3
-        case .masterHighPass, .killBass, .killMid, .killTop, .dubplate, .crackle: nil
+        case .sirenDelay, .syndrumDelay: .delay
+        case .sirenReverb, .syndrumReverb: .reverb
+        case .sirenBus3, .syndrumBus3: .bus3
+        case .masterHighPass, .killBass, .killMid, .killTop, .dubplate, .crackle,
+             .sirenPitch, .sirenRate, .sirenWave, .syndrumPitch, .syndrumDecay, .syndrumRoll: nil
         }
     }
 
@@ -133,6 +159,14 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .delayPingPong: "PING-PONG"
         case .reverbSend: "REV→"
         case .bus3Send: "B3→"
+        case .sirenPitch, .syndrumPitch: "PITCH"
+        case .sirenRate: "RATE"
+        case .sirenWave: "WAVE"
+        case .syndrumDecay: "DECAY"
+        case .syndrumRoll: "ROLL"
+        case .sirenDelay, .syndrumDelay: "DLY"
+        case .sirenReverb, .syndrumReverb: "REV"
+        case .sirenBus3, .syndrumBus3: "B3"
         }
     }
 
@@ -161,6 +195,12 @@ public enum FXParameter: String, CaseIterable, Sendable {
         // Bus-to-bus sends: closed, every bus stands on its own until the user chains them.
         case .delayToReverb, .reverbSend, .bus3Send: 0
         case .killBass, .killMid, .killTop: 1
+        // Instruments: a siren and a drum in the middle of their range; the delay send open (dub sirens live in
+        // the echo), reverb and bus 3 closed until set with the mouse.
+        case .sirenPitch, .syndrumPitch, .syndrumDecay, .sirenDelay, .syndrumDelay: 0.5
+        case .sirenRate: 0.45
+        case .sirenWave, .sirenReverb, .sirenBus3, .syndrumReverb, .syndrumBus3: 0
+        case .syndrumRoll: Self.step(2, of: Self.rollDivisions.count) // sixteenths
         }
     }
 
@@ -187,6 +227,14 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .killBass, .killMid, .killTop: n * n // kill gain, 100 % = unity
         case .dubplate, .crackle, .delayPingPong: n
         case .delayHeads: Double(min(Self.headPatterns.count - 1, Int(n * Double(Self.headPatterns.count))))
+        case .sirenPitch: exp(150, 1500)
+        case .sirenRate: exp(0.3, 12)
+        case .sirenWave: n >= 0.5 ? 1 : 0
+        case .syndrumPitch: exp(80, 1200)
+        case .syndrumDecay: exp(0.08, 1.5)
+        // The roll's step; the engine gets seconds, worked out from the tempo (see `MixController`).
+        case .syndrumRoll: Double(min(Self.rollDivisions.count - 1, Int(n * Double(Self.rollDivisions.count))))
+        case .sirenDelay, .sirenReverb, .sirenBus3, .syndrumDelay, .syndrumReverb, .syndrumBus3: n * n // send gain
         }
         return Float(value)
     }
@@ -209,6 +257,16 @@ public enum FXParameter: String, CaseIterable, Sendable {
             return value >= 1000 ? String(format: "%.0f kHz", value / 1000) : "\(Int(value.rounded())) Hz"
         case .delayHeads:
             return Self.headPatterns[Int(value)]
+        case .sirenPitch, .syndrumPitch:
+            return "\(Int(value.rounded())) Hz"
+        case .sirenRate:
+            return String(format: "%.2f Hz", value)
+        case .syndrumDecay:
+            return "\(Int((value * 1000).rounded())) ms"
+        case .sirenWave:
+            return value < 0.5 ? "SQUARE" : "TRIANGLE"
+        case .syndrumRoll:
+            return Self.rollDivisions[Int(value)].label
         default:
             return "\(Int((min(1, max(0, normalized)) * 100).rounded())) %"
         }
@@ -241,7 +299,15 @@ public enum FXParameter: String, CaseIterable, Sendable {
         case .crackle: (.master, DUB_MASTER_CRACKLE)
         case .delayHeads: (.delay, DUB_DELAY_HEADS)
         case .delayPingPong: (.delay, DUB_DELAY_PINGPONG)
-        case .delayToReverb, .reverbSend, .bus3Send, .delayReturn, .reverbReturn, .phaserReturn: nil
+        case .sirenPitch: (.siren, DUB_SIREN_PITCH)
+        case .sirenRate: (.siren, DUB_SIREN_RATE)
+        case .sirenWave: (.siren, DUB_SIREN_WAVE)
+        case .syndrumPitch: (.syndrum, DUB_SYNDRUM_PITCH)
+        case .syndrumDecay: (.syndrum, DUB_SYNDRUM_DECAY)
+        case .syndrumRoll: (.syndrum, DUB_SYNDRUM_ROLL)
+        // Instrument sends are strip send levels, applied by `MixController`.
+        case .delayToReverb, .reverbSend, .bus3Send, .delayReturn, .reverbReturn, .phaserReturn,
+             .sirenDelay, .sirenReverb, .sirenBus3, .syndrumDelay, .syndrumReverb, .syndrumBus3: nil
         }
     }
 }

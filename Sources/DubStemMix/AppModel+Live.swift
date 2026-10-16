@@ -117,11 +117,13 @@ extension AppModel {
 
     // MARK: PANIC
 
-    /// Esc, or BANK LEFT + BANK RIGHT on the console: the three buses emptied at once, the tune plays on.
+    /// Esc, or BANK LEFT + BANK RIGHT on the console: the three buses emptied at once, the siren and the roll stopped,
+    /// the tune plays on.
     func panic() {
         guard !isPreview else { return }
         engine.clearEffects()
         mix.releaseDelayGestures()
+        mix.releaseInstruments()
         panicFlash = .now
         showNotice("FX cleared")
     }

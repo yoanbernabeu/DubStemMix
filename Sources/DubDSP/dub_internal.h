@@ -63,5 +63,7 @@ void dub_flanger_install(DubEffect *effect);
 void dub_switch_install(DubEffect *effect);
 void dub_limiter_install(DubEffect *effect);
 void dub_brake_install(DubEffect *effect);
+void dub_siren_install(DubEffect *effect);
+void dub_syndrum_install(DubEffect *effect);
 
 #endif

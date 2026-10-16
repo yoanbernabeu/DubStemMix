@@ -29,6 +29,10 @@ typedef enum {
                                // Sub parameters at DUB_INSERT_SUB + DUB_SUB_*, wah at DUB_INSERT_WAH + DUB_WAH_*.
     DUB_EFFECT_LIMITER = 11,   // master safety limiter: 2 ms look-ahead, ceiling −1 dBFS, automatic release
     DUB_EFFECT_BRAKE = 12,     // pull-up tape brake on the master: slows to a quarter speed and fades, per sample
+    // Instruments on empty strips 5 and 6 (PRD § 15): they add their sound to the input, an exact passthrough
+    // while silent.
+    DUB_EFFECT_SIREN = 13,     // dub siren: square or triangle oscillator swept by a triangle LFO
+    DUB_EFFECT_SYNDRUM = 14,   // Syndrum: sine with a falling pitch and a noise click, one hit per trigger
 } DubEffectKind;
 
 // Paramètres, en unités réelles.
@@ -90,6 +94,21 @@ enum {
 enum {
     DUB_LIMITER_BYPASS = 0,    // ≥ 0.5: the gain glides back to unity (the 2 ms delay stays, so no click)
     DUB_LIMITER_REDUCTION = 1, // read only: deepest gain reduction in dB since the reader set it back to 0
+};
+
+enum {
+    DUB_SIREN_PITCH = 0,      // Hz, centre of the sweep
+    DUB_SIREN_RATE = 1,       // Hz, speed of the sweep
+    DUB_SIREN_WAVE = 2,       // < 0.5 square, ≥ 0.5 triangle
+    DUB_SIREN_GATE = 3,       // ≥ 0.5: the siren sounds
+    DUB_SIREN_RISE = 4,       // ≥ 0.5: the pitch glides two octaves up; < 0.5 it comes back down
+};
+enum {
+    DUB_SYNDRUM_PITCH = 0,    // Hz at the hit
+    DUB_SYNDRUM_DECAY = 1,    // seconds to −60 dB
+    DUB_SYNDRUM_ROLL = 2,     // seconds between two hits of the roll
+    DUB_SYNDRUM_HIT = 3,      // set to 1 to hit; the kernel resets it to 0 once the hit has fired
+    DUB_SYNDRUM_ROLLING = 4,  // ≥ 0.5: hits now, then every DUB_SYNDRUM_ROLL seconds
 };
 
 enum {
