@@ -64,8 +64,9 @@
 ## 7. Sirène et Syndrum sur les tranches 5 et 6 (cadré le 16/10, PRD § 15)
 
 - [x] **[toi]** Relire le PRD § 15, trancher ses points ouverts et valider avant qu'on code (validé le 16/10 : insert autorisé sur un instrument).
-- [ ] Moteur : sirène (hauteur, modulation, montée) et Syndrum (coup, chute, roulement sur le tempo), envoi delay.
-- [ ] Console : tranches 5-6 vides = instruments, un stem déposé les libère, l'instrument revient quand on retire le dernier stem.
-- [ ] Écran : en-têtes et libellés des tranches 5-6 en mode instrument.
-- [ ] **[toi]** Essayer à la MIDImix.
+- [x] Moteur : sirène (hauteur, modulation, montée) et Syndrum (coup, chute, roulement sur le tempo), envoi delay.
+- [x] Console : tranches 5-6 vides = instruments, un stem déposé les libère, l'instrument revient quand on retire le dernier stem.
+- [x] Écran : en-têtes et libellés des tranches 5-6 en mode instrument.
+- [ ] **[toi]** Essayer à la MIDImix : MUTE 5 tenu (sirène), REC ARM 5 pendant qu'elle sonne (montée), potards 5 (hauteur, vitesse, delay) ; MUTE 6 (un coup), REC ARM 6 tenu (roulement) ; carré / triangle et valeur du roulement à la souris ; un stem glissé sur la 5 puis retiré ; DROP pendant la sirène ; Esc pendant un roulement.
+- [ ] **[toi]** Juger le son à l'oreille (sirène, Syndrum) : niveaux, vitesse de la montée, longueur des coups.
 - [ ] Doc : README, site, captures.
