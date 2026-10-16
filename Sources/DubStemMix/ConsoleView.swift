@@ -2,7 +2,7 @@ import DubStemMixCore
 import SwiftUI
 
 // Miroir de la MIDImix : 6 tranches de stems (3 potards, MUTE, REC ARM/throw, fader), les 2 tranches d'effets
-// (PRD § 14) + colonne master.
+// (PRD § 14) + colonne master. Empty strips 5 and 6 play the siren and the Syndrum (PRD § 15).
 
 // Chaque tranche a deux zones : en haut les potards (envois, ou réglages d'effets sur la page FX),
 // en bas ce qui appartient au stem sur les deux pages (nom, MUTE, THROW, fader).
@@ -98,6 +98,8 @@ private struct StripView: View {
 
     private var strip: MixController.Strip { model.mix.strips[index] }
     private var isEmpty: Bool { strip.stems.isEmpty }
+    /// Strip 5 or 6 with no stem: it plays its instrument (PRD § 15).
+    private var instrument: Instrument? { model.mix.instrument(strip: index) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -113,19 +115,23 @@ private struct StripView: View {
 
             namePlate.frame(height: namePlateHeight)
 
-            VStack(spacing: 6) {
-                // ⌥-clic = solo (sur la console : SOLO maintenu + MUTE).
-                StripButton(title: strip.solo ? "SOLO" : "MUTE", active: strip.mute || strip.solo) {
-                    if NSEvent.modifierFlags.contains(.option) || strip.solo {
-                        model.mix.toggleSolo(strip: index)
-                    } else {
-                        model.mix.toggleMute(strip: index)
+            if let instrument {
+                instrumentButtons(instrument)
+            } else {
+                VStack(spacing: 6) {
+                    // ⌥-clic = solo (sur la console : SOLO maintenu + MUTE).
+                    StripButton(title: strip.solo ? "SOLO" : "MUTE", active: strip.mute || strip.solo) {
+                        if NSEvent.modifierFlags.contains(.option) || strip.solo {
+                            model.mix.toggleSolo(strip: index)
+                        } else {
+                            model.mix.toggleMute(strip: index)
+                        }
                     }
+                    MomentaryButton(title: "THROW", active: strip.throwing, activeColor: Theme.delay) {
+                        model.mix.setThrow(strip: index, $0)
+                    }
+                    keepMark
                 }
-                MomentaryButton(title: "THROW", active: strip.throwing, activeColor: Theme.delay) {
-                    model.mix.setThrow(strip: index, $0)
-                }
-                keepMark
             }
 
             HStack(alignment: .center, spacing: 8) {
@@ -142,7 +148,10 @@ private struct StripView: View {
             .padding(.vertical, 14)
             .frame(maxHeight: .infinity)
 
-            stems.frame(height: 42, alignment: .top)
+            Group {
+                if let instrument { instrumentSends(instrument) } else { stems }
+            }
+            .frame(height: 42, alignment: .top)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -152,7 +161,7 @@ private struct StripView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(borderColor, lineWidth: strip.throwing || dropTargeted ? 2 : 1)
         )
-        .opacity(isEmpty && !dropTargeted ? 0.45 : 1)
+        .opacity(isEmpty && instrument == nil && !dropTargeted ? 0.45 : 1)
         .stemDrop(enabled: !model.isPreview, isTargeted: $dropTargeted) { model.placeStems($0, onStrip: index) }
     }
 
@@ -190,6 +199,11 @@ private struct StripView: View {
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .disabled(model.isPreview)
+            } else if model.mix.page == .mix, let instrument {
+                Text(instrument.title)
+                    .font(Fonts.label(11, weight: 850))
+                    .tracking(1.2)
+                    .foregroundStyle(instrumentColor(instrument))
             } else if let group {
                 Text(group.title)
                     .font(Fonts.label(11, weight: 850))
@@ -231,7 +245,18 @@ private struct StripView: View {
     /// Double-click (or right-click) to type a name; an empty name goes back to the file's.
     @ViewBuilder
     private var namePlate: some View {
-        if renaming {
+        if let instrument {
+            Text(instrument.title)
+                .font(Fonts.label(14, weight: 850, width: 118))
+                .tracking(0.8)
+                .foregroundStyle(instrumentColor(instrument))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .contextMenu { Menu("Insert") { insertMenuItems } }
+                .help("Empty strip: it plays the \(instrument == .siren ? "siren" : "Syndrum"). Drop a stem on it to use it for stems.")
+        } else if renaming {
             TextField("", text: $draftName)
                 .textFieldStyle(.plain)
                 .font(Fonts.label(14, weight: 850, width: 118))
@@ -270,7 +295,9 @@ private struct StripView: View {
 
     @ViewBuilder
     private func knobCell(_ row: Int) -> some View {
-        if model.mix.page == .mix {
+        if model.mix.page == .mix, let instrument {
+            FXKnobCell(model: model, parameter: instrument.knobs[row])
+        } else if model.mix.page == .mix {
             sendCell(row)
         } else if case let .parameter(parameter) = model.mix.cell(strip: index, row: row) {
             fxCell(parameter)
@@ -439,6 +466,79 @@ private struct StripView: View {
         }
     }
 
+    // MARK: Instrument (PRD § 15)
+
+    private func instrumentColor(_ instrument: Instrument) -> Color { instrument == .siren ? Theme.rec : Theme.bus3 }
+
+    /// MUTE and REC ARM play the instrument; where stem strips have KEEP, the siren's wave or the roll's value.
+    private func instrumentButtons(_ instrument: Instrument) -> some View {
+        VStack(spacing: 6) {
+            ForEach([true, false], id: \.self) { mute in
+                let gesture = InstrumentGesture.on(instrument, mute: mute)
+                MomentaryButton(title: gesture.label, active: model.mix.instrumentGestures.contains(gesture),
+                                activeColor: instrumentColor(instrument)) {
+                    model.mix.setInstrumentGesture(gesture, $0)
+                }
+                .help(help(gesture))
+            }
+            instrumentSetting(instrument)
+        }
+    }
+
+    private func help(_ gesture: InstrumentGesture) -> String {
+        switch gesture {
+        case .siren: "Hold: the siren sounds (MUTE on the console)"
+        case .rise: "Hold: the siren climbs two octaves, and comes down when you let go (REC ARM)"
+        case .hit: "One Syndrum hit per press (MUTE on the console)"
+        case .roll: "Hold: the Syndrum rolls on the tempo (REC ARM)"
+        }
+    }
+
+    /// The siren's wave, or the roll's value: a choice made with the mouse, saved in the song.
+    private func instrumentSetting(_ instrument: Instrument) -> some View {
+        let parameter: FXParameter = instrument == .siren ? .sirenWave : .syndrumRoll
+        let current = Int(parameter.value(model.mix.fx[parameter] ?? 0))
+        let choices: [String] = instrument == .siren
+            ? ["Square", "Triangle"]
+            : ["1/8 · eighths", "1/8T · triplets", "1/16 · sixteenths"]
+        return Menu {
+            ForEach(choices.indices, id: \.self) { choice in
+                Button((choice == current ? "✓ " : "") + choices[choice]) {
+                    model.mix.setFX(parameter, FXParameter.step(choice, of: choices.count))
+                }
+            }
+        } label: {
+            Text((instrument == .siren ? "" : "ROLL ") + model.mix.fxDisplay(parameter) + " ▾")
+                .font(Fonts.mono(9, weight: 700))
+                .tracking(0.8)
+                .foregroundStyle(Theme.text)
+                .frame(maxWidth: .infinity, minHeight: 18)
+                .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.border, lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .help(instrument == .siren ? "The siren's sound" : "How fast the Syndrum rolls, on the tempo")
+    }
+
+    /// Reverb and bus 3 sends: no knob is left for them on the console, they are set with the mouse.
+    private func instrumentSends(_ instrument: Instrument) -> some View {
+        VStack(spacing: 2) {
+            ForEach([SendBus.reverb, .bus3], id: \.self) { bus in
+                let parameter = instrument.sends[bus.rawValue]
+                MiniSend(
+                    label: model.busShortName(bus),
+                    color: Bus(rawValue: bus.rawValue)!.color,
+                    value: Binding(get: { model.mix.fx[parameter] ?? 0 }, set: { model.mix.setFX(parameter, $0) })
+                )
+            }
+            Text("or drop a stem")
+                .font(Fonts.mono(9))
+                .foregroundStyle(Theme.textDim)
+        }
+    }
+
     private var stems: some View {
         VStack(spacing: 1) {
             ForEach(strip.stems.prefix(3)) { stem in
@@ -467,6 +567,36 @@ private struct StripView: View {
                     .foregroundStyle(Theme.textDim)
             }
         }
+    }
+}
+
+/// A send set with the mouse, as a thin bar: drag along it.
+private struct MiniSend: View {
+    var label: String
+    var color: Color
+    @Binding var value: Double
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(label)
+                .font(Fonts.mono(9))
+                .foregroundStyle(value > 0.005 ? color : Theme.textDim)
+                .frame(width: 26, alignment: .leading)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.border)
+                    if value > 0.005 { Capsule().fill(color).frame(width: max(5, geo.size.width * value)) }
+                }
+                .frame(height: 5)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+                    value = min(1, max(0, drag.location.x / geo.size.width))
+                })
+            }
+        }
+        .frame(height: 12)
+        .help("\(label) send: \(Int((value * 100).rounded()))")
     }
 }
 
