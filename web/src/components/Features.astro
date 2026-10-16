@@ -11,7 +11,7 @@ import inserts from "../assets/screenshots/inserts.png";
 // The board opens on FX: the hero above already shows MIX.
 const initial = 1;
 const pages = [
-  { id: "mix", label: "MIX", reach: "BANK LEFT", knobs: "sends to DELAY, REVERB, BUS 3", image: mix, alt: "MIX page: six stem strips with sends to delay, reverb and phaser, then the two effect strips" },
+  { id: "mix", label: "MIX", reach: "BANK LEFT", knobs: "sends to DELAY, REVERB, BUS 3", image: mix, alt: "MIX page: four stem strips with sends to delay, reverb and phaser, the siren and the Syndrum, then the two effect strips" },
   { id: "fx", label: "FX", reach: "BANK RIGHT", knobs: "delay time, feedback, wow, filters, reverb decay, damping, tone, phaser rate, depth… the three returns and the bus-to-bus sends", image: fx, alt: "FX page: the knobs drive the tape delay, the reverb and the phaser" },
   { id: "master", label: "MASTER", reach: "BANK RIGHT again", knobs: "the big knob, the kills, the dubplate colour, delay heads and ping-pong", image: master, alt: "MASTER page: big knob, kills, dubplate, delay heads" },
   { id: "inserts", label: "INSERTS", reach: "BANK RIGHT again", knobs: "each strip's insert: sub, auto-wah, or a plugin's macros", image: inserts, alt: "INSERTS page: sub on the bass, auto-wah on the skank" },
@@ -19,7 +19,7 @@ const pages = [
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 // What the app does, in a sentence each; the docs hold the details.
 const features = [
-  { color: "delay", title: "The board", text: "Six stem strips, two effect strips, four knob pages. MUTE, solo in place, and the dub throw on REC ARM.", href: "/docs/the-board/" },
+  { color: "delay", title: "The board", text: "Six stem strips, a siren and a Syndrum when 5 and 6 are empty, two effect strips, four knob pages. MUTE, solo in place, and the dub throw on REC ARM.", href: "/docs/the-board/" },
   { color: "rec", title: "Gestures", text: "Drop to the riddim, hold the echo, crash the spring, pull up the tune, panic. One key or one button each.", href: "/docs/gestures/" },
   { color: "reverb", title: "The sound", text: "Tape echo, plate and spring reverb, Bi-Phase phaser, King Tubby's big knob, kills, dubplate. All built in, buses you can patch.", href: "/docs/effects/" },
   { color: "bus3", title: "Split a song", text: "No stems? Drop a full song: drums, bass, instruments and vocals on strips 1 to 4. Or prepare a whole set at once.", href: "/docs/stems/" },

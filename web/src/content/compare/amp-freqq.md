@@ -26,7 +26,7 @@ Both are made for dub and both play on the **Akai MIDImix**. **DubStemMix** goes
 | Echo | tape delay, tempo sync, Space Echo heads, HOLD, ×2, tape stop | tape echo inspired by the HH Slider, two modes |
 | Reverb | plate or spring, with CRASH | reverb |
 | Preamp | stepped high-pass, 3-band kills, dubplate | 4-band isolator with kills, graphic and parametric EQ, resonant filter |
-| Siren, samples | no | yes: siren with snapshots, 12-slot sample player |
+| Siren, samples | dub siren and Syndrum on empty strips 5 and 6; no samples | siren with snapshots, 12-slot sample player |
 | Akai MIDImix | factory mapping, nothing to set up | official support, overlays, LED feedback, MIDI learn |
 | Platforms | macOS 15+, Apple Silicon | Windows and Mac |
 | Price | **free**, open source (MIT) | from £125; £200 with MIDImix overlays; £310 with the controller |
@@ -38,7 +38,7 @@ A complete sound-system preamp in software: isolator kills, EQs, a resonant filt
 ## Which one for you
 
 - **Pick DubStemMix** to build dub versions from the stems of a tune, on an Apple Silicon Mac, for free.
-- **Pick Amp FreQQ** to play finished tracks or vinyl through a sound-system preamp, with a siren and samples, or on Windows.
+- **Pick Amp FreQQ** to play finished tracks or vinyl through a sound-system preamp, with a sample player, or on Windows.
 
 They fit different moments: DubStemMix to cut and [record dub versions](../../docs/sets/#record-your-version) from stems, Amp FreQQ to play finished tracks through its preamp.
 

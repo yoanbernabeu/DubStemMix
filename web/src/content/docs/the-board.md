@@ -1,16 +1,16 @@
 ---
 title: The board, control by control
 seoTitle: "The board: faders, knobs and pages · DubStemMix"
-description: "What every fader, knob and button of the Akai MIDImix does in DubStemMix: the six stem strips, the two effect strips, the MIX, FX, MASTER and INSERTS pages."
+description: "What every fader, knob and button of the Akai MIDImix does in DubStemMix: the six stem strips, the siren and the Syndrum, the two effect strips, the MIX, FX, MASTER and INSERTS pages."
 nav: The board
 order: 4
 ---
 
 The screen is a mirror of the MIDImix: eight strips and a master, in the same places. What you touch is where you look.
 
-![The MIX page: six stem strips, the DELAY and SPACE effect strips, the master column](../../assets/screenshots/mix.png)
+![The MIX page: four stems, the siren and the Syndrum on the empty strips 5 and 6, the DELAY and SPACE effect strips, the master column](../../assets/screenshots/mix.png)
 
-- **Strips 1 to 6** hold the stems.
+- **Strips 1 to 6** hold the stems. Left empty, **strip 5** plays a dub siren and **strip 6** a Syndrum.
 - **Strips 7 and 8** hold no stem: they play the effects.
 - **The right column** is the master: the page buttons, the gestures, the master fader.
 
@@ -92,9 +92,29 @@ Strips 5 to 8 have no knob on this page.
 
 ### INSERTS: one effect per strip
 
-Each stem strip can hold an effect of its own, between its stems and its fader: a **sub** generator, an **auto-wah**, or an Audio Unit plugin. Choose it from the **Insert** menu of the strip. On this page, the three knobs of the strip drive it.
+Each of strips 1 to 6 can hold an effect of its own (the siren and the Syndrum too), between its stems and its fader: a **sub** generator, an **auto-wah**, or an Audio Unit plugin. Choose it from the **Insert** menu of the strip. On this page, the three knobs of the strip drive it.
 
 ![The INSERTS page: sub on the bass, auto-wah on the skank](../../assets/screenshots/inserts.png)
+
+## The siren and the Syndrum, strips 5 and 6
+
+A split song fills strips 1 to 4, so 5 and 6 often stay empty. Then they play an instrument: **strip 5 a dub siren**, **strip 6 a Syndrum**, the electronic drum of late-seventies dub, the "piou" that falls in pitch.
+
+| | Strip 5 · SIREN | Strip 6 · SYNDRUM |
+|---|---|---|
+| Top knob | pitch | pitch |
+| Middle knob | rate: how fast it goes up and down | decay: how long a hit lasts |
+| Bottom knob | send to the delay | send to the delay |
+| Fader | volume | volume |
+| MUTE | **HOLD**: the siren sounds while held | **HIT**: one hit per press |
+| REC ARM held | **RISE**: the siren climbs two octaves, and comes down when you let go | **ROLL**: hits on the tempo |
+
+![Strips 5 and 6: the siren, held, and the Syndrum](../../assets/screenshots/docs/strip-instruments.png)
+
+- Both go into the **delay** from the start (bottom knob at 50 %): the echo keeps the siren turning after you let go.
+- With the mouse, on the strip: **SQUARE** or **TRIANGLE** for the siren (the square cuts through the mix, the triangle is softer), the roll's value for the Syndrum (eighths, triplets, sixteenths), and the **REV** and **PHS** bars, the sends to the reverb and bus 3. There is no knob left for them on the console. All of it is saved in the project.
+- **Drop a stem** on strip 5 or 6 and it is a stem strip again, with its own sends. Take its last stem off: the instrument comes back.
+- DROP leaves the siren and the Syndrum playing: you play them on purpose. PANIC stops them.
 
 ## The effect strips 7 and 8
 

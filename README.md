@@ -2,13 +2,13 @@
 
 # DubStemMix
 
-**Version excursion for the Akai MIDImix.** Take the stems of a tune, put them on six faders, keep two more to play the effects, and cut your own version the way it was done at King Tubby's: pull the vocal, throw the snare into the echo, drop everything but bass and drums, let the spring crash. No DAW, no session to prepare, nothing to map.
+**Version excursion for the Akai MIDImix.** Take the stems of a tune, put them on six faders, keep two more to play the effects, and cut your own version the way it was done at King Tubby's: pull the vocal, throw the snare into the echo, drop everything but bass and drums, let the spring crash, blow the siren. No DAW, no session to prepare, nothing to map.
 
 Free and open source (MIT). macOS 15 or later, Apple Silicon. Native Swift and C, no Electron.
 
 **[Website](https://yoanbernabeu.github.io/DubStemMix/) · [Docs](https://yoanbernabeu.github.io/DubStemMix/docs/) · [Video](https://www.youtube.com/watch?v=bo1voaD_10Q) · [Releases](https://github.com/yoanbernabeu/DubStemMix/releases)**
 
-<p align="center"><img src="docs/screenshots/mix.png" width="100%" alt="DubStemMix, MIX page: six stem strips with sends to delay, reverb and phaser, then the two effect strips"></p>
+<p align="center"><img src="docs/screenshots/mix.png" width="100%" alt="DubStemMix, MIX page: four stem strips with sends to delay, reverb and phaser, the siren and the Syndrum, then the two effect strips"></p>
 
 ## Install
 

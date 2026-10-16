@@ -611,8 +611,6 @@ final class AppModel {
             ("BASS", ["bass.wav"], [0, 0, 0], 0.84, 0.74),
             ("SKANK", ["guitar.wav"], [0.62, 0.30, 0], 0.72, 0.55),
             ("KEYS", ["organ.wav", "piano.wav"], [0.25, 0.40, 0.55], 0.66, 0.48),
-            ("HORNS", ["horns.wav"], [0.45, 0.52, 0], 0.70, 0),
-            ("VOX", ["lead vocal.wav", "backing.wav"], [0.70, 0.45, 0], 0.76, 0),
         ]
         for (strip, (name, stems, sends, fader, level)) in demo.enumerated() {
             mix.setStems(strip: strip, name: name, stems: stems.map { .init(id: UUID(), name: $0) })
@@ -621,8 +619,13 @@ final class AppModel {
             levels[strip] = level
             levels[AudioEngine.stripPreMeter(strip)] = level > 0 ? min(1, level * 1.1) : 0.6 // muted strips still play
         }
-        mix.toggleMute(strip: 4)
-        mix.toggleMute(strip: 5)
+        // A split song leaves strips 5 and 6 empty: the siren sounds, through the delay and a touch of reverb.
+        mix.setFader(strip: 4, 0.7)
+        mix.setFader(strip: 5, 0.62)
+        mix.setInstrumentGesture(.siren, true)
+        mix.setFX(.sirenReverb, 0.35)
+        levels[4] = 0.62
+        levels[AudioEngine.stripPreMeter(4)] = 0.7
         mix.setThrow(strip: 2, true)
         mix.setKeep(strip: 0, true)
         mix.setKeep(strip: 1, true)

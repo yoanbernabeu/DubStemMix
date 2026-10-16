@@ -16,7 +16,7 @@ Each one works from the keyboard, from the **GESTURES** buttons of the right col
 
 <kbd>D</kbd> held, or **DROP**.
 
-Everything is cut except the strips marked **KEEP**. Mark the drums and the bass (click KEEP under each), hold D: you are on the riddim. Release: the whole tune comes back at once.
+Everything is cut except the strips marked **KEEP**, and the siren and the Syndrum (you play those on purpose). Mark the drums and the bass (click KEEP under each), hold D: you are on the riddim. Release: the whole tune comes back at once.
 
 The KEEP marks are saved in the project.
 
@@ -56,7 +56,7 @@ Between two tunes of a setlist, R pulls up **into the next one**: see [Playing l
 
 <kbd>Esc</kbd>, or **BANK LEFT + BANK RIGHT** together on the console.
 
-The delay, the reverb and bus 3 are emptied at once, echoes, tails, HOLD and TAPE STOP included. The tune keeps playing, dry. For the echo that howls too long.
+The delay, the reverb and bus 3 are emptied at once, echoes, tails, HOLD and TAPE STOP included, and the siren and the Syndrum's roll stop. The tune keeps playing, dry. For the echo that howls too long.
 
 ## On the effect strips
 
@@ -70,6 +70,19 @@ Strips 7 and 8 have their own held gestures: hold the button on screen, or MUTE 
 | TAPE STOP · REC ARM of strip 8 | **TAPE STOP**: the delay's tape brakes to a standstill, the echoes collapse; release and it speeds up again |
 
 ×2 and TAPE STOP play the built-in delay, not a plugin placed on the delay bus.
+
+## Siren and Syndrum
+
+When strips 5 and 6 hold no stem, their buttons play an instrument: hold the button on screen, or MUTE / REC ARM on the console. See [the siren and the Syndrum](../the-board/#the-siren-and-the-syndrum-strips-5-and-6).
+
+| | Gesture |
+|---|---|
+| HOLD · MUTE of strip 5 held | the **siren** sounds |
+| RISE · REC ARM of strip 5 held | the siren **climbs** two octaves, and comes back down when you let go |
+| HIT · MUTE of strip 6 | one **Syndrum** hit per press |
+| ROLL · REC ARM of strip 6 held | the Syndrum **rolls** on the tempo |
+
+> **The classic move.** Send the siren into the delay, blow it for a bar, let go: the echo keeps it wailing over the riddim.
 
 ## Other keys
 

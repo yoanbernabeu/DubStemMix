@@ -101,6 +101,8 @@ Strips 7 and 8 hold no stem: they play the effects. Strip 7 is the **DELAY**.
 
 > The master limiter is on by default (LIMITER ON under the master fader): even a howling echo cannot clip the output.
 
+> **Strips 5 and 6 empty?** After a split they are: strip 5 is a **siren**, strip 6 a **Syndrum**. Hold MUTE on strip 5 for one bar, let go, and the delay carries it on. See [the siren and the Syndrum](../the-board/#the-siren-and-the-syndrum-strips-5-and-6).
+
 ## 7. Crash the spring
 
 On the **REVERB** card at the top, open the menu under its name (it says *Plate*) and choose **Spring**.

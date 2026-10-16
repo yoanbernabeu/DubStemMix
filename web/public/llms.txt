@@ -16,7 +16,7 @@ Made by YoanDev (https://yoandev.co). Source, releases and issues: https://githu
 
 ## The board
 
-Eight strips mirrored on screen: 1 to 6 hold the stems, 7 and 8 play the effects. Per strip: three knobs, MUTE, REC ARM, a fader. BANK LEFT / BANK RIGHT switch what the knobs do; stem faders stay strip volumes.
+Eight strips mirrored on screen: 1 to 6 hold the stems, 7 and 8 play the effects. Left empty, strip 5 plays a dub siren and strip 6 a Syndrum. Per strip: three knobs, MUTE, REC ARM, a fader. BANK LEFT / BANK RIGHT switch what the knobs do; stem faders stay strip volumes.
 
 - MIX page: knobs are sends to DELAY, REVERB, BUS 3.
 - FX page: knobs drive the built-in effects (delay time, feedback, wow, filters, reverb decay, damping, tone, phaser rate, depth) and the three returns.
@@ -24,11 +24,12 @@ Eight strips mirrored on screen: 1 to 6 hold the stems, 7 and 8 play the effects
 - INSERTS page: each strip's insert (sub-octave, auto-wah, or a plugin's macros).
 - MUTE cuts a strip; SOLO held + MUTE solos in place. REC ARM held is the dub throw: the strip goes at full level into the delay and/or reverb, pre-fader and pre-mute.
 - Effect strips 7 and 8 (MIX page): knobs are delay speed, delay feedback, reverb length, phaser rate and the delay / reverb bus-to-bus sends; faders are the delay and reverb returns on every page; buttons held are HOLD, x2 (delay twice as fast), FX ONLY (dry sound out, effects still fed) and TAPE STOP (the delay's tape brakes to a standstill).
+- Siren and Syndrum (empty strips 5 and 6): knobs are pitch, rate (siren) or decay (Syndrum), and the delay send; the fader is the volume; MUTE held sounds the siren, REC ARM held makes it rise two octaves; on strip 6 MUTE hits once, REC ARM held rolls on the tempo. Siren wave (square, triangle), roll value and reverb / bus 3 sends are set with the mouse. A stem dropped on the strip makes it a stem strip again.
 - Effects sit on shared buses: cutting a strip never kills an echo or reverb tail already on its way. Sends are post-fader by default, switchable to pre-fader per bus.
 
 ## Gestures (keyboard or master column buttons)
 
-D (hold) drop: everything cut but the strips marked KEEP. H (hold) hold: the delay closes on itself, feedback at unity. C crash: hit the spring reverb. R pull-up: tape brake on the master, back to the top, play. T tap tempo. N / P next and previous tune of the setlist. Esc panic: empties the delay, reverb and bus 3. Cmd+R record the master.
+D (hold) drop: everything cut but the strips marked KEEP. H (hold) hold: the delay closes on itself, feedback at unity. C crash: hit the spring reverb. R pull-up: tape brake on the master, back to the top, play. T tap tempo. N / P next and previous tune of the setlist. Esc panic: empties the delay, reverb and bus 3, stops the siren and the roll. Cmd+R record the master.
 
 ## The sound (all built in, no plugin needed)
 
