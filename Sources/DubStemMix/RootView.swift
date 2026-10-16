@@ -159,20 +159,7 @@ private struct TopBar: View {
                     .tracking(0.8)
                     .foregroundStyle(Theme.text)
                 }
-                HStack(spacing: 6) {
-                    Text(timecode(model.position, tenths: true))
-                        .font(Fonts.mono(13, weight: 700))
-                        .foregroundStyle(Theme.text)
-                    Text("/ " + timecode(model.duration, tenths: false))
-                        .font(Fonts.mono(13))
-                        .foregroundStyle(Theme.textDim)
-                    if model.duration > 0 {
-                        Text("· −" + timecode(model.remaining.rounded(.up), tenths: false))
-                            .font(Fonts.mono(13, weight: model.nearEnd ? 700 : 400))
-                            .foregroundStyle(model.nearEnd ? Theme.bus3 : Theme.textDim)
-                            .help("Time left in the song")
-                    }
-                }
+                PlayheadTime(model: model)
             }
 
             Spacer()
@@ -209,6 +196,29 @@ private struct TopBar: View {
             RecordButton(model: model)
         }
         .frame(height: 46)
+    }
+}
+
+/// The playhead, in its own view: it changes 30 times a second while playing, and only it must be redrawn —
+/// read in TopBar, it re-laid out the whole window each tick and delayed the MIDI on the MainActor.
+private struct PlayheadTime: View {
+    var model: AppModel
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(timecode(model.position, tenths: true))
+                .font(Fonts.mono(13, weight: 700))
+                .foregroundStyle(Theme.text)
+            Text("/ " + timecode(model.duration, tenths: false))
+                .font(Fonts.mono(13))
+                .foregroundStyle(Theme.textDim)
+            if model.duration > 0 {
+                Text("· −" + timecode(model.remaining.rounded(.up), tenths: false))
+                    .font(Fonts.mono(13, weight: model.nearEnd ? 700 : 400))
+                    .foregroundStyle(model.nearEnd ? Theme.bus3 : Theme.textDim)
+                    .help("Time left in the song")
+            }
+        }
     }
 
     private func timecode(_ seconds: Double, tenths: Bool) -> String {
@@ -843,12 +853,7 @@ private struct Sidebar: View {
                     detail: model.midiWarning != nil ? "custom mapping?" : (model.midiConnected ? "connected" : "not found")
                 )
                 StatusLine(color: Theme.reverb, title: "AUDIO", detail: model.audioDevice, sub: model.audioFormat)
-                StatusLine(
-                    color: model.dropouts > 0 ? Theme.rec : (model.dspLoad > 0.7 ? Theme.delay : Theme.reverb),
-                    title: "DSP",
-                    detail: "\(Int((model.dspLoad * 100).rounded()))% · \(model.dropouts) dropout\(model.dropouts == 1 ? "" : "s")"
-                )
-                .help("Worst audio-thread load over the last moments, and dropouts reported by the audio device since launch")
+                DSPStatus(model: model)
             }
         }
         .padding(18)
@@ -1412,5 +1417,20 @@ private struct StatusLine: View {
                 if let sub { Text(sub).font(Fonts.mono(9.5)).foregroundStyle(Theme.textDim).lineLimit(1) }
             }
         }
+    }
+}
+
+/// The DSP load, in its own view: it moves all the time while playing, and only this line must be redrawn,
+/// not the whole sidebar.
+private struct DSPStatus: View {
+    var model: AppModel
+
+    var body: some View {
+        StatusLine(
+            color: model.dropouts > 0 ? Theme.rec : (model.dspLoad > 0.7 ? Theme.delay : Theme.reverb),
+            title: "DSP",
+            detail: "\(Int((model.dspLoad * 100).rounded()))% · \(model.dropouts) dropout\(model.dropouts == 1 ? "" : "s")"
+        )
+        .help("Worst audio-thread load over the last moments, and dropouts reported by the audio device since launch")
     }
 }

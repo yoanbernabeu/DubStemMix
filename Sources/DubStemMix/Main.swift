@@ -81,6 +81,22 @@ enum Main {
     }
 }
 
+/// RootView dans son propre NSHostingView, sans calcul de taille. Hébergée directement par le WindowGroup (qui a
+/// une taille minimale), toute mise à jour — la charge DSP, un vu-mètre, 30 fois par seconde — faisait remesurer
+/// l'interface entière pour recalculer les limites de la fenêtre : le MainActor saturait, et le MIDI, livré sur
+/// lui, arrivait en retard et par à-coups.
+private struct HostedRoot: NSViewRepresentable {
+    var model: AppModel
+
+    func makeNSView(context: Context) -> NSHostingView<RootView> {
+        let view = NSHostingView(rootView: RootView(model: model))
+        view.sizingOptions = []
+        return view
+    }
+
+    func updateNSView(_ view: NSHostingView<RootView>, context: Context) {}
+}
+
 struct DubStemMixApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model = try? AppModel()
@@ -88,7 +104,7 @@ struct DubStemMixApp: App {
     var body: some Scene {
         WindowGroup("DubStemMix") {
             if let model {
-                RootView(model: model)
+                HostedRoot(model: model)
                     .frame(minWidth: 1280, minHeight: 820)
                     .onAppear {
                         delegate.model = model

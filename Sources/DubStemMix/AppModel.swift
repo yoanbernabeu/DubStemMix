@@ -168,6 +168,9 @@ final class AppModel {
     /// Highest `limiterAmount` since the last reset (click on the readout).
     var limiterAmountMax: Float = 0
     private var limiterHoldTicks = 0
+    /// Pire charge DSP récente, suivie à chaque tick ; `dspLoad` n'en est que l'affichage, publié deux fois par seconde.
+    @ObservationIgnored private var dspPeak: Float = 0
+    @ObservationIgnored private var dspDisplayTicks = 0
 
     // Rafraîchis 30 fois par seconde.
     var isPlaying = false
@@ -224,34 +227,50 @@ final class AppModel {
         let amount: Float = limiterOn ? reduction : (input > 1 ? 20 * log10(input) : 0)
         let now = amount < 0.1 ? 0 : amount
         if now >= limiterAmount {
-            limiterAmount = now
+            update(\.limiterAmount, now)
             limiterHoldTicks = 45
         } else if limiterHoldTicks > 0 {
             limiterHoldTicks -= 1
         } else {
-            limiterAmount = now
+            update(\.limiterAmount, now)
         }
-        limiterAmountMax = max(limiterAmountMax, now)
+        update(\.limiterAmountMax, max(limiterAmountMax, now))
     }
 
     func resetLimiterMax() { limiterAmountMax = 0 }
 
+    /// @Observable signale chaque assignation, même d'une valeur identique : à 30 Hz, ça relançait sans fin la
+    /// mise en page de la fenêtre sur le MainActor — celui qui reçoit aussi le MIDI, qui arrivait alors en retard.
+    /// Le tick n'écrit donc que ce qui a changé.
+    private func update<Value: Equatable>(_ keyPath: ReferenceWritableKeyPath<AppModel, Value>, _ value: Value) {
+        if self[keyPath: keyPath] != value { self[keyPath: keyPath] = value }
+    }
+
     private func tick() {
         engine.tick()
-        isPlaying = engine.isPlaying
+        update(\.isPlaying, engine.isPlaying)
         keepScreenAwake(isPlaying)
         tickNotice()
-        position = engine.position
-        duration = engine.duration
+        update(\.position, engine.position)
+        update(\.duration, engine.duration)
         countPlayedTime()
         var peaks = levels
+        var decayed = levels
         for index in levels.indices {
             peaks[index] = engine.meters.take(index)
-            levels[index] = max(peaks[index], levels[index] * 0.85)
+            let level = max(peaks[index], levels[index] * 0.85)
+            decayed[index] = level < 0.001 ? 0 : level // la décroissance s'arrête à zéro au lieu de changer sans fin
         }
+        update(\.levels, decayed)
         trackLimiter(input: peaks[AudioEngine.limiterInputMeter])
-        dspLoad = max(engine.load.takePeak(), dspLoad * 0.9)
-        dropouts = engine.load.overloadCount
+        // La charge bouge à chaque tick : la publier 30 fois par seconde redessinait sans fin pour un pourcentage.
+        dspPeak = max(engine.load.takePeak(), dspPeak * 0.9)
+        dspDisplayTicks += 1
+        if dspDisplayTicks >= 15 {
+            dspDisplayTicks = 0
+            update(\.dspLoad, (dspPeak * 100).rounded() / 100)
+        }
+        update(\.dropouts, engine.load.overloadCount)
         audioStatusCountdown -= 1
         if audioStatusCountdown <= 0 { // once a second: the device may have changed under us
             audioStatusCountdown = 30
@@ -260,7 +279,7 @@ final class AppModel {
         followPlugins()
         autosaveIfNeeded()
         if isRecording {
-            recordingTime = engine.recorder.duration
+            update(\.recordingTime, engine.recorder.duration)
             if !engine.recorder.isRecording { // l'écriture a échoué (disque plein, volume éjecté…)
                 finishRecordingSession()
                 errorMessage = "Recording stopped: can't write to disk"
