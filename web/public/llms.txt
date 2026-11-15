@@ -1,12 +1,12 @@
 # DubStemMix
 
-> Free, open-source (MIT) dub mixing console for macOS, built for the Akai MIDImix. Put the stems of a tune on six faders, play the effects on the last two, and cut your own dub live, the way it was done at King Tubby's: pull the vocal, throw the snare into the echo, drop everything but bass and drums, let the spring crash. No DAW, no session to prepare, nothing to map.
+> Free, open-source (MIT) dub mixing console built for the Akai MIDImix, in two forms: a macOS app, or a plugin for the Akai MPC (no computer on stage). Put the stems of a tune on six faders, play the effects on the last two, and cut your own dub live, the way it was done at King Tubby's: pull the vocal, throw the snare into the echo, drop everything but bass and drums, let the spring crash. No DAW, no session to prepare, nothing to map.
 
 Made by YoanDev (https://yoandev.co). Source, releases and issues: https://github.com/yoanbernabeu/DubStemMix
 
 ## Facts
 
-- Platform: macOS 15 or later, Apple Silicon only (built and tested on macOS 26). Not tested on Intel.
+- Platform: the app runs on macOS 15 or later, Apple Silicon only (built and tested on macOS 26), not tested on Intel. The plugin runs on Akai MPC standalones with MPC OS 3.10.1 or later (tested on an MPC One+).
 - Price: free. License: MIT. Signed ad hoc, not notarized (Open Anyway once, or use the install script).
 - Controller: Akai MIDImix on its factory mapping. Optional: everything also works with mouse and keyboard. Other controllers with the same geometry can be added as a data profile (`ControllerProfile`).
 - Install, one line: `curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/DubStemMix/main/install.sh | sh` (installs or updates DubStemMix.app in /Applications, clears the Gatekeeper quarantine flag, opens the app). Or with Homebrew: `brew install --cask yoanbernabeu/tap/dubstemmix`. Or download the zip from the releases page.
@@ -40,6 +40,13 @@ D (hold) drop: everything cut but the strips marked KEEP. H (hold) hold: the del
 - Strip inserts: sub-octave generator (dbx boom box idea), Mu-Tron III style auto-wah.
 - Any Audio Unit effect can replace a built-in effect on a bus or sit in an insert; plugins load out of process, a crash falls back to the built-in effect.
 
+## On an Akai MPC (plugin)
+
+- The same console, effects and gestures as a plugin on the MPC, with the MIDImix plugged into the MPC's USB port. Built with Akai's MPC Plugin SDK on the app's own effects engine.
+- Songs: File > Export Setlist to MPC in the app writes the plugin and the set on the card (one 44.1 kHz WAV per strip from the stems the tunes already use, plus title, tempo and strip names); unchanged tunes are not copied again. Without the app: download DubStemMix-MPC.zip (https://github.com/yoanbernabeu/DubStemMix/releases/latest/download/DubStemMix-MPC.zip) and copy 44.1 kHz WAV stems on the card by hand.
+- MPC transport: PLAY START plays the next tune, STOP pauses, PLAY resumes; tunes chain with no gap. The SONG tab is the live setlist (touch a tune to play it next, or again). Pads 9-16: DROP, CRASH, REWIND, PREV, NEXT, GO, RESTART.
+- Not on the MPC: Audio Unit plugins, stem separation, recording, pre-fader sends; the MIDImix's LEDs stay off (the screen shows them).
+
 ## Known limits
 
 Plugin latency is not compensated. Loading or removing a plugin, or putting a stem on a strip, is refused while playing (it would cut the sound); switching plate/spring or phaser/flanger is gapless. MUTE takes about 25 ms to close. Only the MIDImix is supported in this version.
@@ -57,6 +64,7 @@ Plugin latency is not compensated. Loading or removing a plugin, or putting a st
   - Projects, setlists and recording: https://yoanbernabeu.github.io/DubStemMix/docs/sets/
   - Playing live: https://yoanbernabeu.github.io/DubStemMix/docs/live/
   - Settings, troubleshooting and FAQ: https://yoanbernabeu.github.io/DubStemMix/docs/settings/
+  - On an Akai MPC, without the Mac: https://yoanbernabeu.github.io/DubStemMix/docs/mpc/
 - Comparisons with other software (what each does best): https://yoanbernabeu.github.io/DubStemMix/compare/
   - DubStemMix vs Amp FreQQ: https://yoanbernabeu.github.io/DubStemMix/compare/amp-freqq/
   - DubStemMix vs Ableton Live: https://yoanbernabeu.github.io/DubStemMix/compare/ableton-live/
