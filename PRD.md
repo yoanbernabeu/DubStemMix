@@ -493,7 +493,7 @@ Cadré en interview le 16 octobre 2026. Constat : la séparation donne 4 stems (
 - **À l'écran** : en-tête « 5 SIREN » / « 6 SYNDRUM », libellés PITCH, RATE, DLY · HOLD, RISE / PITCH, DECAY, DLY · HIT, ROLL, la zone de dépôt reste visible pour y glisser un stem.
 - **Comportement fin** (codé le 16/10/2026) : la sirène balaie ± ½ octave autour de sa hauteur (150 Hz à 1,5 kHz), la vitesse va de 0,3 à 12 Hz, la montée grimpe de deux octaves en ~1,5 s et redescend en ~1 s. Le Syndrum va de 80 Hz à 1,2 kHz, sa hauteur tombe d'environ deux tiers, sa longueur va de 80 ms à 1,5 s. Sans tempo connu, le roulement se cale sur 120 BPM. L'envoi delay part à 50 % (on entend l'écho sans rien toucher), reverb et bus 3 à 0. Les potards des instruments rattrapent la valeur avant d'agir, comme ceux des tranches 7-8. Une tranche qui redevient instrument perd son MUTE et son throw (leurs boutons jouent l'instrument) ; un stem qui revient retrouve ses propres envois. Le solo d'une autre tranche coupe l'instrument, comme un stem ; PANIC (Esc, BANK LEFT + RIGHT) arrête la sirène et le roulement. Les instruments sont des sources sommées avec les stems de la tranche : ils passent par l'insert, le fader, les envois et le pull-up, et s'enregistrent avec le master.
 
-## 16. DubStemMix sur MPC (à valider)
+## 16. DubStemMix sur MPC (validé le 16 novembre 2026)
 
 Cadré en interview le 15 novembre 2026, à la sortie du SDK de plugins d'Akai (MPC OS 3.10.1, [mpc-plugin-builder-sdk](https://github.com/inmusic-software/mpc-plugin-builder-sdk)). Objectif : jouer un set **sans Mac**, la **MIDImix branchée en USB sur une MPC One+**, avec le son et les gestes de DubStemMix.
 
@@ -530,6 +530,9 @@ Cadré en interview le 15 novembre 2026, à la sortie du SDK de plugins d'Akai (
 - **Enchaînement sans blanc** : le titre suivant est préparé à l'avance, pas de silence entre deux titres.
 
 ### 16.2 quater Distribution et export depuis le Mac (décisions du 16/11/2026)
+
+Export validé sur la One+ le 16/11/2026 avec une grosse setlist (« c'est parfait ») : écriture limitée par la carte (~17 Mo/s), réexport sans recopie.
+
 
 Étape 3 validée sur la One+ le 16/11/2026 (« c'est tout bon »), pads compris.
 
