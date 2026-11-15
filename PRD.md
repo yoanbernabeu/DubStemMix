@@ -506,7 +506,7 @@ Cadré en interview le 15 novembre 2026, à la sortie du SDK de plugins d'Akai (
 ### 16.2 Enchaînement (décisions du 15/11/2026)
 
 - **Mix continu** : les réglages restent ceux du moment d'un morceau à l'autre. On ne recharge pas les réglages sauvegardés de chaque morceau.
-- **Boutons de la MPC** : **STOP** arrête, **PLAY** reprend là où on était, **PLAY START** lance le suivant. Il coupe net les stems du morceau en cours, mais les **queues de delay et de reverb continuent**.
+- **Boutons de la MPC** : **STOP** arrête, **PLAY** reprend là où on était, **PLAY START** lance le suivant, à l'arrêt comme en pleine lecture. Il coupe net les stems du morceau en cours, mais les **queues de delay et de reverb continuent**.
 - **Fin naturelle** : le suivant démarre **tout seul, sans blanc**.
 - **Hors de l'ordre** : une **liste à l'écran** permet de choisir le titre qui passera ensuite.
 
@@ -519,5 +519,5 @@ Cadré en interview le 15 novembre 2026, à la sortie du SDK de plugins d'Akai (
 
 ### 16.4 Points ouverts
 
-- **À vérifier sur la One+ avant tout** (maquette : 2 stems, faders 1-2, une page d'écran) : que tous les CC et notes de la MIDImix arrivent au plugin ; que le plugin distingue PLAY de PLAY START ; la charge processeur et la lecture de 6 stems depuis la carte ; le rendu des vu-mètres (« peu testés » d'après le SDK).
+- **Maquette validée sur la One+ le 15/11/2026** (`mpc/`, plugin « YoanDev - VST - DubStemMix ») : la MIDImix arrive au plugin par l'entrée MIDI de la piste (faders et MUTE) ; 4 stems lus depuis la carte SD sans décrochage (0 underrun) pour **0,3 %** de CPU ; l'écran suit les valeurs changées par le plugin ; PLAY reprend, PLAY START passe au suivant, à l'arrêt comme en lecture (la MPC ne s'arrête pas : sa position revient au début, distinguée du bouclage de la séquence qui revient sur une barre de mesure) ; l'enchaînement en fin de morceau fonctionne. Le plugin ne lit la liste des morceaux qu'à son chargement. Reste à vérifier : le rendu des vu-mètres (« peu testés » d'après le SDK).
 - **Place sur la carte** : environ 300 Mo par morceau de 6 stems, donc environ 6 Go pour 21 titres.
