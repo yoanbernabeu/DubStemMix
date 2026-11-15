@@ -2,7 +2,7 @@
 # Builds DubStemMix.app from the Swift package (release), signs it ad hoc and zips it.
 #
 #   tools/make-app.sh [version] [output-dir]      → <output-dir>/DubStemMix.app and DubStemMix-<version>.zip,
-#                                                   plus the MPC plugin's DubStemMix-MPC-<version>.zip
+#                                                   plus the MPC plugin's MPC-DubStemMix-<version>.zip
 #
 # No Apple Developer account: the signature is ad hoc, so Gatekeeper asks on first launch (see README).
 set -euo pipefail

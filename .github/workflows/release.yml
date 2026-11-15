@@ -46,15 +46,18 @@ jobs:
           dist/DubStemMix.app/Contents/MacOS/DubStemMix --check-documents
           ls -la dist
           test -f "dist/DubStemMix.app/Contents/Resources/MPC/YoanDev - VST - DubStemMix/plugin.json"
-          test -f "dist/DubStemMix-MPC-${{ steps.version.outputs.version }}.zip"
-          test -f "dist/DubStemMix-MPC.zip"   # fixed name: the website's download link
+          test -f "dist/MPC-DubStemMix-${{ steps.version.outputs.version }}.zip"
+          test -f "dist/MPC-DubStemMix.zip"   # fixed name: the website's download link
 
       - name: Attach the zip to the release
         if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "$GITHUB_REF_NAME" dist/DubStemMix-*.zip --clobber   # the app and the MPC plugin
+          # The app's zip, then the MPC plugin's. The plugin's names must never start with "DubStemMix-": apps
+          # up to 0.15 take the first asset named DubStemMix-*.zip as their update.
+          gh release upload "$GITHUB_REF_NAME" dist/DubStemMix-*.zip --clobber
+          gh release upload "$GITHUB_REF_NAME" dist/MPC-DubStemMix-*.zip dist/MPC-DubStemMix.zip --clobber
 
       # brew install --cask yoanbernabeu/tap/dubstemmix: point the cask at the zip just uploaded.
       # HOMEBREW_TAP_DEPLOY_KEY is a write deploy key of yoanbernabeu/homebrew-tap, and of that repository only.
@@ -81,4 +84,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: DubStemMix-${{ steps.version.outputs.version }}
-          path: dist/DubStemMix-*.zip   # the app and the MPC plugin
+          path: |
+            dist/DubStemMix-*.zip
+            dist/MPC-DubStemMix*.zip

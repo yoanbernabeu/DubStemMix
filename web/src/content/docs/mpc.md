@@ -8,7 +8,7 @@ order: 10
 
 DubStemMix also runs **on an Akai MPC**, as a plugin. Plug the MIDImix into the MPC's USB port and play your set with no computer on stage: the same console, the same effects, the same gestures. The app on your Mac can write the set on the card for you; without it, you copy your stems on the card by hand.
 
-**[Download the plugin (.zip)](https://github.com/yoanbernabeu/DubStemMix/releases/latest/download/DubStemMix-MPC.zip)**, free and open source. With the app, you do not need it: the app carries the plugin and writes it on the card.
+**[Download the plugin (.zip)](https://github.com/yoanbernabeu/DubStemMix/releases/latest/download/MPC-DubStemMix.zip)**, free and open source. With the app, you do not need it: the app carries the plugin and writes it on the card.
 
 ![The CONSOLE tab on the MPC: eight strips like the MIDImix, the song playing and the next one on top](../../assets/screenshots/mpc/mpc-console.png)
 
@@ -112,7 +112,7 @@ The plugin works on its own: any computer that can write on the card will do, Ma
 
 ### 1. Get the plugin
 
-[Download DubStemMix-MPC.zip](https://github.com/yoanbernabeu/DubStemMix/releases/latest/download/DubStemMix-MPC.zip) from the latest release and unzip it: you get a folder named `YoanDev - VST - DubStemMix` and its install notes.
+[Download MPC-DubStemMix.zip](https://github.com/yoanbernabeu/DubStemMix/releases/latest/download/MPC-DubStemMix.zip) from the latest release and unzip it: you get a folder named `YoanDev - VST - DubStemMix` and its install notes.
 
 ### 2. Lay out the card
 
