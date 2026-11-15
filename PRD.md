@@ -529,6 +529,19 @@ Cadré en interview le 15 novembre 2026, à la sortie du SDK de plugins d'Akai (
 - **Setlist** : l'onglet SONG devient la liste des titres (jusqu'à 24 à l'écran). Toucher un titre = il passera ensuite (marqué NEXT), y compris un titre déjà joué ou celui en cours pour le **rejouer**. Titre en cours surligné, titres **déjà joués grisés avec ✓** (après 30 s de lecture, comme sur le Mac, oublié quand le plugin se décharge).
 - **Enchaînement sans blanc** : le titre suivant est préparé à l'avance, pas de silence entre deux titres.
 
+### 16.2 quater Distribution et export depuis le Mac (décisions du 16/11/2026)
+
+Étape 3 validée sur la One+ le 16/11/2026 (« c'est tout bon »), pads compris.
+
+- **Distribution** : le plugin est **livré dans l'app Mac** et écrit sur la carte à chaque export (toujours la version de l'app), **et** la pipeline joint à chaque release GitHub un zip du plugin seul (`DubStemMix-MPC-x.y.z.zip`, avec ses instructions d'installation). Même numéro de version que l'app. Licence MIT ; Akai ne prend pas en charge les plugins tiers (dit dans les instructions).
+- **Export to MPC…** (sur une setlist) :
+  - **Destination** : l'app propose les cartes et clés branchées (avec leur place libre), ou un **dossier** au choix pour qui veut copier lui-même sur la carte. Elle écrit `VST2 Plugins/YoanDev - VST - DubStemMix/`, plugin compris, et propose d'**éjecter** la carte à la fin.
+  - **La carte devient exactement cette setlist**, dans son ordre : les morceaux qui n'y sont plus sont retirés. Un morceau déjà présent et inchangé n'est **pas recopié** (export rapide).
+  - **Sauvegarde** : avant d'écrire, l'app propose de **copier le dossier DubStemMix actuel de la carte** (plugin et morceaux) dans un dossier daté du Mac.
+  - **Chaque tranche devient un fichier** WAV 44,1 kHz (plusieurs stems sur une tranche sont mixés ensemble), avec le **nom de tranche** du projet et le **BPM** du morceau.
+- **Tempo** : le plugin utilise le **BPM du morceau** pour le delay calé et le roulement du Syndrum ; sans BPM connu, le tempo de la MPC.
+- **Plus de limite de 24 titres** : l'onglet SONG garde 24 lignes, avec des **pages** (◀ ▶) ; PREV / NEXT, GO et l'enchaînement couvrent toute la setlist.
+
 ### 16.3 Ce qui ne suit pas
 
 - Les plugins Audio Unit tiers (pas d'AU sur la MPC) : seuls les effets intégrés partent.
