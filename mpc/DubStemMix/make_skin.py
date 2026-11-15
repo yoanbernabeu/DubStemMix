@@ -13,6 +13,8 @@ import json
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 # --- parameter indices (src/DubStemMix.cpp, src/FX.h) --------------------------------------------------------
@@ -79,16 +81,18 @@ def entry(name, kind, data, rect, param=None, conditions=None, focus="No"):
             "handle remapping": {"version": 1, "map": [{"key": "Data", "value": "Parameter %d" % param}] if param is not None else []},
             "bounds": bounds(*rect, focus=focus, conditions=conditions)}
 
-def style(height, colour, weight="Regular", justify="horizontallyCentred verticallyCentred"):
-    return {"version": 1, "font": {"version": 1, "name": "Titillium Web", "style": weight, "height": float(height)},
-            "colour": colour, "justification": justify, "case": "Original"}
+def style(height, colour, weight="Regular", justify="horizontallyCentred verticallyCentred", font="Titillium Web", case="Original"):
+    return {"version": 1, "font": {"version": 1, "name": font, "style": weight, "height": float(height)},
+            "colour": colour, "justification": justify, "case": case}
 
-def text(t, rect, height, colour, weight="Regular", justify="horizontallyCentred verticallyCentred", conditions=None):
-    return entry("text", "Label", {"version": 1, "textStyle": style(height, colour, weight, justify), "type": "Text",
+def text(t, rect, height, colour, weight="Regular", justify="horizontallyCentred verticallyCentred", conditions=None,
+         font="Titillium Web", case="Original"):
+    return entry("text", "Label", {"version": 1, "textStyle": style(height, colour, weight, justify, font, case), "type": "Text",
                                    "handleName": "Invalid", "text": t}, rect, conditions=conditions)
 
-def value(param, rect, height, colour, weight="Regular", justify="horizontallyCentred verticallyCentred", conditions=None):
-    return entry("value", "Label", {"version": 1, "textStyle": style(height, colour, weight, justify), "type": "Value",
+def value(param, rect, height, colour, weight="Regular", justify="horizontallyCentred verticallyCentred", conditions=None,
+          font="Titillium Web", case="Original"):
+    return entry("value", "Label", {"version": 1, "textStyle": style(height, colour, weight, justify, font, case), "type": "Value",
                                     "handleName": "Data"}, rect, param, conditions)
 
 def panel(colour, rect, conditions=None):
@@ -131,9 +135,6 @@ def focus(w, h):
     f["bounds"]["bounds"] = "0 0 %g %g" % (w, h)
     return f
 
-KNOB_W, KNOB_H = 150, 70
-FADER_W, FADER_H = 48, 170
-
 # The overlays carry two "version" keys in one object (ui-reference 1.8), which a JSON library cannot hold:
 # they are written as text, in place of these markers.
 OVERLAY_ACTIONS = '[{"version": 1, "onAction": "Focus Lost", "handler": "Focus Lost", "handleName": "Focus Lost", "additionalData": ""}]'
@@ -150,106 +151,180 @@ def overlay(name, kind):
          "bounds": {"version": 1, "acceptsHWFocus": "Yes", "showWhenDataModelInvalid": "Show", "whenVisible": "Always",
                     "boundsType": "Absolute", "bounds": "0 0 1280 800"}}], ignore=True)}
 
+
+import skin_art as art
+
+KNOB_COLOURS = {TEXT: "knob_cream.png", DELAY: "knob_delay.png", REVERB: "knob_reverb.png", BUS3: "knob_bus3.png"}
+STRIP_COLOURS = {TEXT: art.TEXT, DELAY: art.DELAY, REVERB: art.REVERB, BUS3: art.BUS3, RED: art.RED}
+
 def definitions():
     defs = json.load(open(os.path.join(HERE, "skin-base.json")))   # the SDK generator's slider slots
     out = [{"key": k, "value": v} for k, v in defs.items()]
     out.append(overlay("knob overlay", "KnobOverlay"))
     out.append(overlay("menu overlay", "MenuOverlay"))
-    # A small knob with its value under it.
-    out.append({"key": "miniKnob", "value": component([
-        focus(KNOB_W, KNOB_H),
-        {"version": 2, "componentData": {"version": 1, "name": "knob", "type": "Knob",
-         "data": {"version": 5, "knobType": "GenericNoLabel", "polarity": "UniPolar", "dragOrientation": "Vertical", "handleName": "Data"}},
-         "handle remapping": {"version": 1, "map": []}, "bounds": bounds(47, 0, 56, 48)},
-        {"version": 2, "componentData": {"version": 1, "name": "value", "type": "Label",
-         "data": {"version": 1, "textStyle": style(17, TEXT2), "type": "Value", "handleName": "Data"}},
-         "handle remapping": {"version": 1, "map": []}, "bounds": bounds(0, 48, KNOB_W, 22)},
-    ], actions=EDIT_ACTIONS)})
-    # Vertical faders in each colour, opening the big editor.
-    for c in (TEXT, DELAY, REVERB):
-        out.append({"key": "fader " + c, "value": component([
-            focus(FADER_W, FADER_H),
-            {"version": 2, "componentData": {"version": 1, "name": "bar", "type": "Slider",
-             "data": {"version": 2, "sliderType": "ColourBar", "direction": "Vertical", "backgroundColour": BORDER,
-                      "outlineColour": BORDER, "valueColour": c, "isBipolar": False, "handleName": "Data"}},
-             "handle remapping": {"version": 1, "map": []}, "bounds": bounds(6, 6, FADER_W - 12, FADER_H - 12)},
+    # The app's knob in each bus colour, its value under it (the caption is in the card image).
+    for colour, strip in KNOB_COLOURS.items():
+        out.append({"key": "knob " + colour, "value": component([
+            focus(art.KNOB + 8, art.KNOB + 8),
+            {"version": 2, "componentData": {"version": 1, "name": "knob", "type": "Knob",
+             "data": {"version": 4, "knobType": "FilmStrip", "filmStrip": strip, "numFrames": art.KNOB_FRAMES,
+                      "invert": False, "dragOrientation": "Vertical", "handleName": "Data"}},
+             "handle remapping": {"version": 1, "map": []}, "bounds": bounds(4, 4, art.KNOB, art.KNOB)},
         ], actions=EDIT_ACTIONS)})
-    # Flat coloured panels that let touches through (strip backgrounds, lamps).
-    for c in (SURFACE, BORDER, TEXT, DELAY, REVERB, "ff372b18", "ff272a1d"):
-        out.append({"key": "panel " + c, "value": component([], background=c, ignore=True)})
+    # The app's fader: a cream cap sliding on the track drawn in the card image.
+    out.append({"key": "fader", "value": component([
+        focus(44, art.FADER_H),
+        {"version": 2, "componentData": {"version": 1, "name": "cap", "type": "Slider",
+         "data": {"version": 3, "sliderType": "TrackAndThumb", "direction": "Vertical", "thumbImage": "fader_cap.png",
+                  "thumbTrackVisible": False, "revealedImage": "", "handleName": "Data"}},
+         "handle remapping": {"version": 1, "map": []}, "bounds": bounds(4, 0, 36, art.FADER_H)},
+    ], actions=EDIT_ACTIONS)})
     return out
+
+def image(name, rect, conditions=None):
+    return entry("image", "Image", {"version": 2, "imageType": "Regular", "colour": "0", "image": name}, rect, conditions=conditions)
+
+def meter(param, rect):
+    data = {"version": 4, "sliderType": "TrackAndThumb", "direction": "Vertical", "thumbImage": "blank.png",
+            "thumbTrackVisible": False, "revealedImage": "meter_lit.png", "revealType": "Normal", "handleName": "Data"}
+    return entry("meter", "Slider", data, rect, param)
+
+def knob(param, colour, rect, conditions=None):
+    return entry("knob", "knob " + colour, {"version": 1, "handleName": "Data"}, rect, param, conditions, focus="Yes")
+
+def draw_art(folder):
+    """Writes every image the screen uses into the skin folder."""
+    for colour, strip in KNOB_COLOURS.items():
+        art.knob_strip(folder, strip, STRIP_COLOURS[colour])
+    art.fader_cap(folder)
+    art.meter_lit(folder)
+    art.blank(folder)
+    art.logo(folder)
+    for page in ("MIX", "FX"):
+        for lit in (True, False):
+            art.page_pill(folder, page, lit)
 
 # --- the CONSOLE tab --------------------------------------------------------------------------------------------
 def strip_x(s):
     return 8 + s * 156 + (16 if s >= 6 else 0)
 
-def console():
+CARD_Y = 44
+
+def console(folder):
     c = []
-    # Header: song, time left, next, console page.
-    c.append(value(PLAYING, (16, 0, 560, 40), 26, TEXT, "SemiBold", "left verticallyCentred"))
-    c.append(value(TIME_LEFT, (580, 0, 120, 40), 26, TEXT, "SemiBold", "right verticallyCentred"))
-    c.append(text("NEXT", (730, 0, 60, 40), 18, TEXT2, "Regular", "right verticallyCentred"))
-    c.append(value(NEXT, (796, 0, 330, 40), 20, TEXT2, "Regular", "left verticallyCentred"))
-    c.append(value(PAGE, (1140, 2, 124, 36), 26, DELAY, "Bold", "horizontallyCentred verticallyCentred"))
+    # Header: logo, song, time left, next, console page.
+    c.append(image("logo.png", (12, 3, 230, 36)))
+    c.append(value(PLAYING, (252, 0, 404, 40), 24, TEXT, "Black", "left verticallyCentred", font="Nexa", case="Upper Case"))
+    c.append(value(TIME_LEFT, (660, 0, 100, 40), 22, TEXT2, "Regular", "right verticallyCentred", font="Roboto"))
+    c.append(text("NEXT", (782, 0, 50, 40), 15, TEXT2, "Bold", "right verticallyCentred", font="Nexa"))
+    c.append(value(NEXT, (840, 0, 290, 40), 17, TEXT2, "Regular", "left verticallyCentred", font="Roboto"))
+    for i, page in enumerate(("MIX", "FX")):
+        rect = (1134 + i * 70, 5, 64, 30)
+        c.append(image("page_%s_on.png" % page.lower(), rect, [when(PAGE, i, 2)]))
+        c.append(image("page_%s_off.png" % page.lower(), rect, [when(PAGE, 1 - i, 2)]))
+
+    made = set()
+    def card(name, number, accent, tint, captions):
+        if name not in made:
+            art.card(folder, name, number, STRIP_COLOURS[accent], tint, [(t, STRIP_COLOURS[k]) if t else None for t, k in captions])
+            made.add(name)
+        return name
+
+    def button(title, lit, colour):
+        name = "btn_%s_%s.png" % (title.lower().replace(" ", "_"), ("on_" + colour) if lit else "off")
+        if name not in made:
+            art.button(folder, name, title, lit, STRIP_COLOURS[colour])
+            made.add(name)
+        return name
+
+    def name_image(title, colour):
+        name = "name_%s.png" % title.lower()
+        if name not in made:
+            art.name_image(folder, name, title, STRIP_COLOURS[colour])
+            made.add(name)
+        return name
 
     for s in range(8):
         x = strip_x(s)
-        tint = SURFACE if s < 6 else ("ff372b18" if s == 6 else "ff272a1d")
-        c.append(panel(tint, (x, 44, 150, 584)))
-        # Name.
-        if s < 6:
-            c.append(value(NAME1 + s, (x, 46, 150, 32), 20, TEXT, "Bold"))
-        else:
-            c.append(text(["7 DELAY", "8 SPACE"][s - 6], (x, 46, 150, 32), 20, [DELAY, REVERB][s - 6], "Bold"))
-        # Knobs: what they drive on each page.
-        for row in range(3):
-            y = 84 + row * 94
-            def put(param_name_or_index, caption, colour, conditions):
-                param = fx(param_name_or_index) if isinstance(param_name_or_index, str) else param_name_or_index
-                c.append(text(caption, (x, y, 150, 20), 15, colour, "SemiBold", conditions=conditions))
-                c.append(knob(param, (x, y + 20, KNOB_W, KNOB_H), conditions))
-            # MIX page.
-            if s < 4:
-                put(send(s, row), ["DLY", "REV", "PHS"][row], BUS_COLOURS[row], [ON_MIX])
-            elif s < 6:
-                mode = MODE5 if s == 4 else MODE6
-                put(send(s, row), ["DLY", "REV", "PHS"][row], BUS_COLOURS[row], [ON_MIX, when(mode, 0, 2)])
-                name = INSTRUMENTS[s - 4][row]
-                put(name, CAPTION[name], colour_of(name), [ON_MIX, when(mode, 1, 2)])
-            else:
-                name = EFFECT_STRIPS[s - 6][row]
-                put(name, CAPTION[name], colour_of(name), [ON_MIX])
-            # FX page.
-            name = FX_LAYOUT[s][row]
-            if name:
-                put(name, CAPTION[name], colour_of(name), [ON_FX])
-        # Fader and meter.
-        fp = fader(s) if s < 6 else fx(EFFECT_FADERS[s - 6])
-        fc = TEXT if s < 6 else [DELAY, REVERB][s - 6]
-        c.append(bar(fp, (x + 34, 370, FADER_W, FADER_H), fc, True))
-        c.append(bar(METER1 + s, (x + 92, 376, 14, FADER_H - 12), REVERB, False))
-        c.append(value(fp, (x, 540, 150, 22), 16, TEXT2))
-        # Lamps: MUTE (top) and REC ARM (bottom) buttons, lit as the console's LEDs would be.
-        def lamp(param, rect, label, lit_colour, conditions=None):
-            cond = conditions or []
-            c.append(panel(BORDER, rect, cond + [when(param, 0, 2)]))
-            c.append(panel(lit_colour, rect, cond + [when(param, 1, 2)]))
-            c.append(text(label, rect, 15, TEXT2, "SemiBold", conditions=cond + [when(param, 0, 2)]))
-            c.append(text(label, rect, 15, BG, "Bold", conditions=cond + [when(param, 1, 2)]))
-        top, bottom = (x + 6, 566, 138, 26), (x + 6, 598, 138, 26)
+        effect = s >= 6
+        accent = [DELAY, REVERB][s - 6] if effect else TEXT
+        number = (str(s + 1), ["DELAY", "SPACE"][s - 6] if effect else "")
+        fx_caps = [(CAPTION[n], colour_of(n)) if n else (None, None) for n in FX_LAYOUT[s]]
+
+        # Cards: one per page (and, on strips 5-6, per stem / instrument), with the knob captions.
+        def put_card(name, captions, conditions, num=number):
+            c.append(image(card(name, num, accent, effect, captions), (x, CARD_Y, art.CARD_W, art.CARD_H), conditions))
+        send_caps = [("DLY", DELAY), ("REV", REVERB), ("PHS", BUS3)]
         if s < 4:
-            lamp(LAMP_MUTE1 + s, top, "MUTE", TEXT)
-            lamp(LAMP_REC1 + s, bottom, "THROW", DELAY)
+            put_card("card%d_mix.png" % s, send_caps, [ON_MIX])
         elif s < 6:
             mode = MODE5 if s == 4 else MODE6
-            lamp(LAMP_MUTE1 + s, top, "MUTE", TEXT, [when(mode, 0, 2)])
-            lamp(LAMP_REC1 + s, bottom, "THROW", DELAY, [when(mode, 0, 2)])
-            lamp(LAMP_MUTE1 + s, top, ["SIREN", "HIT"][s - 4], TEXT, [when(mode, 1, 2)])
-            lamp(LAMP_REC1 + s, bottom, ["RISE", "ROLL"][s - 4], DELAY, [when(mode, 1, 2)])
+            put_card("card%d_mix.png" % s, send_caps, [ON_MIX, when(mode, 0, 2)])
+            inst = [(CAPTION[n], colour_of(n)) for n in INSTRUMENTS[s - 4]]
+            put_card("card%d_inst.png" % s, inst, [ON_MIX, when(mode, 1, 2)],
+                     num=(str(s + 1), ["SIREN", "SYNDRUM"][s - 4]))
         else:
-            colour = [DELAY, REVERB][s - 6]
-            lamp(LAMP_MUTE1 + s, top, ["HOLD", "FX ONLY"][s - 6], colour)
-            lamp(LAMP_REC1 + s, bottom, ["x2", "TAPE STOP"][s - 6], colour)
+            put_card("card%d_mix.png" % s, [(CAPTION[n], colour_of(n)) for n in EFFECT_STRIPS[s - 6]], [ON_MIX])
+        put_card("card%d_fx.png" % s, fx_caps, [ON_FX])
+
+        # Knobs and values: what they drive on each page.
+        for row in range(3):
+            y = CARD_Y + art.KNOB_Y[row]
+            def put(target, colour, conditions):
+                param = fx(target) if isinstance(target, str) else target
+                c.append(knob(param, KNOB_COLOURS.get(colour) and colour or TEXT, (x + 41, y - 4, art.KNOB + 8, art.KNOB + 8), conditions))
+                c.append(value(param, (x, y + art.CAPTION_DY + 12, art.CARD_W, 18), 15, TEXT2, "Regular", font="Roboto",
+                               conditions=conditions))
+            if s < 4:
+                put(send(s, row), [DELAY, REVERB, BUS3][row], [ON_MIX])
+            elif s < 6:
+                mode = MODE5 if s == 4 else MODE6
+                put(send(s, row), [DELAY, REVERB, BUS3][row], [ON_MIX, when(mode, 0, 2)])
+                n = INSTRUMENTS[s - 4][row]
+                put(n, colour_of(n), [ON_MIX, when(mode, 1, 2)])
+            else:
+                n = EFFECT_STRIPS[s - 6][row]
+                put(n, colour_of(n), [ON_MIX])
+            n = FX_LAYOUT[s][row]
+            if n:
+                put(n, colour_of(n), [ON_FX])
+
+        # Name.
+        name_rect = (x, CARD_Y + art.NAME_Y - 15, art.CARD_W, 30)
+        if s < 4:
+            c.append(value(NAME1 + s, name_rect, 21, TEXT, "Black", font="Nexa", case="Upper Case"))
+        elif s < 6:
+            mode = MODE5 if s == 4 else MODE6
+            c.append(value(NAME1 + s, name_rect, 21, TEXT, "Black", font="Nexa", case="Upper Case", conditions=[when(mode, 0, 2)]))
+            c.append(image(name_image(["SIREN", "SYNDRUM"][s - 4], RED), name_rect, [when(mode, 1, 2)]))
+        else:
+            c.append(image(name_image(["DELAY", "SPACE"][s - 6], accent), name_rect))
+
+        # Buttons, lit as the console's LEDs would be.
+        def lamp(param, row, title, colour, conditions=None):
+            rect = (x + 10, CARD_Y + art.BUTTON_Y[row], art.BUTTON[0], art.BUTTON[1])
+            cond = conditions or []
+            c.append(image(button(title, False, colour), rect, cond + [when(param, 0, 2)]))
+            c.append(image(button(title, True, colour), rect, cond + [when(param, 1, 2)]))
+        if s < 4:
+            lamp(LAMP_MUTE1 + s, 0, "MUTE", TEXT)
+            lamp(LAMP_REC1 + s, 1, "THROW", DELAY)
+        elif s < 6:
+            mode = MODE5 if s == 4 else MODE6
+            lamp(LAMP_MUTE1 + s, 0, "MUTE", TEXT, [when(mode, 0, 2)])
+            lamp(LAMP_REC1 + s, 1, "THROW", DELAY, [when(mode, 0, 2)])
+            lamp(LAMP_MUTE1 + s, 0, ["HOLD", "HIT"][s - 4], [RED, TEXT][s - 4], [when(mode, 1, 2)])
+            lamp(LAMP_REC1 + s, 1, ["RISE", "ROLL"][s - 4], DELAY, [when(mode, 1, 2)])
+        else:
+            lamp(LAMP_MUTE1 + s, 0, ["HOLD", "FX ONLY"][s - 6], accent)
+            lamp(LAMP_REC1 + s, 1, ["x2", "TAPE STOP"][s - 6], accent)
+
+        # Fader, meter and level.
+        fp = fader(s) if s < 6 else fx(EFFECT_FADERS[s - 6])
+        c.append(entry("fader", "fader", {"version": 1, "handleName": "Data"},
+                       (x + art.FADER_X, CARD_Y + art.FADER_Y, 44, art.FADER_H), fp, focus="Yes"))
+        c.append(meter(METER1 + s, (x + art.METER_X, CARD_Y + art.FADER_Y + 4, art.METER_W, art.FADER_H - 8)))
+        c.append(value(fp, (x, CARD_Y + art.FADER_Y + art.FADER_H + 2, art.CARD_W, 18), 14, TEXT2, "Regular", font="Roboto"))
     return c
 
 # --- plain pages ------------------------------------------------------------------------------------------------
@@ -270,6 +345,13 @@ def tab(name, key, children):
             "componentDefinition": component(children, background=BG), "qlinkBoundsData": []}
 
 def main():
+    out = os.path.join(HERE, "skins")
+    if os.path.isdir(out):
+        for f in os.listdir(out):
+            if f.endswith(".png"):
+                os.remove(os.path.join(out, f))   # images no longer used go away
+    os.makedirs(out, exist_ok=True)
+    draw_art(out)
     params = json.load(open(os.path.join(HERE, "build", "params.json")))["params"]
     names = [p["name"] for p in params]
     checks = {MASTER: "Master", fader(0): "Fader 1", send(5, 2): "PHS 6", fx("delayTime"): "Dly Time",
@@ -291,7 +373,7 @@ def main():
         "replacementStrings": [{"key": "Parameter %d" % k, "value": v} for k, v in choices.items()],
         "info": {"version": 1, "type": "CompleteDescription"},
         "tabs": [
-            tab("CONSOLE", 0, console()),
+            tab("CONSOLE", 0, console(out)),
             tab("SETUP", 1, plain(setup, menus=set(choices))),
             tab("SONG", 2, plain([PLAYING, NEXT, STATE, TIME_LEFT])),
             tab("TEST", 3, plain([LAST_CC, LAST_NOTE, START, START_POS, CPU, UNDERRUNS])),
@@ -312,8 +394,6 @@ def main():
               ]},
               "Program Mode Q-Links": {"Q-Link %d" % (i + 1): (console_knobs[i] if i < 4 else -1) for i in range(16)}}
 
-    out = os.path.join(HERE, "skins")
-    os.makedirs(out, exist_ok=True)
     body = json.dumps(tui, indent=1)
     for name, raw in RAW.items():
         body = body.replace('"@@RAW:%s@@"' % name, raw)
