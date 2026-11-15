@@ -17,7 +17,8 @@
 // MIDImix (factory mapping, any channel): faders CC 19, 23, 27, 31, 49, 53 for strips 1..6,
 // MUTE notes 1, 4, 7, 10, 13, 16 toggle the strip's mute.
 //
-// MPC transport: STOP pauses, PLAY resumes where it stopped, PLAY START jumps to the next song.
+// MPC transport: STOP pauses, PLAY resumes where it stopped, PLAY START jumps to the next song,
+// whether pressed while stopped or while playing (the position then jumps back to the start).
 // At the end of a song the next one starts on its own.
 //
 // Not in the mock-up: effects, LED-like meters, gapless chaining (a short silence while the
@@ -305,7 +306,7 @@ public:
         float* outR = ctx.outputs[1];
 
         handleMidi(ctx);
-        handleTransport(ctx.transport);
+        handleTransport(ctx.transport, n);
 
 #ifdef DSM_OFFLINE
         // Offline test hosts render faster than real time: wait for the disk instead of dropping out.
@@ -399,7 +400,7 @@ private:
         }
     }
 
-    void handleTransport(const mpc::Transport& t)
+    void handleTransport(const mpc::Transport& t, int frames)
     {
         if (!t.valid) return;
         if (t.playing && !playing_)
@@ -411,7 +412,32 @@ private:
             // The first start of a song only plays it; PLAY START moves on once it has been heard.
             if ((fromStart && framesPlayed_ > 0) || ended_) advance();
         }
+        else if (t.playing && playing_ && t.ppqValid && lastPpqValid_ && jumpedToStart(t))
+        {
+            // PLAY START pressed while playing: the MPC never stops, its position just jumps back.
+            setDisplay(kStart, (float)kStartPlayStart);
+            setDisplay(kStartPos, (float)t.ppqPos);
+            advance();
+        }
         playing_ = t.playing;
+        lastPpqValid_ = t.playing && t.ppqValid;
+        lastPpq_ = t.ppqPos;
+        lastBlockBeats_ = (double)frames / sampleRate_ * (t.tempoValid ? t.bpm : 120.0) / 60.0;
+    }
+
+    // True when the position jumped back, unless it is the MPC's sequence looping:
+    // a loop goes back exactly at its end, which is on a bar line, while PLAY START comes anywhere.
+    bool jumpedToStart(const mpc::Transport& t) const
+    {
+        if (t.ppqPos > lastPpq_ - 0.001) return false;   // the position only moves forward otherwise
+        const double expected = lastPpq_ + lastBlockBeats_;
+        const double slack = lastBlockBeats_ + 0.001;
+        if (t.cycling && t.cycleEndPpq > t.cycleStartPpq)
+            return expected < t.cycleEndPpq - slack;
+        const double bar = t.timeSigDenominator > 0 ? 4.0 * t.timeSigNumerator / t.timeSigDenominator : 4.0;
+        const double toBarLine = std::ceil(expected / bar - 1e-9) * bar - expected;
+        const double fromBarLine = expected - std::floor(expected / bar + 1e-9) * bar;
+        return toBarLine > slack && fromBarLine > slack;
     }
 
     // Moves to the song picked as "Next", then points "Next" at the one after it.
@@ -519,7 +545,8 @@ private:
     double sampleRate_ = 44100.0;
     float smooth_ = 0.002f;
     float gain_[kStrips] = {};
-    bool playing_ = false, ended_ = false;
+    bool playing_ = false, ended_ = false, lastPpqValid_ = false;
+    double lastPpq_ = 0.0, lastBlockBeats_ = 0.0;
     int current_ = 0;
     long long framesPlayed_ = 0;
     int underruns_ = 0, displayCounter_ = 0;

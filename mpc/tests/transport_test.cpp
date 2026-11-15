@@ -24,6 +24,7 @@ constexpr int kFader1 = 1, kMute1 = 7, kNext = 13, kPlaying = 14, kState = 15, k
 
 bool playing = false;
 double ppq = 0.0;
+double loopBeats = 0.0;   // > 0: the MPC's sequence loops back to 0 after this many beats
 VstTimeInfo timeInfo{};
 int failures = 0;
 
@@ -77,6 +78,7 @@ struct Runner
             std::memset(right, 0, sizeof right);
             fx->processReplacing(fx, nullptr, outs, kBlock);
             if (playing) ppq += kBlock / kRate * 2.0;   // 120 BPM
+            if (loopBeats > 0.0 && ppq >= loopBeats) ppq -= loopBeats;
         }
         return left[kBlock - 1];
     }
@@ -116,8 +118,8 @@ int main(int argc, char** argv)
     if (argc < 3) { std::fprintf(stderr, "usage: %s <plugin.dylib> <scratch folder>\n", argv[0]); return 1; }
     const std::string root = argv[2];
     mkdir(root.c_str(), 0755);
-    // Song A and B last 1 s, C half a second. Levels identify them.
-    writeSong(root, "A", 0.25f, 1.0);
+    // Song A lasts 6 s (long enough to loop the sequence), B 1 s, C half a second. Levels identify them.
+    writeSong(root, "A", 0.25f, 6.0);
     writeSong(root, "B", 0.50f, 1.0);
     writeSong(root, "C", 0.75f, 0.5);
     setenv("MPC_PLUGIN_FOLDER", root.c_str(), 1);
@@ -168,6 +170,20 @@ int main(int argc, char** argv)
     expect("PLAY START: song B", r.run(40), b);
     expectInt("Playing = B", r.choice(kPlaying, 3), 1);
     expectInt("Next = C", r.choice(kNext, 3), 2);
+
+    fx->setParameter(fx, kNext, 0.0f);   // pick A on screen, then STOP + PLAY START
+    playing = false; r.run(5);
+    playing = true; ppq = 0.0;
+    expect("Next picked on screen (A) + PLAY START: song A", r.run(40), a);
+
+    loopBeats = 4.0;   // a 1-bar sequence looping (2 s at 120 BPM), as the MPC does
+    fx->setParameter(fx, kNext, 0.5f);   // B
+    expect("sequence loops (twice): still song A", r.run(1400), a);
+    expectInt("Playing = A after the loops", r.choice(kPlaying, 3), 0);
+    ppq = 0.0;   // PLAY START while playing: the position jumps back mid-bar
+    expect("PLAY START while playing: song B", r.run(40), b);
+    expectInt("Last start = PLAY START", r.choice(kStart, 3), 2);
+    loopBeats = 0.0;
 
     expect("end of B: C follows on its own", r.run(400), c);
     expectInt("Playing = C", r.choice(kPlaying, 3), 2);
