@@ -34,10 +34,16 @@ const points = [
         ))}
       </ul>
       <p class="mono mt-8 text-[11px] leading-relaxed text-dim">
-        MPC OS 3.10.1 or later. Tested on an MPC One+. Free and open source, like the app: the plugin comes inside it,
-        and as <span class="text-cream">DubStemMix-MPC-{site.version}.zip</span> on the <a href={site.releases} class="text-cream underline decoration-border underline-offset-4 hover:decoration-cream" rel="noopener">releases</a>.
+        MPC OS 3.10.1 or later. Tested on an MPC One+. Free and open source, like the app, which carries the plugin and
+        writes it on the card for you.
       </p>
-      <a href={`${base}/docs/mpc/`} class="label mt-6 inline-block rounded border-[1.5px] border-delay px-4 py-2 text-[11px] text-delay transition-colors hover:bg-delay hover:text-bg">Play a set on an MPC →</a>
+      <div class="mt-6 flex flex-wrap gap-3">
+        <a href={`${base}/docs/mpc/`} class="label inline-block rounded border-[1.5px] border-delay px-4 py-2 text-[11px] text-delay transition-colors hover:bg-delay hover:text-bg">Play a set on an MPC →</a>
+        <a href={site.mpcDownload} class="label inline-block rounded border-[1.5px] border-cream px-4 py-2 text-[11px] text-cream transition-colors hover:bg-cream hover:text-bg">Download the plugin (.zip)</a>
+      </div>
+      <p class="mono mt-3 text-[11px] leading-relaxed text-dim">
+        No Mac? The plugin works on its own: <a href={`${base}/docs/mpc/#without-the-app`} class="text-cream underline decoration-border underline-offset-4 hover:decoration-cream">put your stems on the card by hand</a>.
+      </p>
     </div>
   </div>
 </Section>

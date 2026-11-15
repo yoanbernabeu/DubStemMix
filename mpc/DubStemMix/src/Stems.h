@@ -287,7 +287,12 @@ inline void readSongJson(const std::string& path, Song& song, std::vector<std::s
 inline Song readSong(const std::string& folder, const std::string& folderName)
 {
     Song song;
-    song.name = folderName;
+    // "01 Roots Steppa": the number only orders the folders, the title is "Roots Steppa".
+    size_t digits = 0;
+    while (digits < folderName.size() && std::isdigit((unsigned char)folderName[digits])) ++digits;
+    size_t start = digits;
+    while (digits > 0 && start < folderName.size() && (folderName[start] == ' ' || folderName[start] == '-' || folderName[start] == '.')) ++start;
+    song.name = digits > 0 && start > digits && start < folderName.size() ? folderName.substr(start) : folderName;
     song.stems.assign(kSongStrips, "");
     std::vector<std::string> loose;
     for (const std::string& f : listDir(folder, false))

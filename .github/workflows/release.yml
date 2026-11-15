@@ -47,6 +47,7 @@ jobs:
           ls -la dist
           test -f "dist/DubStemMix.app/Contents/Resources/MPC/YoanDev - VST - DubStemMix/plugin.json"
           test -f "dist/DubStemMix-MPC-${{ steps.version.outputs.version }}.zip"
+          test -f "dist/DubStemMix-MPC.zip"   # fixed name: the website's download link
 
       - name: Attach the zip to the release
         if: github.event_name == 'release'

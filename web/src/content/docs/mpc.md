@@ -1,12 +1,14 @@
 ---
 title: On an Akai MPC, without the Mac
 seoTitle: On an Akai MPC, no computer on stage · DubStemMix
-description: "Play your DubStemMix sets on an Akai MPC with the MIDImix plugged in, no Mac on stage: export a setlist from the app, then mix, throw and chain tunes."
+description: "Play DubStemMix on an Akai MPC with the MIDImix plugged in, no computer on stage: export a set from the app, or copy your stems on the card by hand."
 nav: On an Akai MPC
 order: 10
 ---
 
-DubStemMix also runs **on an Akai MPC**, as a plugin. Plug the MIDImix into the MPC's USB port and play your set with no computer on stage: the same console, the same effects, the same gestures. The Mac prepares the songs; the MPC plays them.
+DubStemMix also runs **on an Akai MPC**, as a plugin. Plug the MIDImix into the MPC's USB port and play your set with no computer on stage: the same console, the same effects, the same gestures. The app on your Mac can write the set on the card for you; without it, you copy your stems on the card by hand.
+
+**[Download the plugin (.zip)](https://github.com/yoanbernabeu/DubStemMix/releases/latest/download/DubStemMix-MPC.zip)**, free and open source. With the app, you do not need it: the app carries the plugin and writes it on the card.
 
 ![The CONSOLE tab on the MPC: eight strips like the MIDImix, the song playing and the next one on top](../../assets/screenshots/mpc/mpc-console.png)
 
@@ -14,11 +16,12 @@ DubStemMix also runs **on an Akai MPC**, as a plugin. Plug the MIDImix into the 
 
 - An **MPC standalone** with **MPC OS 3.10.1** or later. Tested on an **MPC One+**; the plugin is built for every MPC that loads plugins (One, One+, Live, Live II, Live III, X, XL, Key 61, Key 37, Force).
 - The **MIDImix**, on its factory mapping, as with the app.
-- The **SD card or USB drive** the MPC reads, and DubStemMix on your Mac to put the songs on it.
+- The **SD card or USB drive** the MPC reads.
+- **DubStemMix on a Mac** to write your sets on the card, or any computer to [copy your stems by hand](#without-the-app).
 
 Akai does not test or support third-party plugins. Save your MPC projects often.
 
-## Put a set on the card
+## Put a set on the card with the app
 
 1. In DubStemMix on the Mac, open the setlist.
 2. **File ▸ Export Setlist to MPC…**, or right-click the setlist's name ▸ **Export to MPC…**
@@ -103,8 +106,66 @@ The **TEST** tab shows what reaches the plugin (last CC, note and channel), the 
 - **Splitting songs** into stems, and **recording** your session.
 - **Pre-fader sends**: on the MPC every send is post-fader. The auto-wah always opens upwards.
 
-## By hand, without the export
+## Without the app
 
-Each release also carries **DubStemMix-MPC-<version>.zip** on the [releases page](https://github.com/yoanbernabeu/DubStemMix/releases), with its install notes. Copy the plugin folder into `VST2 Plugins` on the card and add one folder per tune in `Content/Songs`, with 44.1 kHz WAV files named `1 - DRUMS.wav`, `2 - BASS.wav` and so on.
+The plugin works on its own: any computer that can write on the card will do, Mac, Windows or Linux.
+
+### 1. Get the plugin
+
+[Download DubStemMix-MPC.zip](https://github.com/yoanbernabeu/DubStemMix/releases/latest/download/DubStemMix-MPC.zip) from the latest release and unzip it: you get a folder named `YoanDev - VST - DubStemMix` and its install notes.
+
+### 2. Lay out the card
+
+At the root of the SD card or USB drive:
+
+```text
+VST2 Plugins/
+└── YoanDev - VST - DubStemMix/        ← the folder from the zip, as it is
+    ├── plugin.json, version.xml, VST/, Plugin Skins/
+    └── Content/
+        └── Songs/                     ← create these two folders
+            ├── 01 Roots Steppa/
+            │   ├── 1 - DRUMS.wav
+            │   ├── 2 - BASS.wav
+            │   ├── 3 - SKANK.wav
+            │   ├── 4 - VOCALS.wav
+            │   └── song.json          ← optional
+            └── 02 Zion Gate Dub/
+                └── …
+```
+
+- The folder must be named exactly **`VST2 Plugins`**, and the plugin's folder must keep its name.
+- **One folder per tune.** The MPC plays them in the order of their names: number them, `01`, `02`… The name is the title shown on screen, unless `song.json` gives one.
+
+### 3. Prepare the stems
+
+- **One WAV file per strip**, named **`N - NAME.wav`**: `N` is the strip, 1 to 6, and `NAME` shows on screen above the strip. A file with no number takes the first free strip.
+- **44.1 kHz, nothing else.** The MPC plays at 44.1 kHz only: a 48 kHz file would play about 8 % too slow and too low. Mono or stereo, 16, 24 or 32-bit, or 32-bit float.
+- **Every stem of a tune starts at the same moment**: export them all from the start of the song, so they stay in time.
+- **One file per strip**: to put two stems on one strip (kick and snare, say), mix them into one file first.
+- **Strips 5 and 6 left empty** become the siren and the Syndrum, as in the app.
+
+To convert stems to 44.1 kHz WAV:
+
+- **In your DAW**: export each track as WAV, 44.1 kHz, from the very start of the song.
+- **With [Audacity](https://www.audacityteam.org/)** (free, Mac, Windows, Linux): set the project rate to 44100 Hz, then File ▸ Export ▸ WAV.
+- **On a Mac, in the Terminal**: `afconvert -f WAVE -d LEI16@44100 "drums.wav" "1 - DRUMS.wav"`
+- **With [ffmpeg](https://ffmpeg.org/)** (Windows, Linux, Mac): `ffmpeg -i "drums.flac" -ar 44100 -c:a pcm_s16le "1 - DRUMS.wav"`
+
+### 4. Add the tempo, if you like
+
+A small `song.json` file in the tune's folder gives its title, its tempo and its strip names:
+
+```json
+{"title": "Zion Gate Dub", "bpm": 72, "strips": ["DRUMS", "BASS", "SKANK", "VOCALS", "", ""]}
+```
+
+- **`bpm`**: a synced delay and the Syndrum's roll follow the tune. Without it, they follow the MPC's tempo.
+- **`strips`**: the names shown above strips 1 to 6, in place of the file names; `""` keeps the file's.
+- Save it as plain text (UTF-8), named exactly `song.json`. Leave it out entirely if you do not need it.
+
+### 5. Play
+
+Card in the MPC, then [First time on the MPC](#first-time-on-the-mpc). After you change the songs on the card, restart the MPC (or load the plugin again): it reads the list of tunes when it loads.
 
 *The pictures of the MPC's screen are drawn from the plugin's own screen files; on the MPC the changing text uses its own fonts.*
