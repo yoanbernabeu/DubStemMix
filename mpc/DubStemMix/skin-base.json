@@ -1,0 +1,190 @@
+{
+ "sliderWithFocus": {
+  "version": 2,
+  "actions": [
+   {
+    "version": 1,
+    "onAction": "Mouse Down",
+    "handler": "Q-Link",
+    "handleName": "Data",
+    "additionalData": ""
+   },
+   {
+    "version": 1,
+    "onAction": "Double Click",
+    "handler": "Show Overlay",
+    "handleName": "Data",
+    "additionalData": "knob overlay"
+   },
+   {
+    "version": 1,
+    "onAction": "Enter Pressed",
+    "handler": "Show Overlay",
+    "handleName": "Data",
+    "additionalData": "knob overlay"
+   }
+  ],
+  "backgroundData": {
+   "version": 1,
+   "focussed": {
+    "version": 1,
+    "colour": "00000000",
+    "image": ""
+   },
+   "unfocussed": {
+    "version": 1,
+    "colour": "00000000",
+    "image": ""
+   }
+  },
+  "ignoreMousePresses": false,
+  "disableCoarseDataWheel": false,
+  "componentsData": [
+   {
+    "version": 2,
+    "componentData": {
+     "version": 1,
+     "name": "focus",
+     "type": "Focus",
+     "data": {
+      "version": 1,
+      "backgroundColour": "19ffffff",
+      "outlineColour": "ffe4e4e6",
+      "backgroundInset": 4.0,
+      "outlineThickness": 1.0
+     }
+    },
+    "handle remapping": {
+     "version": 1,
+     "map": []
+    },
+    "bounds": {
+     "version": 1,
+     "acceptsHWFocus": "No",
+     "showWhenDataModelInvalid": "Show",
+     "whenVisible": "WhenFocussed",
+     "boundsType": "Absolute",
+     "bounds": "0 0 278 107"
+    }
+   },
+   {
+    "version": 2,
+    "componentData": {
+     "version": 1,
+     "name": "slider",
+     "type": "Slider",
+     "data": {
+      "version": 1,
+      "handleName": "Data"
+     }
+    },
+    "handle remapping": {
+     "version": 1,
+     "map": []
+    },
+    "bounds": {
+     "version": 1,
+     "acceptsHWFocus": "No",
+     "showWhenDataModelInvalid": "Show",
+     "whenVisible": "Always",
+     "boundsType": "Absolute",
+     "bounds": "15 15 248 77"
+    }
+   }
+  ]
+ },
+ "sliderWithFocusMenu": {
+  "version": 2,
+  "actions": [
+   {
+    "version": 1,
+    "onAction": "Mouse Down",
+    "handler": "Q-Link",
+    "handleName": "Data",
+    "additionalData": ""
+   },
+   {
+    "version": 1,
+    "onAction": "Double Click",
+    "handler": "Show Overlay",
+    "handleName": "Data",
+    "additionalData": "menu overlay"
+   },
+   {
+    "version": 1,
+    "onAction": "Enter Pressed",
+    "handler": "Show Overlay",
+    "handleName": "Data",
+    "additionalData": "menu overlay"
+   }
+  ],
+  "backgroundData": {
+   "version": 1,
+   "focussed": {
+    "version": 1,
+    "colour": "00000000",
+    "image": ""
+   },
+   "unfocussed": {
+    "version": 1,
+    "colour": "00000000",
+    "image": ""
+   }
+  },
+  "ignoreMousePresses": false,
+  "disableCoarseDataWheel": false,
+  "componentsData": [
+   {
+    "version": 2,
+    "componentData": {
+     "version": 1,
+     "name": "focus",
+     "type": "Focus",
+     "data": {
+      "version": 1,
+      "backgroundColour": "19ffffff",
+      "outlineColour": "ffe4e4e6",
+      "backgroundInset": 4.0,
+      "outlineThickness": 1.0
+     }
+    },
+    "handle remapping": {
+     "version": 1,
+     "map": []
+    },
+    "bounds": {
+     "version": 1,
+     "acceptsHWFocus": "No",
+     "showWhenDataModelInvalid": "Show",
+     "whenVisible": "WhenFocussed",
+     "boundsType": "Absolute",
+     "bounds": "0 0 278 107"
+    }
+   },
+   {
+    "version": 2,
+    "componentData": {
+     "version": 1,
+     "name": "slider",
+     "type": "Slider",
+     "data": {
+      "version": 1,
+      "handleName": "Data"
+     }
+    },
+    "handle remapping": {
+     "version": 1,
+     "map": []
+    },
+    "bounds": {
+     "version": 1,
+     "acceptsHWFocus": "No",
+     "showWhenDataModelInvalid": "Show",
+     "whenVisible": "Always",
+     "boundsType": "Absolute",
+     "bounds": "15 15 248 77"
+    }
+   }
+  ]
+ }
+}

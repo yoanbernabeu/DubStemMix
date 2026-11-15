@@ -14,6 +14,9 @@ import Testing
     ]
     #expect(StemImporter.stripNames(for: names) == ["AUTRE", "BASSE", "BATTERIES", "CHANT"])
     #expect(StemImporter.stripNames(for: ["bass"]) == ["BASS"])
+    // A shared final letter is no suffix (seen on the MPC: DRUM, BAS, INSTRUMENT, VOCAL).
+    #expect(StemImporter.stripNames(for: ["drums", "bass", "instruments", "vocals"]) == ["DRUMS", "BASS", "INSTRUMENTS", "VOCALS"])
+    #expect(StemImporter.stripNames(for: ["Song - kick", "Song - snare"]) == ["KICK", "SNARE"])
 }
 
 @Test func importIgnoresNonAudioFiles() throws {

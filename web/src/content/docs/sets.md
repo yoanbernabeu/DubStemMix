@@ -1,7 +1,7 @@
 ---
 title: Projects, setlists and recording
 seoTitle: Save projects, build setlists, record · DubStemMix
-description: Save a tune as a DubStemMix project, build your sets in the setlist workshop, take a set to another Mac, record your sessions and export them as MP3.
+description: Save a tune as a DubStemMix project, build your sets in the setlist workshop, take a set to another Mac or an MPC, record your sessions and export them as MP3.
 nav: Projects and sets
 order: 7
 ---
@@ -73,6 +73,10 @@ Each tune still brings its stems, its effect settings, its tempo, its KEEP marks
 **File ▸ Export Setlist…** creates a folder with the setlist and, for each tune, its project and all its files. Copy the folder anywhere, double-click the setlist, play.
 
 Audio Unit plugins cannot be copied: `PLUGINS.txt` in the folder lists the ones to install. Without them, the built-in effects stand in.
+
+## Take a set to an Akai MPC
+
+**File ▸ Export Setlist to MPC…** writes the set on the card of an Akai MPC, with the DubStemMix plugin: you then play it with the MIDImix plugged into the MPC, no Mac on stage. Tunes already on the card and unchanged are not copied again. See [On an Akai MPC](../mpc/).
 
 ## Record your version
 

@@ -492,3 +492,67 @@ Cadré en interview le 16 octobre 2026. Constat : la séparation donne 4 stems (
 - **Autres pages** : sur FX, MASTER et INSERTS, les potards 5-6 gardent leur rôle d'aujourd'hui (phaser sur FX…). **L'insert de tranche reste possible** sur un instrument (la sirène dans l'auto-wah, un plugin AU…), piloté sur la page INSERTS comme pour un stem.
 - **À l'écran** : en-tête « 5 SIREN » / « 6 SYNDRUM », libellés PITCH, RATE, DLY · HOLD, RISE / PITCH, DECAY, DLY · HIT, ROLL, la zone de dépôt reste visible pour y glisser un stem.
 - **Comportement fin** (codé le 16/10/2026) : la sirène balaie ± ½ octave autour de sa hauteur (150 Hz à 1,5 kHz), la vitesse va de 0,3 à 12 Hz, la montée grimpe de deux octaves en ~1,5 s et redescend en ~1 s. Le Syndrum va de 80 Hz à 1,2 kHz, sa hauteur tombe d'environ deux tiers, sa longueur va de 80 ms à 1,5 s. Sans tempo connu, le roulement se cale sur 120 BPM. L'envoi delay part à 50 % (on entend l'écho sans rien toucher), reverb et bus 3 à 0. Les potards des instruments rattrapent la valeur avant d'agir, comme ceux des tranches 7-8. Une tranche qui redevient instrument perd son MUTE et son throw (leurs boutons jouent l'instrument) ; un stem qui revient retrouve ses propres envois. Le solo d'une autre tranche coupe l'instrument, comme un stem ; PANIC (Esc, BANK LEFT + RIGHT) arrête la sirène et le roulement. Les instruments sont des sources sommées avec les stems de la tranche : ils passent par l'insert, le fader, les envois et le pull-up, et s'enregistrent avec le master.
+
+## 16. DubStemMix sur MPC (validé le 16 novembre 2026)
+
+Cadré en interview le 15 novembre 2026, à la sortie du SDK de plugins d'Akai (MPC OS 3.10.1, [mpc-plugin-builder-sdk](https://github.com/inmusic-software/mpc-plugin-builder-sdk)). Objectif : jouer un set **sans Mac**, la **MIDImix branchée en USB sur une MPC One+**, avec le son et les gestes de DubStemMix.
+
+### 16.1 Principe
+
+- Un **plugin instrument « DubStemMix »** pour la MPC. Il lit les stems depuis la carte SD ou la clé USB et reçoit la MIDImix par l'entrée MIDI de sa piste, avec **le même mapping que sur le Mac**. Il embarque nos effets intégrés (`Sources/DubDSP`, en C pur, portable tel quel).
+- Sur le Mac, la setlist s'**exporte vers la MPC** : nouvelle cible à côté de l'export en dossier (§ 5.8). Les stems sont convertis en **WAV 44,1 kHz** (seule fréquence de la MPC). L'ordre des morceaux, les noms de tranches, le tempo et les réglages des effets intégrés vont dans un fichier lu par le plugin. Le tout est déposé dans le dossier du plugin sur la carte.
+- **Page à l'écran de la MPC** sur mesure (skin du SDK) : tranches nommées, faders, voyants MUTE/THROW (remplacent les LEDs, que le plugin ne peut pas allumer), vu-mètres, titre en cours, barre d'avancement, liste de la setlist.
+
+### 16.2 Enchaînement (décisions du 15/11/2026)
+
+- **Mix continu** : les réglages restent ceux du moment d'un morceau à l'autre. On ne recharge pas les réglages sauvegardés de chaque morceau.
+- **Boutons de la MPC** : **STOP** arrête, **PLAY** reprend là où on était, **PLAY START** lance le suivant, à l'arrêt comme en pleine lecture. Il coupe net les stems du morceau en cours, mais les **queues de delay et de reverb continuent**.
+- **Fin naturelle** : le suivant démarre **tout seul, sans blanc**.
+- **Hors de l'ordre** : une **liste à l'écran** permet de choisir le titre qui passera ensuite.
+
+### 16.2 bis Effets et écran, première étape (décisions du 15/11/2026)
+
+- **Portée** : tout ce qui se joue sur la **page MIX** : 3 envois par tranche (Delay, Reverb, bus 3), **throw** sur REC ARM, **tranches 7-8** (delay et espace, avec HOLD, ×2, tape stop, tout dans les effets, § 14), **sirène et Syndrum** sur les tranches 5-6 vides (§ 15). S'y ajoute la **page FX** (BANK RIGHT), seul moyen de régler les effets. Les pages MASTER et INSERTS viennent dans une étape suivante.
+- **Réglages à la console, comme sur le Mac** : BANK RIGHT passe à la page FX, BANK LEFT revient à MIX, avec rattrapage des potards. Sans LEDs, **l'écran montre la page en cours**.
+- **Écran principal = miroir de la console** : 8 tranches côte à côte (nom, 3 potards, fader, vu-mètre, voyants MUTE et THROW ou gestes), libellés comme sur le Mac (7 DELAY, 8 SPACE, SIREN, SYNDRUM). En haut : titre, temps restant, morceau suivant.
+- **Mémoire** : les réglages d'effets sont enregistrés **avec le projet MPC**, comme pour tout plugin.
+- **Ordre des stems** : batterie, basse, instruments, voix sur les tranches 1 à 4, comme la séparation sur le Mac (§ 12.1).
+
+### 16.2 ter Reprises et setlist de live (décisions du 15/11/2026)
+
+Étape 2 validée sur la One+ le 15/11/2026 (« tout fonctionne à la perfection »), écran au look du Mac compris. Étape 3 :
+
+- **Look** : tous les onglets (SETUP, SONG, TEST) prennent le look de CONSOLE.
+- **Pages MASTER et INSERTS**, comme sur le Mac (§ 11.1-11.5) : BANK RIGHT avance MIX → FX → MASTER → INSERTS, BANK LEFT revient à MIX. Sur INSERTS, l'insert de chaque tranche (aucun, Sub, Auto-wah) se choisit avec **trois petits boutons tactiles sur la carte de la tranche** (sur le Mac : un menu).
+- **SOLO** (SOLO maintenu + MUTE) et **KEEP** : un petit bouton KEEP tactile sur chaque tranche de l'onglet CONSOLE, enregistré dans le projet.
+- **Gestes et setlist sur les pads** de la piste DubStemMix (banque A), **sur les deux rangées du haut** (décidé le 16/11/2026 : sur la One+, les pads 1 à 4 envoient les notes 24 à 27, déjà prises par la MIDImix — REC ARM 8, BANK, SOLO — ; les notes 1 à 27 restent toujours à la console) : pad 9 **DROP** (maintenu), 10 **CRASH**, 11 **REWIND** (pull-up : la bande freine, puis le titre repart du début), 13 **PREV** et 14 **NEXT** (déplacent le titre suivant dans la liste), 15 **GO** (lance le suivant tout de suite), 16 **RESTART** (relance le titre en cours du début, échos gardés, sans toucher au suivant). La note du pad 1 se règle dans SETUP (24 par défaut, mesuré sur la One+ ; la page TEST affiche la note et le canal reçus). Sur une piste plugin, **les pads jouent une gamme de do majeur** (mesuré le 16/11/2026 : pad 1 = 24, 9 = 38, 13 = 45, 16 = 50), le plugin retrouve le pad d'après cette gamme. Les pads 1 et 2 (notes 24 et 26) déclenchent donc TAPE STOP et BANK RIGHT, comme la console : à éviter.
+- **Setlist** : l'onglet SONG devient la liste des titres (jusqu'à 24 à l'écran). Toucher un titre = il passera ensuite (marqué NEXT), y compris un titre déjà joué ou celui en cours pour le **rejouer**. Titre en cours surligné, titres **déjà joués grisés avec ✓** (après 30 s de lecture, comme sur le Mac, oublié quand le plugin se décharge).
+- **Enchaînement sans blanc** : le titre suivant est préparé à l'avance, pas de silence entre deux titres.
+
+### 16.2 quater Distribution et export depuis le Mac (décisions du 16/11/2026)
+
+Export validé sur la One+ le 16/11/2026 avec une grosse setlist (« c'est parfait ») : écriture limitée par la carte (~17 Mo/s), réexport sans recopie.
+
+
+Étape 3 validée sur la One+ le 16/11/2026 (« c'est tout bon »), pads compris.
+
+- **Distribution** : le plugin est **livré dans l'app Mac** et écrit sur la carte à chaque export (toujours la version de l'app), **et** la pipeline joint à chaque release GitHub un zip du plugin seul (`DubStemMix-MPC-x.y.z.zip`, avec ses instructions d'installation). Même numéro de version que l'app. Licence MIT ; Akai ne prend pas en charge les plugins tiers (dit dans les instructions).
+- **Export to MPC…** (sur une setlist) :
+  - **Destination** : l'app propose les cartes et clés branchées (avec leur place libre), ou un **dossier** au choix pour qui veut copier lui-même sur la carte. Elle écrit `VST2 Plugins/YoanDev - VST - DubStemMix/`, plugin compris, et propose d'**éjecter** la carte à la fin.
+  - **La carte devient exactement cette setlist**, dans son ordre : les morceaux qui n'y sont plus sont retirés. Un morceau déjà présent et inchangé n'est **pas recopié** (export rapide).
+  - **Sauvegarde** : avant d'écrire, l'app propose de **copier le dossier DubStemMix actuel de la carte** (plugin et morceaux) dans un dossier daté du Mac.
+  - **Chaque tranche devient un fichier** WAV 44,1 kHz (plusieurs stems sur une tranche sont mixés ensemble), avec le **nom de tranche** du projet et le **BPM** du morceau.
+- **Tempo** : le plugin utilise le **BPM du morceau** pour le delay calé et le roulement du Syndrum ; sans BPM connu, le tempo de la MPC.
+- **Plus de limite de 24 titres** : l'onglet SONG garde 24 lignes, avec des **pages** (◀ ▶) ; PREV / NEXT, GO et l'enchaînement couvrent toute la setlist.
+
+### 16.3 Ce qui ne suit pas
+
+- Les plugins Audio Unit tiers (pas d'AU sur la MPC) : seuls les effets intégrés partent.
+- Les LEDs de la MIDImix (le plugin ne peut pas émettre de MIDI).
+- La séparation de stems : elle reste sur le Mac.
+- La forme d'onde : seulement une barre d'avancement.
+
+### 16.4 Points ouverts
+
+- **Maquette validée sur la One+ le 15/11/2026** (`mpc/`, plugin « YoanDev - VST - DubStemMix ») : la MIDImix arrive au plugin par l'entrée MIDI de la piste (faders et MUTE) ; 4 stems lus depuis la carte SD sans décrochage (0 underrun) pour **0,3 %** de CPU ; l'écran suit les valeurs changées par le plugin ; PLAY reprend, PLAY START passe au suivant, à l'arrêt comme en lecture (la MPC ne s'arrête pas : sa position revient au début, distinguée du bouclage de la séquence qui revient sur une barre de mesure) ; l'enchaînement en fin de morceau fonctionne. Le plugin ne lit la liste des morceaux qu'à son chargement. Reste à vérifier : le rendu des vu-mètres (« peu testés » d'après le SDK).
+- **Place sur la carte** : environ 300 Mo par morceau de 6 stems, donc environ 6 Go pour 21 titres.
