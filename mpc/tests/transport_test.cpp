@@ -115,6 +115,12 @@ struct Runner
         std::exit(1);
     }
     float value(const char* name) { return fx->getParameter(fx, param(name)); }
+    std::string display(const char* name)
+    {
+        char buf[64] = {};
+        fx->dispatcher(fx, effGetParamDisplay, param(name), 0, buf, 0.0f);
+        return buf;
+    }
     int choice(const char* name, int count) { return (int)std::lround(value(name) * (count - 1)); }
 };
 
@@ -146,6 +152,11 @@ int main(int argc, char** argv)
     mkdir(root.c_str(), 0755);
     // Song A lasts 6 s (long enough to loop the sequence), B 1 s, C half a second. Levels identify them.
     writeSong(root, "A", 0.25f, 6.0);
+    {   // A comes from the Mac's Export to MPC: its title, tempo and strip names travel in song.json.
+        std::FILE* j = std::fopen((root + "/Content/Songs/A/song.json").c_str(), "wb");
+        std::fputs("{\"title\": \"Alpha \\\"dub\\\"\", \"bpm\": 100, \"strips\": [\"KICK\", \"\", \"\", \"\", \"\", \"\"]}", j);
+        std::fclose(j);
+    }
     writeSong(root, "B", 0.50f, 1.0);
     writeSong(root, "C", 0.75f, 0.5);
     setenv("MPC_PLUGIN_FOLDER", root.c_str(), 1);
@@ -167,6 +178,15 @@ int main(int argc, char** argv)
     const float faderUp = 0.25f * 0.5f * masterGain;   // song A with fader 1 at the top
 
     expect("stopped: silence", r.run(20), 0.0f);
+    expectInt("song.json: the strip name (KICK)", r.display("Name 1") == "KICK", 1);
+    expectInt("song.json: the title (Alpha \"dub\")", r.display("Playing") == "Alpha \"dub\"", 1);
+    r.run(80);
+    expectInt("SONG list line 1 shows the number and title", r.display("Title 1") == "01   Alpha \"dub\"", 1);
+    fx->setParameter(fx, r.param("Delay sync"), 1.0f);
+    r.run(5);
+    expectInt("delay sync follows the song's 100 BPM (1/4 = 600 ms)", r.display("Dly Time") == "1/4", 1);
+    fx->setParameter(fx, r.param("Delay sync"), 0.0f);
+    r.run(5);
 
     playing = true; ppq = 0.0;
     expect("PLAY at the start: song A", r.run(40), a);
@@ -325,7 +345,7 @@ int main(int argc, char** argv)
 
     // The live setlist: touch a song (its cue) to play it next, pads GO, RESTART, PREV, NEXT.
     expectInt("SONG list: A was played (>= 30 s? no: 6 s) shows as a song", r.choice("Slot 1", 7), 1);
-    fx->setParameter(fx, r.param("B"), 1.0f);   // touch B in the list
+    fx->setParameter(fx, r.param("Cue 2"), 1.0f);   // touch B (second line) in the list
     r.run(80);   // the list refreshes 5 times a second
     expectInt("touching B makes it next", r.choice("Next", 3), 1);
     expectInt("B's slot shows NEXT", r.choice("Slot 2", 7), 4);

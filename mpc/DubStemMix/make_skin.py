@@ -63,6 +63,9 @@ PAD_BASE = INSERT_VALUE1 + STEMS * INSERT_KNOBS
 CUE1 = PAD_BASE + 1
 SLOT1 = CUE1 + SLOTS
 LAST_CHANNEL = SLOT1 + SLOTS
+SLOT_TITLE1 = LAST_CHANNEL + 1
+LIST_PAGE = SLOT_TITLE1 + SLOTS
+LIST_PREV, LIST_NEXT = LIST_PAGE + 1, LIST_PAGE + 2
 def fx(name): return FX_BASE + FX.index(name) if name in FX else FX2_BASE + FX2.index(name)
 def insert_value(s, i): return INSERT_VALUE1 + s * INSERT_KNOBS + i
 
@@ -446,20 +449,24 @@ def songs(a):
     c = header(a)
     for i in range(SLOTS):
         col, row = i // 12, i % 12
-        x, y = 16 + col * 640, 50 + row * 48
+        x, y = 16 + col * 640, 50 + row * 47
         slot = SLOT1 + i
         for k, state in enumerate(ROW_STATES):
             c.append(image(a.row(state), (x, y, art.ROW_W, art.ROW_H), [when(slot, k + 1, 7)]))
         # Number and title: dark on the cream block of the song playing, dimmed once played.
         for states, colour in (((1, 4), TEXT), ((2, 5), TEXT2), ((3, 6), BG)):
             for k in states:
-                cond = [when(slot, k, 7)]
-                c.append(text("%02d" % (i + 1), (x + 28, y, 40, art.ROW_H), 16, colour, "Bold", font="Roboto", conditions=cond))
-                c.append(value(CUE1 + i, (x + 72, y, 440, art.ROW_H), 19, colour, "Bold", "left verticallyCentred",
-                               conditions=cond, font="Nexa", kind="Name"))
+                c.append(value(SLOT_TITLE1 + i, (x + 40, y, 470, art.ROW_H), 18, colour, "Bold", "left verticallyCentred",
+                               conditions=[when(slot, k, 7)], font="Nexa"))
         # Touching the line cues the song (the plugin sets it as next and lets the cue go).
         c.append(entry("cue", "touch", {"version": 1, "handleName": "Data"}, (x, y, art.ROW_W, art.ROW_H), CUE1 + i,
                        conditions=["RangedEnabling/1/6/7/Parameter %d" % slot]))
+    # Pages of 24 songs.
+    c.append(image(a.pill("<", False, TEXT, 60, 22, 12), (1060, 614 - 8, 60, 22)))
+    c.append(entry("prev", "touch", {"version": 1, "handleName": "Data"}, (1050, 598, 80, 30), LIST_PREV))
+    c.append(value(LIST_PAGE, (1124, 606, 80, 22), 15, TEXT2, "Regular", font="Roboto"))
+    c.append(image(a.pill(">", False, TEXT, 60, 22, 12), (1208, 614 - 8, 60, 22)))
+    c.append(entry("next", "touch", {"version": 1, "handleName": "Data"}, (1198, 598, 80, 30), LIST_NEXT))
     return c
 
 # --- TEST -------------------------------------------------------------------------------------------------------
@@ -503,8 +510,8 @@ def main():
         if index >= len(names) or names[index] != name:
             sys.exit("make_skin.py: parameter %d is %r, expected %r - update the indices"
                      % (index, names[index] if index < len(names) else None, name))
-    if names[LAST_CHANNEL] != "Last channel" or len(names) != LAST_CHANNEL + 1:
-        sys.exit("make_skin.py: the plugin has %d parameters, expected %d" % (len(names), LAST_CHANNEL + 1))
+    if names[LAST_CHANNEL] != "Last channel" or names[LIST_NEXT] != "Page on" or len(names) != LIST_NEXT + 1:
+        sys.exit("make_skin.py: the plugin has %d parameters, expected %d" % (len(names), LIST_NEXT + 1))
 
     replacements = dict(SETUP_CHOICES)
     for s in range(STEMS):

@@ -168,11 +168,14 @@ struct StemRing
     std::atomic<bool> finished{false};  // the file has been read to the end
 };
 
+constexpr int kSongStrips = 6;
+
 struct Song
 {
-    std::string name;
-    std::vector<std::string> stems;   // full paths, strip order
+    std::string name;                 // the title shown on screen
+    std::vector<std::string> stems;   // full path per strip, "" for an empty strip
     std::vector<std::string> labels;  // strip names shown on screen (BASSE, DRUMS...)
+    double bpm = 0;                   // 0: unknown
 };
 
 // Strip names from the stem file names, as on the Mac: the part that differs between the files, upper case.
@@ -219,6 +222,101 @@ inline std::vector<std::string> stripLabels(const std::vector<std::string>& file
         out.push_back(clean.empty() ? n : clean);
     }
     return out;
+}
+
+// --- song.json, written by the Mac app's Export to MPC (PRD § 16.2 quater) -------------------------------------
+//   {"title": "Zion Gate Dub", "bpm": 72, "strips": ["DRUMS", "BASS", "", "", "", ""]}
+// Only these keys are read, with a small reader that needs no library.
+
+inline bool readJsonString(const std::string& j, size_t& i, std::string& out)
+{
+    while (i < j.size() && j[i] != '"') ++i;
+    if (i >= j.size()) return false;
+    ++i;
+    out.clear();
+    while (i < j.size() && j[i] != '"')
+    {
+        char c = j[i++];
+        if (c == '\\' && i < j.size())
+        {
+            const char e = j[i++];
+            if (e == 'n') c = ' ';
+            else if (e == 't') c = ' ';
+            else if (e == 'u') { i += 4; c = '?'; }   // the Mac writes UTF-8 as is; escapes are rare
+            else c = e;                               // \" \\ \/
+        }
+        out += c;
+    }
+    ++i;
+    return true;
+}
+
+inline size_t findKey(const std::string& j, const char* key)
+{
+    const std::string k = std::string("\"") + key + "\"";
+    const size_t at = j.find(k);
+    if (at == std::string::npos) return at;
+    const size_t colon = j.find(':', at + k.size());
+    return colon == std::string::npos ? colon : colon + 1;
+}
+
+inline void readSongJson(const std::string& path, Song& song, std::vector<std::string>& stripNames)
+{
+    std::FILE* f = std::fopen(path.c_str(), "rb");
+    if (f == nullptr) return;
+    std::string j;
+    char buf[4096];
+    size_t n;
+    while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) j.append(buf, n);
+    std::fclose(f);
+    size_t i = findKey(j, "title");
+    std::string title;
+    if (i != std::string::npos && readJsonString(j, i, title) && !title.empty()) song.name = title;
+    i = findKey(j, "bpm");
+    if (i != std::string::npos) song.bpm = std::atof(j.c_str() + i);
+    i = findKey(j, "strips");
+    if (i != std::string::npos)
+    {
+        const size_t end = j.find(']', i);
+        std::string name;
+        while (stripNames.size() < (size_t)kSongStrips && readJsonString(j, i, name) && i <= end) stripNames.push_back(name);
+    }
+}
+
+// A song folder: "N - name.wav" goes on strip N (1-6), other WAVs fill the free strips in name order.
+inline Song readSong(const std::string& folder, const std::string& folderName)
+{
+    Song song;
+    song.name = folderName;
+    song.stems.assign(kSongStrips, "");
+    std::vector<std::string> loose;
+    for (const std::string& f : listDir(folder, false))
+    {
+        size_t d = 0;
+        while (d < f.size() && std::isdigit((unsigned char)f[d])) ++d;
+        const int strip = d > 0 && f.compare(d, 3, " - ") == 0 ? std::atoi(f.c_str()) - 1 : -1;
+        if (strip >= 0 && strip < kSongStrips && song.stems[(size_t)strip].empty()) song.stems[(size_t)strip] = folder + "/" + f;
+        else loose.push_back(folder + "/" + f);
+    }
+    for (const std::string& f : loose)
+        for (std::string& slot : song.stems)
+            if (slot.empty()) { slot = f; break; }
+    // Strip names: song.json's, else from the file names.
+    std::vector<std::string> present;
+    for (const std::string& f : song.stems) if (!f.empty()) present.push_back(f);
+    const std::vector<std::string> fromFiles = stripLabels(present);
+    std::vector<std::string> fromJson;
+    readSongJson(folder + "/song.json", song, fromJson);
+    song.labels.assign(kSongStrips, "");
+    size_t k = 0;
+    for (int s = 0; s < kSongStrips; ++s)
+    {
+        if (song.stems[(size_t)s].empty()) continue;
+        const std::string& json = (size_t)s < fromJson.size() ? fromJson[(size_t)s] : std::string();
+        song.labels[(size_t)s] = !json.empty() ? json : k < fromFiles.size() ? fromFiles[k] : "";
+        ++k;
+    }
+    return song;
 }
 
 } // namespace stems

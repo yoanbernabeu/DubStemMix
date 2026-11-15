@@ -139,6 +139,8 @@ public:
         kPadBase = kInsertValue1 + kStemStrips * fx::insert::kKnobs,
         kCue1, kSlot1 = kCue1 + kSlots,
         kLastChannel = kSlot1 + kSlots,
+        // Export to MPC (PRD § 16.2 quater): the SONG tab in pages of kSlots songs.
+        kSlotTitle1, kListPage = kSlotTitle1 + kSlots, kListPrev, kListNext,
         kNumParams
     };
     static int fader(int s) { return kStripBase + s * 5; }
@@ -236,11 +238,16 @@ public:
         addParam(mpc::intParam("padBase", "Pad 1 note", 0, 112, 24));
         // The SONG tab's list: touching a song sets its cue (named after the song); its slot says how to show it.
         for (int i = 0; i < kSlots; ++i)
-            addParam(mpc::boolParam(("cue" + std::to_string(i + 1)).c_str(), i < (int)songs_.size() ? songs_[(size_t)i].name.c_str() : "-", false));
+            addParam(mpc::boolParam(("cue" + std::to_string(i + 1)).c_str(), ("Cue " + std::to_string(i + 1)).c_str(), false));
         for (int i = 0; i < kSlots; ++i)
             addParam(mpc::choiceParam(("slot" + std::to_string(i + 1)).c_str(), ("Slot " + std::to_string(i + 1)).c_str(),
                                       {"Empty", "Song", "Played", "Playing", "Next", "Played, next", "Playing, next"}, 0));
         addParam(mpc::intParam("lastChannel", "Last channel", 0, 16, 0));
+        for (int i = 0; i < kSlots; ++i)
+            addParam(mpc::intParam(("slotTitle" + std::to_string(i + 1)).c_str(), ("Title " + std::to_string(i + 1)).c_str(), 0, 9999, 0));
+        addParam(mpc::intParam("listPage", "List page", 0, 99, 0));
+        addParam(mpc::boolParam("listPrev", "Page back", false));
+        addParam(mpc::boolParam("listNext", "Page on", false));
 
         for (int i = 0; i < kNumParams; ++i) seen_[i] = get(i);
         for (float& v : applied_) v = -1;
@@ -287,6 +294,12 @@ public:
         for (int& k : insertKind_) k = -1;
     }
 
+    // After a project or preset load: the inserts take the saved settings as they are (no defaults).
+    void reset() override
+    {
+        for (int& k : insertKind_) k = -1;
+    }
+
     bool formatValue(int index, float v, std::string& out) override
     {
         char buf[48];
@@ -307,7 +320,7 @@ public:
                     : index >= kFx2Base && index < kInsert1 ? fx::FirstCount + (index - kFx2Base) : -1;
         if (p >= 0)
         {
-            out = fx::display(p, v, getBool(kDelaySync), bpm_.load(std::memory_order_relaxed));
+            out = fx::display(p, v, getBool(kDelaySync), tempo_.load(std::memory_order_relaxed));
             return true;
         }
         if (index >= kInsertValue1 && index < kPadBase)
@@ -329,6 +342,20 @@ public:
             return true;
         }
         if ((index == kLastCC || index == kLastNote) && v < 0) { out = "-"; return true; }
+        if (index >= kSlotTitle1 && index < kSlotTitle1 + kSlots)
+        {
+            const int song = (int)std::lround(v);
+            if (song < 0 || song >= (int)songs_.size()) { out = ""; return true; }
+            std::snprintf(buf, sizeof buf, "%02d   ", song + 1);
+            out = buf + songs_[(size_t)song].name;
+            return true;
+        }
+        if (index == kListPage)
+        {
+            std::snprintf(buf, sizeof buf, "%d / %d", (int)v + 1, pageCount());
+            out = buf;
+            return true;
+        }
         return false;
     }
 
@@ -475,7 +502,16 @@ private:
             seen_[i] = v;
             if (i >= kCue1 && i < kCue1 + kSlots)
             {
-                if (v >= 0.5f) { setDisplay(i, 0.0f); cue(i - kCue1); }
+                if (v >= 0.5f) { setDisplay(i, 0.0f); cue(listPage_ * kSlots + (i - kCue1)); }
+                continue;
+            }
+            if (i == kListPrev || i == kListNext)
+            {
+                if (v >= 0.5f)
+                {
+                    setDisplay(i, 0.0f);
+                    showPage(listPage_ + (i == kListNext ? 1 : -1));
+                }
                 continue;
             }
             if (i == kNext) { nextCued_ = true; continue; }
@@ -675,7 +711,10 @@ private:
     void applyEffects()
     {
         const bool sync = getBool(kDelaySync);
-        const double bpm = bpm_.load(std::memory_order_relaxed);
+        // The song's own tempo (exported from the Mac), else the MPC's.
+        const double songBpm = songs_.empty() ? 0.0 : songs_[(size_t)current_].bpm;
+        const double bpm = songBpm > 0 ? songBpm : bpm_.load(std::memory_order_relaxed);
+        tempo_.store(bpm, std::memory_order_relaxed);
         for (int p = 0; p < fx::Count; ++p)
         {
             DubEffect* k = kernelFor(fx::info(p).kernel);
@@ -924,16 +963,27 @@ private:
         const int next = getInt(kNext);
         for (int i = 0; i < kSlots; ++i)
         {
+            const int song = listPage_ * kSlots + i;
             int state = kSlotEmpty;
-            if (i < (int)songs_.size())
+            if (song < (int)songs_.size())
             {
-                const bool isNext = i == next && (i != current_ || nextCued_);
-                if (i == current_) state = isNext ? kSlotCurrentNext : kSlotCurrent;
-                else if (played_[(size_t)i]) state = isNext ? kSlotPlayedNext : kSlotPlayed;
+                const bool isNext = song == next && (song != current_ || nextCued_);
+                if (song == current_) state = isNext ? kSlotCurrentNext : kSlotCurrent;
+                else if (played_[(size_t)song]) state = isNext ? kSlotPlayedNext : kSlotPlayed;
                 else state = isNext ? kSlotNext : kSlotPlain;
+                setDisplay(kSlotTitle1 + i, (float)song);
             }
             setDisplay(kSlot1 + i, (float)state);
         }
+        setDisplay(kListPage, (float)listPage_);
+    }
+
+    int pageCount() const { return std::max(1, ((int)songs_.size() + kSlots - 1) / kSlots); }
+
+    void showPage(int page)
+    {
+        listPage_ = std::min(std::max(page, 0), pageCount() - 1);
+        refreshSlots();
     }
 
     // ------------------------------------------------------------------------------------------------
@@ -1028,6 +1078,7 @@ private:
         framesPlayed_ = 0;
         nextCued_ = false;
         showSong(next);
+        listPage_ = next / kSlots;   // the list shows the song now playing
         setDisplay(kNext, (float)std::min(next + 1, (int)songs_.size() - 1));
         seen_[kNext] = get(kNext);
     }
@@ -1078,7 +1129,7 @@ private:
     // Strip name on screen for a song: the stem's name, the instrument's on an empty strip 5 or 6.
     std::string stripLabel(int song, int strip) const
     {
-        if (song >= 0 && song < (int)songs_.size() && strip < (int)songs_[(size_t)song].labels.size())
+        if (song >= 0 && song < (int)songs_.size() && !songs_[(size_t)song].labels[(size_t)strip].empty())
             return songs_[(size_t)song].labels[(size_t)strip];
         if (strip == kFirstInstrumentStrip) return "SIREN";
         if (strip == kFirstInstrumentStrip + 1) return "SYNDRUM";
@@ -1090,12 +1141,10 @@ private:
         const std::string root = mpc::contentPath("Songs");
         for (const std::string& dir : stems::listDir(root, true))
         {
-            Song song;
-            song.name = dir;
-            for (const std::string& f : stems::listDir(root + "/" + dir, false))
-                if ((int)song.stems.size() < kStemStrips) song.stems.push_back(root + "/" + dir + "/" + f);
-            song.labels = stems::stripLabels(song.stems);
-            if (!song.stems.empty()) songs_.push_back(std::move(song));
+            Song song = stems::readSong(root + "/" + dir, dir);
+            bool any = false;
+            for (const std::string& f : song.stems) any |= !f.empty();
+            if (any) songs_.push_back(std::move(song));
         }
         mpc::log("DubStemMix: %d song(s) in %s", (int)songs_.size(), root.c_str());
     }
@@ -1125,7 +1174,7 @@ private:
                         ring.read.store(0, std::memory_order_relaxed);
                         ring.written.store(0, std::memory_order_relaxed);
                         ring.finished.store(false, std::memory_order_relaxed);
-                        const bool ok = index >= 0 && index < (int)songs_.size() && s < (int)songs_[(size_t)index].stems.size()
+                        const bool ok = index >= 0 && index < (int)songs_.size() && !songs_[(size_t)index].stems[(size_t)s].empty()
                                      && readers[d][s].open(songs_[(size_t)index].stems[(size_t)s]);
                         if (!ok) readers[d][s].close();
                         if (ok && readers[d][s].rate() != 44100)
@@ -1174,7 +1223,9 @@ private:
     int active_ = 0;
     std::thread disk_;
     std::atomic<bool> quit_{false};
-    std::atomic<double> bpm_{0.0};
+    std::atomic<double> bpm_{0.0};     // the MPC's tempo
+    std::atomic<double> tempo_{0.0};   // the tempo in use: the song's, else the MPC's
+    int listPage_ = 0;
 
     // Effects and mix.
     DubEffect *delay_ = nullptr, *reverb_ = nullptr, *bus3_ = nullptr;
