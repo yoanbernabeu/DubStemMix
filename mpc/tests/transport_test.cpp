@@ -281,14 +281,14 @@ int main(int argc, char** argv)
     expect("SOLO strip 2: strip 1 is out", r.run(20), 0.0f);
     r.press(5); r.lift(5);
     expect("SOLO off: strip 1 back", r.run(20), a);
-    r.press(32);   // pad 9: DROP held
+    r.press(38);   // pad 9: DROP held (the pads play a C major scale from 24)
     expect("DROP held: strip 1 (not KEEP) is cut", r.run(20), 0.0f);
-    r.lift(32);
+    r.lift(38);
     expect("DROP released: back", r.run(20), a);
     fx->setParameter(fx, r.param("Keep 1"), 1.0f);
-    r.press(32);
+    r.press(38);
     expect("DROP held, strip 1 KEEP: still there", r.run(20), a);
-    r.lift(32);
+    r.lift(38);
     fx->setParameter(fx, r.param("Keep 1"), 0.0f);
     playing = false; r.run(5);
 
@@ -329,14 +329,14 @@ int main(int argc, char** argv)
     r.run(80);   // the list refreshes 5 times a second
     expectInt("touching B makes it next", r.choice("Next", 3), 1);
     expectInt("B's slot shows NEXT", r.choice("Slot 2", 7), 4);
-    r.press(38); r.lift(38);   // pad 15: GO
+    r.press(48); r.lift(48);   // pad 15: GO
     expect("pad GO: B plays now", r.run(40), b);
-    r.press(37); r.lift(37);   // pad 14: NEXT moves the next song on
+    r.press(47); r.lift(47);   // pad 14: NEXT moves the next song on
     expectInt("pad NEXT: C stays next (last song)", r.choice("Next", 3), 2);
-    r.press(36); r.lift(36);   // pad 13: PREV
+    r.press(45); r.lift(45);   // pad 13: PREV
     expectInt("pad PREV: B is next (replay)", r.choice("Next", 3), 1);
     r.run(200);
-    r.press(39); r.lift(39);   // pad 16: RESTART
+    r.press(50); r.lift(50);   // pad 16: RESTART
     r.run(20);
     expect("pad RESTART: B again from the top", r.run(20), b);
     expectInt("RESTART leaves the next song alone", r.choice("Next", 3), 1);

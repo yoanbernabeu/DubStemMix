@@ -64,6 +64,18 @@ constexpr int kBankLeft = 25, kBankRight = 26;
 enum Pad { kPadDrop = 8, kPadCrash = 9, kPadRewind = 10, kPadPrev = 12, kPadNext = 13, kPadGo = 14, kPadRestart = 15 };
 constexpr int kLastMidiMixNote = 27;
 
+// The MPC's pads play a C major scale on a plugin track (measured on the One+: pad 1 = 24, pad 9 = 38,
+// pad 13 = 45, pad 16 = 50). The pad (0-based) a note comes from, counting from pad 1's note, or -1.
+int padFromNote(int note, int padOne)
+{
+    static const int kDegrees[7] = {0, 2, 4, 5, 7, 9, 11};
+    const int offset = note - padOne;
+    if (offset < 0) return -1;
+    for (int d = 0; d < 7; ++d)
+        if (kDegrees[d] == offset % 12) return offset / 12 * 7 + d;
+    return -1;
+}
+
 constexpr float kHeadroom = 0.5f;       // per strip and on the master, given back by the make-up gain
 constexpr float kMakeup = 2.0f;         // +6 dB
 constexpr float kPickupWindow = 0.04f;
@@ -490,7 +502,7 @@ private:
             else if (e.isNoteOn() || e.isNoteOff())
             {
                 if (e.isNoteOn()) { setDisplay(kLastNote, (float)e.note()); setDisplay(kLastChannel, (float)(e.channel() + 1)); }
-                const int pad = e.note() - getInt(kPadBase);
+                const int pad = padFromNote(e.note(), getInt(kPadBase));
                 if (e.note() > kLastMidiMixNote && pad >= 0 && pad < 16) padHit(pad, e.isNoteOn());
                 else button(e.note(), e.isNoteOn());
             }
