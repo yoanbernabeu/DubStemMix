@@ -137,6 +137,9 @@ final class AppModel {
     @ObservationIgnored var songRack: Rack?
     /// Setlist export to another Mac, see AppModel+Documents.swift.
     var setlistExport = SetlistExportState.idle
+    /// Export to MPC (PRD § 16.2 quater), see AppModel+MPCExport.swift.
+    var showMPCExport = false
+    var mpcExport = MPCExportState.idle
     @ObservationIgnored var exportTask: Task<Void, Never>?
     @ObservationIgnored var screenActivity: NSObjectProtocol?
     @ObservationIgnored var activationObserver: NSObjectProtocol?

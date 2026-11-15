@@ -1,7 +1,8 @@
 #!/bin/zsh
 # Builds DubStemMix.app from the Swift package (release), signs it ad hoc and zips it.
 #
-#   tools/make-app.sh [version] [output-dir]      → <output-dir>/DubStemMix.app and DubStemMix-<version>.zip
+#   tools/make-app.sh [version] [output-dir]      → <output-dir>/DubStemMix.app and DubStemMix-<version>.zip,
+#                                                   plus the MPC plugin's DubStemMix-MPC-<version>.zip
 #
 # No Apple Developer account: the signature is ad hoc, so Gatekeeper asks on first launch (see README).
 set -euo pipefail
@@ -36,6 +37,10 @@ if [ ! -d "$RES/Contents" ]; then
 PLIST
 fi
 cp Design/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# The MPC plugin, written on the card by Export to MPC (PRD § 16.2 quater); its zip goes with the release.
+mpc/package.sh "$VERSION" "$OUT"
+mkdir -p "$APP/Contents/Resources/MPC"
+cp -R "$OUT/mpc/YoanDev - VST - DubStemMix" "$APP/Contents/Resources/MPC/"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" Packaging/Info.plist > "$APP/Contents/Info.plist"
 echo -n "APPL????" > "$APP/Contents/PkgInfo"
 

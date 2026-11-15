@@ -24,6 +24,9 @@ struct RootView: View {
         .sheet(isPresented: Binding(get: { model.showWelcome && !model.isPreview }, set: { if !$0 { model.dismissWelcome() } })) {
             WelcomeView(model: model) { model.dismissWelcome() }
         }
+        .sheet(isPresented: Binding(get: { model.showMPCExport && !model.isPreview }, set: { model.showMPCExport = $0 })) {
+            MPCExportView(model: model)
+        }
     }
 
     private var console: some View {
@@ -1067,6 +1070,7 @@ private struct SetlistSection: View {
                                 Button("Rename…") { renaming = true }
                                 Button("Save As…") { model.saveSetlistAs() }
                                 Button("Export for Another Mac…") { model.exportSetlist() }.disabled(model.exportTask != nil)
+                                Button("Export to MPC…") { model.chooseMPCExport() }.disabled(model.exportTask != nil)
                                 Divider()
                             }
                             Button("New Setlist…") { model.newSetlist() }
@@ -1097,6 +1101,7 @@ private struct SetlistSection: View {
             }
             if model.isPreview { rows } else { ScrollView { rows }.frame(maxHeight: 260) }
             exportStatus
+            MPCExportStatus(model: model)
             if model.setlistHasMissingStems {
                 SmallButton(title: "LOCATE MISSING STEMS…", color: Theme.rec) { model.locateMissingStemsInSetlist() }
                     .help("One folder for the whole setlist: missing stems are looked for by name in it and its subfolders")

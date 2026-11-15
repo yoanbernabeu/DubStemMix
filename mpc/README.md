@@ -4,7 +4,7 @@ A plugin for Akai MPC standalones (MPC OS 3.10.1+) that turns an Akai MIDImix pl
 
 ## What it does
 
-- **Songs**: the plugin plays the songs in its `Content/Songs/` folder, one sub-folder per song, in name order. Up to 6 WAV stems at 44.1 kHz per song, in name order: strip 1, strip 2, … (drums, bass, instruments, vocals for a split song).
+- **Songs**: the plugin plays the songs in its `Content/Songs/` folder, one sub-folder per song, in name order. Up to 6 WAV files at 44.1 kHz per song: `N - NAME.wav` goes on strip N, other files fill the free strips in name order. An optional `song.json` gives the title, BPM and strip names.
 - **The MIDImix works as on the Mac** (factory mapping), with the same effects engine (`Sources/DubDSP`, compiled unchanged) and the same gain structure:
   - MIX page: knobs = DLY / REV / PHS sends; REC ARM held = dub throw; MUTE = mute.
   - Empty strips 5 and 6: the siren (MUTE held sounds, REC ARM held rises) and the Syndrum (MUTE hits, REC ARM held rolls).
@@ -20,13 +20,20 @@ A plugin for Akai MPC standalones (MPC OS 3.10.1+) that turns an Akai MIDImix pl
   - **TEST**: last CC, note and channel received, last start, CPU, underruns.
 - Everything set is saved with the MPC project.
 
+## Songs from the Mac app
+
+In DubStemMix on the Mac: **File ▸ Export Setlist to MPC…** (or the setlist's right-click menu). Pick the card (or a folder), and the app writes the plugin and the setlist's songs: one 44.1 kHz WAV per strip, made from the stems the songs already use (several stems on a strip are mixed), with `song.json` (title, BPM, strip names). The card becomes the setlist; songs already there and unchanged are not copied again. It offers to back up the card's DubStemMix folder to `~/Music/DubStemMix/MPC Backups` first, and to eject the card at the end. Without the window: `DubStemMix --export-mpc <setlist.dubset> <card or folder>`.
+
 ## Build and test on the Mac
 
 ```sh
 mpc/prepare-song.sh "1 My Song" drums.wav bass.wav instruments.wav vocals.wav   # -> Content/Songs, 44.1 kHz WAV
 mpc/test.sh     # SDK host simulator + transport and console test
 mpc/build.sh    # MPC build -> mpc/DubStemMix/build/YoanDev - VST - DubStemMix/
+mpc/package.sh 1.2.3 dist   # release: dist/mpc/<plugin, no songs> + dist/DubStemMix-MPC-1.2.3.zip
 ```
+
+`tools/make-app.sh` runs `mpc/package.sh` and puts the plugin inside the app; the release workflow attaches the plugin's zip next to the app's.
 
 The SDK is fetched (pinned) into `mpc/.sdk` on first run; it needs Python 3.9+ and downloads the Zig compiler once. `build.sh` writes the screen (`DubStemMix/make_skin.py` → `DubStemMix/skins/`) from the parameter list. Run `mpc/build.sh` after `mpc/test.sh`: the test build waits for the disk and must not go on the MPC.
 
@@ -42,5 +49,5 @@ The plugin reads the song list when it loads: after adding songs, load it again 
 ## Known limits
 
 - The MIDImix LEDs stay off (a plugin cannot send MIDI on the MPC): the screen shows them.
-- Not yet on the MPC: pre / post-fader sends (all sends are post-fader), the auto-wah's direction (always up), the song's own tempo (delay sync and the Syndrum roll follow the MPC's tempo), more than 24 songs on the SONG tab.
+- Not yet on the MPC: pre / post-fader sends (all sends are post-fader), the auto-wah's direction (always up).
 - RESTART and REWIND reopen the song: a very short silence before it starts again.

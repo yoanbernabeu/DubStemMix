@@ -44,12 +44,38 @@ enum Main {
             let provider = args.firstIndex(of: "--provider").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
             let threads = args.firstIndex(of: "--threads").flatMap { $0 + 1 < args.count ? Int(args[$0 + 1]) : nil }
             SplitCheck.split(args[i + 1], out: out, provider: provider, threads: threads, project: args.contains("--project"))
+        } else if let i = args.firstIndex(of: "--export-mpc"), i + 2 < args.count {
+            exportToMPC(setlist: args[i + 1], root: args[i + 2])
         } else if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
             let page: MixController.Page = args.contains("--fx") ? .fx : args.contains("--master") ? .master : args.contains("--inserts") ? .inserts : .mix
             snapshot(to: args[i + 1], page: page, settings: args.contains("--settings"), prepare: args.contains("--prepare"),
                      setlists: args.contains("--setlists"), sessions: args.contains("--sessions"))
         } else {
             DubStemMixApp.main()
+        }
+    }
+
+    /// `--export-mpc <setlist.dubset> <card or folder>`: Export to MPC without the window (PRD § 16.2 quater).
+    private static func exportToMPC(setlist path: String, root: String) {
+        let url = URL(fileURLWithPath: path)
+        guard let setlist = try? Setlist.load(from: url) else {
+            print("Setlist illisible : \(path)")
+            exit(1)
+        }
+        let repository = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appending(path: "mpc/DubStemMix/build/\(MPCExport.pluginFolderName)")
+        let plugin = Bundle.main.resourceURL.map { $0.appending(path: "MPC/\(MPCExport.pluginFolderName)") }
+            .flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
+            ?? (FileManager.default.fileExists(atPath: repository.path) ? repository : nil)
+        let export = MPCExport(setlist: setlist, at: url, to: URL(fileURLWithPath: root), bundledPlugin: plugin)
+        let start = Date()
+        do {
+            let report = try export.run { fraction in print(String(format: "\r%3d %%", Int(fraction * 100)), terminator: "") }
+            print("\n\(report.songs) morceaux · \(report.written) écrits · \(report.reused) déjà là · \(report.removed) retirés · plugin \(plugin == nil ? "absent" : "copié") · \(Int(Date().timeIntervalSince(start))) s")
+            for missing in report.missing { print("introuvable : \(missing)") }
+        } catch {
+            print("\nÉchec : \(error.localizedDescription)")
+            exit(1)
         }
     }
 
@@ -153,6 +179,7 @@ struct DubStemMixApp: App {
                 Button("New Setlist…") { model?.newSetlist() }
                 Button("Save Setlist As…") { model?.saveSetlistAs() }.disabled(model?.setlist == nil)
                 Button("Export Setlist…") { model?.exportSetlist() }.disabled(model?.setlist == nil || model?.exportTask != nil)
+                Button("Export Setlist to MPC…") { model?.chooseMPCExport() }.disabled(model?.setlist == nil || model?.exportTask != nil)
                 Button("Add Song to Setlist") { model?.addCurrentProjectToSetlist() }
                 Button("Next Song") { model?.openNextInSetlist() }
                 Button("Previous Song") { model?.openNextInSetlist(offset: -1) }
