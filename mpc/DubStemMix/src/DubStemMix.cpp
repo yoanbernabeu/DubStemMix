@@ -218,7 +218,7 @@ public:
     {
         mpc::PluginInfo i;
         i.name = "DubStemMix";
-        i.vendor = "Yoan Bernabeu";
+        i.vendor = "YoanDev";
         i.uniqueId = MPC_FOURCC('D', 's', 'M', 'x');   // == "uid" in plugin.json
         i.version = 1;
         i.isInstrument = true;

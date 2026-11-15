@@ -16,14 +16,14 @@ This is a mock-up: it answers "can it work on an MPC One+?" before the real port
 ```sh
 mpc/prepare-song.sh "1 My Song" bass.wav drums.wav voice.wav other.wav   # -> Content/Songs, 44.1 kHz WAV
 mpc/test.sh     # SDK host simulator + transport test (STOP / PLAY / PLAY START, chaining, faders, mutes)
-mpc/build.sh    # MPC build -> mpc/DubStemMix/build/Yoan Bernabeu - VST - DubStemMix/
+mpc/build.sh    # MPC build -> mpc/DubStemMix/build/YoanDev - VST - DubStemMix/
 ```
 
 The SDK is fetched (pinned) into `mpc/.sdk` on first run; it needs Python 3.9+ and downloads the Zig compiler once. Run `mpc/build.sh` after `mpc/test.sh`: the test build waits for the disk and must not go on the MPC.
 
 ## Try it on the MPC One+
 
-1. Copy the folder `Yoan Bernabeu - VST - DubStemMix` into a folder named exactly `VST2 Plugins` at the root of the SD card or USB drive.
+1. Copy the folder `YoanDev - VST - DubStemMix` into a folder named exactly `VST2 Plugins` at the root of the SD card or USB drive.
 2. On the MPC: **Preferences → Enhancements (Beta)**: turn on **Enable Enhancements** and **External Plugin Support**.
 3. Create a plugin track and load **DubStemMix** from **External Plugins**.
 4. Plug the MIDImix into the MPC's USB port and set the track's MIDI input to the MIDImix.
