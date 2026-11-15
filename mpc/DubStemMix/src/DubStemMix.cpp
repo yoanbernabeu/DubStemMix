@@ -141,7 +141,7 @@ public:
             addParam(mpc::floatParam(("phs" + n).c_str(), ("PHS " + n).c_str(), 0.0f, 1.0f, 0.0f));
         }
         for (int p = 0; p < fx::Count; ++p)
-            addParam(mpc::floatParam(fx::info(p).id, fx::info(p).label, 0.0f, 1.0f, fx::info(p).def));
+            addParam(mpc::floatParam(fx::info(p).id, fx::info(p).name, 0.0f, 1.0f, fx::info(p).def));
         addParam(mpc::boolParam("delaySync", "Delay sync", false));
         addParam(mpc::choiceParam("reverbModel", "Reverb", {"Plate", "Spring"}, 0));
         addParam(mpc::choiceParam("bus3Model", "Bus 3", {"Phaser", "Flanger"}, 0));

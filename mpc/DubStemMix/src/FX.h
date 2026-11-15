@@ -34,6 +34,7 @@ enum Kernel { NoKernel, DelayKernel, ReverbKernel, Bus3Kernel, SirenKernel, Synd
 struct Info
 {
     const char* id;      // saved in MPC projects: never rename
+    const char* name;    // parameter name in the MPC's lists (unique, ~12 characters)
     const char* label;   // screen caption, as on the Mac
     float def;
     Kernel kernel;
@@ -43,39 +44,39 @@ struct Info
 inline const Info& info(int p)
 {
     static const Info table[Count] = {
-        {"delayTime", "TIME", 0.62f, DelayKernel, DUB_DELAY_TIME},
-        {"delayFeedback", "FEEDBACK", 0.5f, DelayKernel, DUB_DELAY_FEEDBACK},
-        {"delayWow", "WOW", 0.25f, DelayKernel, DUB_DELAY_WOW},
-        {"delayLowCut", "LOW CUT", 0.45f, DelayKernel, DUB_DELAY_LOW_CUT},
-        {"delayHighCut", "HIGH CUT", 0.55f, DelayKernel, DUB_DELAY_HIGH_CUT},
-        {"delayToReverb", "DLY>", 0.0f, NoKernel, 0},
-        {"reverbDecay", "DECAY", 0.7f, ReverbKernel, DUB_PLATE_DECAY},
-        {"reverbDamping", "DAMPING", 0.4f, ReverbKernel, DUB_PLATE_DAMPING},
-        {"reverbPredelay", "PREDELAY", 0.1f, ReverbKernel, DUB_PLATE_PREDELAY},
-        {"reverbLowCut", "LOW CUT", 0.55f, ReverbKernel, DUB_PLATE_LOW_CUT},
-        {"reverbTone", "TONE", 0.65f, ReverbKernel, DUB_PLATE_TONE},
-        {"phaserRate", "RATE", 0.35f, Bus3Kernel, DUB_PHASER_RATE},
-        {"phaserDepth", "DEPTH", 0.75f, Bus3Kernel, DUB_PHASER_DEPTH},
-        {"phaserFeedback", "RESONANCE", 0.74f, Bus3Kernel, DUB_PHASER_FEEDBACK},
-        {"phaserCenter", "CENTER", 0.5f, Bus3Kernel, DUB_PHASER_CENTER},
-        {"phaserStereo", "STEREO", 0.5f, Bus3Kernel, DUB_PHASER_STEREO},
-        {"delayReturn", "DLY RTN", 0.9f, NoKernel, 0},
-        {"reverbReturn", "REV RTN", 0.9f, NoKernel, 0},
-        {"phaserReturn", "PHS RTN", 1.0f, NoKernel, 0},
-        {"reverbSend", "REV>", 0.0f, NoKernel, 0},
-        {"bus3Send", "PHS>", 0.0f, NoKernel, 0},
-        {"sirenPitch", "PITCH", 0.5f, SirenKernel, DUB_SIREN_PITCH},
-        {"sirenRate", "RATE", 0.45f, SirenKernel, DUB_SIREN_RATE},
-        {"sirenWave", "WAVE", 0.0f, SirenKernel, DUB_SIREN_WAVE},
-        {"sirenDelay", "DLY", 0.5f, NoKernel, 0},
-        {"sirenReverb", "REV", 0.0f, NoKernel, 0},
-        {"sirenBus3", "PHS", 0.0f, NoKernel, 0},
-        {"syndrumPitch", "PITCH", 0.5f, SyndrumKernel, DUB_SYNDRUM_PITCH},
-        {"syndrumDecay", "DECAY", 0.5f, SyndrumKernel, DUB_SYNDRUM_DECAY},
-        {"syndrumRoll", "ROLL", (2 + 0.5f) / 3, SyndrumKernel, DUB_SYNDRUM_ROLL},   // sixteenths
-        {"syndrumDelay", "DLY", 0.5f, NoKernel, 0},
-        {"syndrumReverb", "REV", 0.0f, NoKernel, 0},
-        {"syndrumBus3", "PHS", 0.0f, NoKernel, 0},
+        {"delayTime", "Dly Time", "TIME", 0.62f, DelayKernel, DUB_DELAY_TIME},
+        {"delayFeedback", "Dly Feedback", "FEEDBACK", 0.5f, DelayKernel, DUB_DELAY_FEEDBACK},
+        {"delayWow", "Dly Wow", "WOW", 0.25f, DelayKernel, DUB_DELAY_WOW},
+        {"delayLowCut", "Dly Low Cut", "LOW CUT", 0.45f, DelayKernel, DUB_DELAY_LOW_CUT},
+        {"delayHighCut", "Dly High Cut", "HIGH CUT", 0.55f, DelayKernel, DUB_DELAY_HIGH_CUT},
+        {"delayToReverb", "DLY>", "DLY>", 0.0f, NoKernel, 0},
+        {"reverbDecay", "Rev Decay", "DECAY", 0.7f, ReverbKernel, DUB_PLATE_DECAY},
+        {"reverbDamping", "Rev Damping", "DAMPING", 0.4f, ReverbKernel, DUB_PLATE_DAMPING},
+        {"reverbPredelay", "Rev Predelay", "PREDELAY", 0.1f, ReverbKernel, DUB_PLATE_PREDELAY},
+        {"reverbLowCut", "Rev Low Cut", "LOW CUT", 0.55f, ReverbKernel, DUB_PLATE_LOW_CUT},
+        {"reverbTone", "Rev Tone", "TONE", 0.65f, ReverbKernel, DUB_PLATE_TONE},
+        {"phaserRate", "Phs Rate", "RATE", 0.35f, Bus3Kernel, DUB_PHASER_RATE},
+        {"phaserDepth", "Phs Depth", "DEPTH", 0.75f, Bus3Kernel, DUB_PHASER_DEPTH},
+        {"phaserFeedback", "Phs Reso", "RESONANCE", 0.74f, Bus3Kernel, DUB_PHASER_FEEDBACK},
+        {"phaserCenter", "Phs Center", "CENTER", 0.5f, Bus3Kernel, DUB_PHASER_CENTER},
+        {"phaserStereo", "Phs Stereo", "STEREO", 0.5f, Bus3Kernel, DUB_PHASER_STEREO},
+        {"delayReturn", "DLY Return", "DLY RTN", 0.9f, NoKernel, 0},
+        {"reverbReturn", "REV Return", "REV RTN", 0.9f, NoKernel, 0},
+        {"phaserReturn", "PHS Return", "PHS RTN", 1.0f, NoKernel, 0},
+        {"reverbSend", "REV>", "REV>", 0.0f, NoKernel, 0},
+        {"bus3Send", "PHS>", "PHS>", 0.0f, NoKernel, 0},
+        {"sirenPitch", "Siren Pitch", "PITCH", 0.5f, SirenKernel, DUB_SIREN_PITCH},
+        {"sirenRate", "Siren Rate", "RATE", 0.45f, SirenKernel, DUB_SIREN_RATE},
+        {"sirenWave", "Siren Wave", "WAVE", 0.0f, SirenKernel, DUB_SIREN_WAVE},
+        {"sirenDelay", "Siren DLY", "DLY", 0.5f, NoKernel, 0},
+        {"sirenReverb", "Siren REV", "REV", 0.0f, NoKernel, 0},
+        {"sirenBus3", "Siren PHS", "PHS", 0.0f, NoKernel, 0},
+        {"syndrumPitch", "Syn Pitch", "PITCH", 0.5f, SyndrumKernel, DUB_SYNDRUM_PITCH},
+        {"syndrumDecay", "Syn Decay", "DECAY", 0.5f, SyndrumKernel, DUB_SYNDRUM_DECAY},
+        {"syndrumRoll", "Syn Roll", "ROLL", (2 + 0.5f) / 3, SyndrumKernel, DUB_SYNDRUM_ROLL},   // sixteenths
+        {"syndrumDelay", "Syn DLY", "DLY", 0.5f, NoKernel, 0},
+        {"syndrumReverb", "Syn REV", "REV", 0.0f, NoKernel, 0},
+        {"syndrumBus3", "Syn PHS", "PHS", 0.0f, NoKernel, 0},
     };
     return table[p];
 }

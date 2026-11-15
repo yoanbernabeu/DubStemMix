@@ -12,4 +12,7 @@ fi
 git -C "$SDK" fetch -q origin "$SDK_COMMIT" 2>/dev/null || true
 git -C "$SDK" checkout -q "$SDK_COMMIT"
 
+# The screen is generated from the parameter list of a native build (build/params.json).
+python3 "$SDK/tools/build.py" "$HERE/DubStemMix" --target native --no-ui --no-validate >/dev/null
+python3 "$HERE/DubStemMix/make_skin.py" >/dev/null
 python3 "$SDK/tools/build.py" "$HERE/DubStemMix" "$@"

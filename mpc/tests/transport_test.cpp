@@ -230,13 +230,13 @@ int main(int argc, char** argv)
     expect("siren released + PANIC: silence", r.peak, 0.0f);
 
     // FX page: knob 1 of strip 1 (CC 16) drives the delay time, catching up before it acts.
-    const float time0 = r.value("TIME");
+    const float time0 = r.value("Dly Time");
     r.press(26); r.lift(26);
     expectInt("BANK RIGHT: FX page", r.choice("Page", 2), 1);
     r.cc(16, 0);
-    expect("FX page, knob far below TIME: no jump", r.value("TIME"), time0);
+    expect("FX page, knob far below TIME: no jump", r.value("Dly Time"), time0);
     r.cc(16, 127);
-    expect("knob crosses TIME: takes over", r.value("TIME"), 1.0f);
+    expect("knob crosses TIME: takes over", r.value("Dly Time"), 1.0f);
     r.press(25); r.lift(25);
     expectInt("BANK LEFT: MIX page", r.choice("Page", 2), 0);
     r.cc(16, 64);
@@ -246,7 +246,7 @@ int main(int argc, char** argv)
     r.cc(16, 32);
     expect("then it drives DLY 1", r.value("DLY 1"), 32 / 127.0f);
     r.cc(16, 0);
-    fx->setParameter(fx, r.param("TIME"), time0);
+    fx->setParameter(fx, r.param("Dly Time"), time0);
     r.run(100);
 
     // Songs and transport.
