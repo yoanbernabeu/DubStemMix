@@ -101,8 +101,8 @@ def knob_strip(folder, name, colour):
 # --- cards --------------------------------------------------------------------------------------------------------
 
 CARD_W, CARD_H = 150, 582
-KNOB_Y = [28, 122, 216]          # knob tops inside the card
-CAPTION_DY = KNOB + 3            # caption under the knob
+KNOB_Y = [26, 114, 202]          # knob tops inside the card
+CAPTION_DY = KNOB + 1            # caption under the knob
 NAME_Y = 332                     # strip name (centre)
 BUTTON_Y = [352, 386]            # MUTE, REC ARM buttons
 BUTTON = (130, 30)
@@ -213,3 +213,65 @@ def page_pill(folder, title, lit):
         d.rounded_rectangle(box, radius=4 * SS, outline=BORDER, width=int(1.5 * SS))
     text(d, (w * SS / 2, h * SS / 2 + SS), title, label_font(13, 850), BG if lit else TEXT2, tracking=1)
     return save(img, folder, "page_%s_%s.png" % (title.lower(), "on" if lit else "off"))
+
+
+# --- step 3: pills, setlist rows, section titles, panels ---------------------------------------------------------
+
+def pill(folder, name, title, lit, colour, w, h, size=11):
+    """A small outlined button, filled when lit (SOLO, KEEP, insert choice, settings)."""
+    img, d = canvas(w, h)
+    box = [SS, SS, (w - 1) * SS, (h - 1) * SS]
+    if lit:
+        d.rounded_rectangle(box, radius=4 * SS, fill=colour, outline=colour, width=int(1.5 * SS))
+    else:
+        d.rounded_rectangle(box, radius=4 * SS, outline=BORDER, width=int(1.5 * SS))
+    text(d, (w * SS / 2, h * SS / 2 + SS * 0.5), title, label_font(size, 800), BG if lit else TEXT2, tracking=0.8)
+    return save(img, folder, name)
+
+
+def title(folder, name, s, colour=TEXT2, size=13, w=300, h=24, align="l"):
+    img, d = canvas(w, h)
+    x = 2 * SS if align == "l" else w * SS / 2
+    text(d, (x, h * SS / 2), s, label_font(size, 800), colour, anchor=align + "m", tracking=1.2)
+    return save(img, folder, name)
+
+
+def panel_card(folder, name, w, h, accent=None):
+    """A flat card like the strips', optionally edged with a bus colour (as the Mac's bus cards)."""
+    img, d = canvas(w, h)
+    d.rounded_rectangle([SS, SS, (w - 1) * SS, (h - 1) * SS], radius=8 * SS, fill=SURFACE,
+                        outline=mix(BORDER, accent, 0.55) if accent else BORDER, width=int(1.5 * SS))
+    if accent:
+        d.rounded_rectangle([8 * SS, 10 * SS, 12 * SS, (h - 10) * SS], radius=2 * SS, fill=accent)
+    return save(img, folder, name)
+
+
+ROW_W, ROW_H = 600, 42
+
+
+def song_row(folder, name, state):
+    """A setlist line as on the Mac's sidebar: the current song in a cream block, played ones dimmed with a
+    check mark, the next one edged in ocre with a NEXT tag. `state`: plain, played, current, next,
+    played-next, current-next."""
+    img, d = canvas(ROW_W, ROW_H)
+    box = [SS, SS, (ROW_W - 1) * SS, (ROW_H - 1) * SS]
+    current = state.startswith("current")
+    nxt = state.endswith("next")
+    if current:
+        d.rounded_rectangle(box, radius=5 * SS, fill=TEXT)
+    elif nxt:
+        d.rounded_rectangle(box, radius=5 * SS, fill=mix(SURFACE, DELAY, 0.08), outline=DELAY, width=int(1.5 * SS))
+    else:
+        d.rounded_rectangle(box, radius=5 * SS, fill=SURFACE, outline=BORDER, width=int(1.5 * SS))
+    if current:
+        d.polygon([(10 * SS, 13 * SS), (10 * SS, 29 * SS), (22 * SS, 21 * SS)], fill=BG)
+    if state.startswith("played"):
+        f = label_font(16, 800)
+        d.text(((ROW_W - 24) * SS, ROW_H * SS / 2), "✓", font=ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Unicode.ttf", 18 * SS)
+               if os.path.exists("/System/Library/Fonts/Supplemental/Arial Unicode.ttf") else f, fill=TEXT2, anchor="mm")
+    if nxt:
+        tag_w = 58
+        x0 = (ROW_W - (64 if state.startswith("played") else 14) - tag_w) * SS
+        d.rounded_rectangle([x0, 10 * SS, x0 + tag_w * SS, 32 * SS], radius=3 * SS, fill=DELAY)
+        text(d, (x0 + tag_w * SS / 2, 21.5 * SS), "NEXT", label_font(11, 850), BG, tracking=1)
+    return save(img, folder, name)
