@@ -5,3 +5,6 @@ dist/
 web/node_modules/
 web/dist/
 web/.astro/
+mpc/.sdk/
+mpc/DubStemMix/build/
+mpc/DubStemMix/Content/Songs/

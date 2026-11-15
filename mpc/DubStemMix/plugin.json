@@ -1,0 +1,15 @@
+{
+  "name": "DubStemMix",
+  "manufacturer": "Yoan Bernabeu",
+  "version": "0.0.1",
+  "format": "vst2",
+  "kind": "instrument",
+  "uid": "DsMx",
+  "numInputs": 0,
+  "numOutputs": 2,
+  "category": "Synth",
+  "file32": "VST/dubstemmix-arm32.so",
+  "file64": "VST/dubstemmix-arm64.so",
+  "description": "Feasibility mock-up: mix up to 6 stems with an Akai MIDImix on the MPC.",
+  "license": "MIT"
+}

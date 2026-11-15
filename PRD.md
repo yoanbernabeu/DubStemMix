@@ -492,3 +492,32 @@ Cadré en interview le 16 octobre 2026. Constat : la séparation donne 4 stems (
 - **Autres pages** : sur FX, MASTER et INSERTS, les potards 5-6 gardent leur rôle d'aujourd'hui (phaser sur FX…). **L'insert de tranche reste possible** sur un instrument (la sirène dans l'auto-wah, un plugin AU…), piloté sur la page INSERTS comme pour un stem.
 - **À l'écran** : en-tête « 5 SIREN » / « 6 SYNDRUM », libellés PITCH, RATE, DLY · HOLD, RISE / PITCH, DECAY, DLY · HIT, ROLL, la zone de dépôt reste visible pour y glisser un stem.
 - **Comportement fin** (codé le 16/10/2026) : la sirène balaie ± ½ octave autour de sa hauteur (150 Hz à 1,5 kHz), la vitesse va de 0,3 à 12 Hz, la montée grimpe de deux octaves en ~1,5 s et redescend en ~1 s. Le Syndrum va de 80 Hz à 1,2 kHz, sa hauteur tombe d'environ deux tiers, sa longueur va de 80 ms à 1,5 s. Sans tempo connu, le roulement se cale sur 120 BPM. L'envoi delay part à 50 % (on entend l'écho sans rien toucher), reverb et bus 3 à 0. Les potards des instruments rattrapent la valeur avant d'agir, comme ceux des tranches 7-8. Une tranche qui redevient instrument perd son MUTE et son throw (leurs boutons jouent l'instrument) ; un stem qui revient retrouve ses propres envois. Le solo d'une autre tranche coupe l'instrument, comme un stem ; PANIC (Esc, BANK LEFT + RIGHT) arrête la sirène et le roulement. Les instruments sont des sources sommées avec les stems de la tranche : ils passent par l'insert, le fader, les envois et le pull-up, et s'enregistrent avec le master.
+
+## 16. DubStemMix sur MPC (à valider)
+
+Cadré en interview le 15 novembre 2026, à la sortie du SDK de plugins d'Akai (MPC OS 3.10.1, [mpc-plugin-builder-sdk](https://github.com/inmusic-software/mpc-plugin-builder-sdk)). Objectif : jouer un set **sans Mac**, la **MIDImix branchée en USB sur une MPC One+**, avec le son et les gestes de DubStemMix.
+
+### 16.1 Principe
+
+- Un **plugin instrument « DubStemMix »** pour la MPC. Il lit les stems depuis la carte SD ou la clé USB et reçoit la MIDImix par l'entrée MIDI de sa piste, avec **le même mapping que sur le Mac**. Il embarque nos effets intégrés (`Sources/DubDSP`, en C pur, portable tel quel).
+- Sur le Mac, la setlist s'**exporte vers la MPC** : nouvelle cible à côté de l'export en dossier (§ 5.8). Les stems sont convertis en **WAV 44,1 kHz** (seule fréquence de la MPC). L'ordre des morceaux, les noms de tranches, le tempo et les réglages des effets intégrés vont dans un fichier lu par le plugin. Le tout est déposé dans le dossier du plugin sur la carte.
+- **Page à l'écran de la MPC** sur mesure (skin du SDK) : tranches nommées, faders, voyants MUTE/THROW (remplacent les LEDs, que le plugin ne peut pas allumer), vu-mètres, titre en cours, barre d'avancement, liste de la setlist.
+
+### 16.2 Enchaînement (décisions du 15/11/2026)
+
+- **Mix continu** : les réglages restent ceux du moment d'un morceau à l'autre. On ne recharge pas les réglages sauvegardés de chaque morceau.
+- **Boutons de la MPC** : **STOP** arrête, **PLAY** reprend là où on était, **PLAY START** lance le suivant. Il coupe net les stems du morceau en cours, mais les **queues de delay et de reverb continuent**.
+- **Fin naturelle** : le suivant démarre **tout seul, sans blanc**.
+- **Hors de l'ordre** : une **liste à l'écran** permet de choisir le titre qui passera ensuite.
+
+### 16.3 Ce qui ne suit pas
+
+- Les plugins Audio Unit tiers (pas d'AU sur la MPC) : seuls les effets intégrés partent.
+- Les LEDs de la MIDImix (le plugin ne peut pas émettre de MIDI).
+- La séparation de stems : elle reste sur le Mac.
+- La forme d'onde : seulement une barre d'avancement.
+
+### 16.4 Points ouverts
+
+- **À vérifier sur la One+ avant tout** (maquette : 2 stems, faders 1-2, une page d'écran) : que tous les CC et notes de la MIDImix arrivent au plugin ; que le plugin distingue PLAY de PLAY START ; la charge processeur et la lecture de 6 stems depuis la carte ; le rendu des vu-mètres (« peu testés » d'après le SDK).
+- **Place sur la carte** : environ 300 Mo par morceau de 6 stems, donc environ 6 Go pour 21 titres.
