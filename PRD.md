@@ -510,6 +510,14 @@ Cadré en interview le 15 novembre 2026, à la sortie du SDK de plugins d'Akai (
 - **Fin naturelle** : le suivant démarre **tout seul, sans blanc**.
 - **Hors de l'ordre** : une **liste à l'écran** permet de choisir le titre qui passera ensuite.
 
+### 16.2 bis Effets et écran, première étape (décisions du 15/11/2026)
+
+- **Portée** : tout ce qui se joue sur la **page MIX** : 3 envois par tranche (Delay, Reverb, bus 3), **throw** sur REC ARM, **tranches 7-8** (delay et espace, avec HOLD, ×2, tape stop, tout dans les effets, § 14), **sirène et Syndrum** sur les tranches 5-6 vides (§ 15). S'y ajoute la **page FX** (BANK RIGHT), seul moyen de régler les effets. Les pages MASTER et INSERTS viennent dans une étape suivante.
+- **Réglages à la console, comme sur le Mac** : BANK RIGHT passe à la page FX, BANK LEFT revient à MIX, avec rattrapage des potards. Sans LEDs, **l'écran montre la page en cours**.
+- **Écran principal = miroir de la console** : 8 tranches côte à côte (nom, 3 potards, fader, vu-mètre, voyants MUTE et THROW ou gestes), libellés comme sur le Mac (7 DELAY, 8 SPACE, SIREN, SYNDRUM). En haut : titre, temps restant, morceau suivant.
+- **Mémoire** : les réglages d'effets sont enregistrés **avec le projet MPC**, comme pour tout plugin.
+- **Ordre des stems** : batterie, basse, instruments, voix sur les tranches 1 à 4, comme la séparation sur le Mac (§ 12.1).
+
 ### 16.3 Ce qui ne suit pas
 
 - Les plugins Audio Unit tiers (pas d'AU sur la MPC) : seuls les effets intégrés partent.
