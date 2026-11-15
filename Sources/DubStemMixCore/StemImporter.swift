@@ -25,13 +25,17 @@ public enum StemImporter {
     }
 
     /// « Artiste - Titre (Basse)_1 », « Artiste - Titre (Chant)_1 » → « BASSE », « CHANT » :
-    /// on retire le préfixe et le suffixe communs à tous les noms.
+    /// on retire le préfixe et le suffixe communs à tous les noms, coupés à une limite de mot.
     public static func stripNames(for names: [String]) -> [String] {
         guard names.count > 1, let first = names.first else { return names.map(clean) }
-        let prefix = names.dropFirst().reduce(first) { $0.commonPrefix(with: $1) }
-        let reversedSuffix = names.dropFirst().reduce(String(first.reversed())) {
+        // Cut only at a word boundary: "drums", "bass", "instruments", "vocals" share a final "s" that is no suffix.
+        let isLetterOrDigit: (Character) -> Bool = { $0.isLetter || $0.isNumber }
+        var prefix = names.dropFirst().reduce(first) { $0.commonPrefix(with: $1) }
+        while let last = prefix.last, isLetterOrDigit(last) { prefix.removeLast() }
+        var reversedSuffix = names.dropFirst().reduce(String(first.reversed())) {
             $0.commonPrefix(with: String($1.reversed()))
         }
+        while let last = reversedSuffix.last, isLetterOrDigit(last) { reversedSuffix.removeLast() }
         return names.map { name in
             let core = name.dropFirst(prefix.count).dropLast(reversedSuffix.count)
             let cleaned = clean(String(core))

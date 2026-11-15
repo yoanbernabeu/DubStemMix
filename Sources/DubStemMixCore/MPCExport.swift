@@ -213,7 +213,19 @@ public struct MPCExport: Sendable {
         for (index, temporary) in staged.enumerated() {
             try fm.moveItem(at: temporary, to: songsFolder.appending(path: Self.folderName(index: index, title: songs[index].title)))
         }
+        Self.removeAppleDouble(in: pluginFolder)
         return report
+    }
+
+    /// The "._name" files macOS leaves next to every file on a FAT card (the MPC's): useless there, so cleared.
+    static func removeAppleDouble(in folder: URL) {
+        let fm = FileManager.default
+        guard let items = fm.enumerator(at: folder, includingPropertiesForKeys: nil) else { return }
+        var doubles: [URL] = []
+        while let item = items.nextObject() as? URL {
+            if item.lastPathComponent.hasPrefix("._") { doubles.append(item) }
+        }
+        for item in doubles { try? fm.removeItem(at: item) }
     }
 
     /// "07 Zion Gate Dub": the number keeps the setlist's order, the title is made safe for any card.
