@@ -22,6 +22,8 @@ enum Param
     ReverbSend, Bus3Send,
     SirenPitch, SirenRate, SirenWave, SirenDelay, SirenReverb, SirenBus3,
     SyndrumPitch, SyndrumDecay, SyndrumRoll, SyndrumDelay, SyndrumReverb, SyndrumBus3,
+    FirstCount,   // the parameters above sit together in the plugin; those below were added later, at its end
+    MasterHighPass = FirstCount, KillBass, KillMid, KillTop, Dubplate, Crackle, DelayHeads, DelayPingPong,
     Count,
     None = -1
 };
@@ -29,7 +31,7 @@ enum Param
 enum Bus { Delay, Reverb, Bus3, BusCount };
 
 // Which kernel a parameter drives (a return, a bus send or an instrument send is a mix level instead).
-enum Kernel { NoKernel, DelayKernel, ReverbKernel, Bus3Kernel, SirenKernel, SyndrumKernel };
+enum Kernel { NoKernel, DelayKernel, ReverbKernel, Bus3Kernel, SirenKernel, SyndrumKernel, MasterKernel };
 
 struct Info
 {
@@ -77,6 +79,14 @@ inline const Info& info(int p)
         {"syndrumDelay", "Syn DLY", "DLY", 0.5f, NoKernel, 0},
         {"syndrumReverb", "Syn REV", "REV", 0.0f, NoKernel, 0},
         {"syndrumBus3", "Syn PHS", "PHS", 0.0f, NoKernel, 0},
+        {"masterHighPass", "Big Knob", "BIG KNOB", 0.0f, MasterKernel, DUB_MASTER_HIGH_PASS},
+        {"killBass", "Kill Bass", "BASS", 1.0f, MasterKernel, DUB_MASTER_BASS},
+        {"killMid", "Kill Mid", "MID", 1.0f, MasterKernel, DUB_MASTER_MID},
+        {"killTop", "Kill Top", "TOP", 1.0f, MasterKernel, DUB_MASTER_TOP},
+        {"dubplate", "Dubplate", "DUBPLATE", 0.0f, MasterKernel, DUB_MASTER_DUBPLATE},
+        {"crackle", "Crackle", "CRACKLE", 0.0f, MasterKernel, DUB_MASTER_CRACKLE},
+        {"delayHeads", "Dly Heads", "HEADS", 0.0f, DelayKernel, DUB_DELAY_HEADS},
+        {"delayPingPong", "Dly PingPong", "PING-PONG", 0.0f, DelayKernel, DUB_DELAY_PINGPONG},
     };
     return table[p];
 }
@@ -92,6 +102,17 @@ constexpr int kFxLayout[8][3] = {
     {DelayReturn, ReverbReturn, PhaserReturn},
     {DelayToReverb, ReverbSend, Bus3Send},
 };
+// MASTER page (BANK RIGHT from FX): strips 1 to 4, the others empty.
+constexpr int kMasterLayout[8][3] = {
+    {MasterHighPass, None, None}, {KillBass, KillMid, KillTop}, {Dubplate, Crackle, None}, {DelayHeads, DelayPingPong, None},
+    {None, None, None}, {None, None, None}, {None, None, None}, {None, None, None},
+};
+// Big knob steps (Hz; the first is "off") and Space Echo head patterns.
+constexpr int kHighPassCount = 12;
+constexpr double kHighPassSteps[kHighPassCount] = {20, 70, 100, 150, 200, 300, 500, 800, 1000, 2000, 5000, 10000};
+constexpr int kHeadCount = 7;
+constexpr const char* kHeadLabels[kHeadCount] = {"1", "2", "3", "1+2", "2+3", "1+3", "1+2+3"};
+
 // Effect strips 7 and 8 on the MIX page, and their faders (the same on every page).
 constexpr int kEffectStripLayout[2][3] = {{DelayTime, DelayFeedback, ReverbDecay}, {PhaserRate, DelayToReverb, ReverbSend}};
 constexpr int kEffectStripFader[2] = {DelayReturn, ReverbReturn};
@@ -136,6 +157,9 @@ inline double value(int p, double n)
         case SyndrumPitch: return ex(80, 1200);
         case SyndrumDecay: return ex(0.08, 1.5);
         case SyndrumRoll: return step(n, kRollCount);
+        case MasterHighPass: return kHighPassSteps[step(n, kHighPassCount)];
+        case DelayHeads: return step(n, kHeadCount);
+        case KillBass: case KillMid: case KillTop: return n * n;   // kill gain, 100 % = unity
         case DelayToReverb: case ReverbSend: case Bus3Send:
         case DelayReturn: case ReverbReturn: case PhaserReturn:
         case SirenDelay: case SirenReverb: case SirenBus3:
@@ -189,6 +213,14 @@ inline std::string display(int p, double n, bool sync, double bpm)
         case DelayFeedback:
             std::snprintf(b, sizeof b, "%d %%", (int)std::lround(v * 100)); return b;
         case SirenWave: return v < 0.5 ? "SQUARE" : "TRIANGLE";
+        case MasterHighPass:
+            if (v <= 20) return "OFF";
+            if (v >= 1000) std::snprintf(b, sizeof b, "%.0f kHz", v / 1000); else std::snprintf(b, sizeof b, "%d Hz", (int)std::lround(v));
+            return b;
+        case DelayHeads: return kHeadLabels[(int)v];
+        case KillBass: case KillMid: case KillTop:
+            if (v < 0.001) return "-inf dB";
+            std::snprintf(b, sizeof b, "%+.0f dB", 20 * std::log10(v)); return b;
         case SyndrumRoll: return kRollLabels[(int)v];
         case DelayToReverb: case ReverbSend: case Bus3Send:
         case DelayReturn: case ReverbReturn: case PhaserReturn:
@@ -198,5 +230,34 @@ inline std::string display(int p, double n, bool sync, double bpm)
             std::snprintf(b, sizeof b, "%d %%", (int)std::lround(n * 100)); return b;
     }
 }
+
+// Strip inserts (Inserts.swift): none, the sub generator or the auto-wah, with their knobs on the INSERTS page.
+namespace insert {
+enum Kind { None, Sub, Wah, KindCount };
+constexpr int kKnobs = 3;
+struct Knob { const char* label; int kernelIndex; float def; double lo, hi; bool exponential; bool hertz; };
+inline int knobCount(int kind) { return kind == Sub ? 2 : kind == Wah ? 3 : 0; }
+inline const Knob& knob(int kind, int i)
+{
+    static const Knob sub[2] = {{"AMOUNT", DUB_INSERT_SUB + DUB_SUB_AMOUNT, 0.6f, 0, 1, false, false},
+                                {"CUTOFF", DUB_INSERT_SUB + DUB_SUB_CUTOFF, 0.5f, 40, 160, true, true}};
+    static const Knob wah[3] = {{"SENS", DUB_INSERT_WAH + DUB_WAH_SENSITIVITY, 0.6f, 0, 1, false, false},
+                                {"RANGE", DUB_INSERT_WAH + DUB_WAH_RANGE, 0.7f, 0, 1, false, false},
+                                {"RESO", DUB_INSERT_WAH + DUB_WAH_RESONANCE, 0.5f, 0, 1, false, false}};
+    return kind == Sub ? sub[i] : wah[i];
+}
+inline float value(const Knob& k, double n)
+{
+    n = std::fmin(1.0, std::fmax(0.0, n));
+    return (float)(k.exponential ? k.lo * std::pow(k.hi / k.lo, n) : k.lo + (k.hi - k.lo) * n);
+}
+inline std::string display(const Knob& k, double n)
+{
+    char b[24];
+    if (k.hertz) std::snprintf(b, sizeof b, "%d Hz", (int)std::lround(value(k, n)));
+    else std::snprintf(b, sizeof b, "%d %%", (int)std::lround(std::fmin(1.0, std::fmax(0.0, n)) * 100));
+    return b;
+}
+} // namespace insert
 
 } // namespace fx

@@ -66,18 +66,20 @@ struct Runner
     AEffect* fx;
     float left[kBlock], right[kBlock];
     float peak = 0;   // largest output level of the last run
+    float floor = 0;  // smallest output level of the last run
 
     // Runs `blocks` blocks and returns the level of the last sample.
     float run(int blocks)
     {
         float* outs[2] = {left, right};
         peak = 0;
+        floor = 1e9f;
         for (int b = 0; b < blocks; ++b)
         {
             std::memset(left, 0, sizeof left);
             std::memset(right, 0, sizeof right);
             fx->processReplacing(fx, nullptr, outs, kBlock);
-            for (float v : left) peak = std::fmax(peak, std::fabs(v));
+            for (float v : left) { peak = std::fmax(peak, std::fabs(v)); floor = std::fmin(floor, std::fabs(v)); }
             if (playing) ppq += kBlock / kRate * 2.0;   // 120 BPM
             if (loopBeats > 0.0 && ppq >= loopBeats) ppq -= loopBeats;
         }
@@ -214,7 +216,7 @@ int main(int argc, char** argv)
     r.run(100);
     r.run(200);
     expect("PANIC: the echoes are gone", r.peak, 0.0f);
-    expectInt("PANIC stays on the MIX page", r.choice("Page", 2), 0);
+    expectInt("PANIC stays on the MIX page", r.choice("Page", 4), 0);
 
     // The siren on empty strip 5: MUTE 5 (note 13) held sounds it, even while stopped.
     expectInt("strip 5 is the siren (song A has one stem)", r.choice("Strip 5", 2), 1);
@@ -232,13 +234,13 @@ int main(int argc, char** argv)
     // FX page: knob 1 of strip 1 (CC 16) drives the delay time, catching up before it acts.
     const float time0 = r.value("Dly Time");
     r.press(26); r.lift(26);
-    expectInt("BANK RIGHT: FX page", r.choice("Page", 2), 1);
+    expectInt("BANK RIGHT: FX page", r.choice("Page", 4), 1);
     r.cc(16, 0);
     expect("FX page, knob far below TIME: no jump", r.value("Dly Time"), time0);
     r.cc(16, 127);
     expect("knob crosses TIME: takes over", r.value("Dly Time"), 1.0f);
     r.press(25); r.lift(25);
-    expectInt("BANK LEFT: MIX page", r.choice("Page", 2), 0);
+    expectInt("BANK LEFT: MIX page", r.choice("Page", 4), 0);
     r.cc(16, 64);
     expect("MIX page, knob at 64 while DLY 1 is 0: no jump", r.value("DLY 1"), 0.0f);
     r.cc(16, 0);
@@ -248,6 +250,45 @@ int main(int argc, char** argv)
     r.cc(16, 0);
     fx->setParameter(fx, r.param("Dly Time"), time0);
     r.run(100);
+
+    // MASTER page (BANK RIGHT twice): knob 1 of strip 1 is the big knob.
+    r.press(26); r.lift(26);
+    r.press(26); r.lift(26);
+    expectInt("BANK RIGHT twice: MASTER page", r.choice("Page", 4), 2);
+    r.cc(16, 0);   // the knob sits at 0, like the big knob: it holds it
+    r.cc(16, 20);
+    expectTrue("MASTER page: knob 1 drives the big knob", r.value("Big Knob") > 0.1f, r.value("Big Knob"));
+    r.cc(16, 0);
+    // INSERTS page: a sub on strip 1, its knobs drive its amount.
+    r.press(26); r.lift(26);
+    expectInt("BANK RIGHT again: INSERTS page", r.choice("Page", 4), 3);
+    fx->setParameter(fx, r.param("Insert 1"), 0.5f);   // Sub, picked on screen
+    r.run(5);
+    expect("a new insert starts from its defaults", r.value("Insert 1A"), 0.6f);
+    r.cc(16, 76);   // near 0.6: takes over
+    r.cc(16, 100);
+    expect("INSERTS page: knob 1 drives the sub's amount", r.value("Insert 1A"), 100 / 127.0f);
+    fx->setParameter(fx, r.param("Insert 1"), 0.0f);
+    r.press(25); r.lift(25);
+    expectInt("BANK LEFT: back to MIX", r.choice("Page", 4), 0);
+
+    // SOLO (SOLO held + MUTE sends note 2 + 3 (strip - 1)) and DROP (pad 1) with KEEP.
+    playing = true; ppq = 1.0;
+    r.run(20);
+    r.press(5); r.lift(5);   // solo strip 2: strip 1 goes silent
+    expect("SOLO strip 2: strip 1 is out", r.run(20), 0.0f);
+    r.press(5); r.lift(5);
+    expect("SOLO off: strip 1 back", r.run(20), a);
+    r.press(37);   // pad 1: DROP held
+    expect("DROP held: strip 1 (not KEEP) is cut", r.run(20), 0.0f);
+    r.lift(37);
+    expect("DROP released: back", r.run(20), a);
+    fx->setParameter(fx, r.param("Keep 1"), 1.0f);
+    r.press(37);
+    expect("DROP held, strip 1 KEEP: still there", r.run(20), a);
+    r.lift(37);
+    fx->setParameter(fx, r.param("Keep 1"), 0.0f);
+    playing = false; r.run(5);
 
     // Songs and transport.
     playing = true; ppq = 1.0;   // PLAY resumes A
@@ -272,11 +313,31 @@ int main(int argc, char** argv)
     expectInt("Last start = PLAY START", r.choice("Last start", 3), 2);
     loopBeats = 0.0;
 
-    expect("end of B: C follows on its own", r.run(400), c);
+    r.run(290);   // most of B (1 s)
+    expect("end of B: C follows on its own", r.run(110), c);
+    expectTrue("no gap between B and C", r.floor > 0.5f * b, r.floor);
     expectInt("Playing = C", r.choice("Playing", 3), 2);
 
     expect("end of C (last song): silence", r.run(300), 0.0f);
     expectInt("State = Ended", r.choice("State", 4), 3);
+
+    // The live setlist: touch a song (its cue) to play it next, pads GO, RESTART, PREV, NEXT.
+    expectInt("SONG list: A was played (>= 30 s? no: 6 s) shows as a song", r.choice("Slot 1", 7), 1);
+    fx->setParameter(fx, r.param("B"), 1.0f);   // touch B in the list
+    r.run(80);   // the list refreshes 5 times a second
+    expectInt("touching B makes it next", r.choice("Next", 3), 1);
+    expectInt("B's slot shows NEXT", r.choice("Slot 2", 7), 4);
+    r.press(43); r.lift(43);   // pad 7: GO
+    expect("pad GO: B plays now", r.run(40), b);
+    r.press(42); r.lift(42);   // pad 6: NEXT moves the next song on
+    expectInt("pad NEXT: C stays next (last song)", r.choice("Next", 3), 2);
+    r.press(41); r.lift(41);   // pad 5: PREV
+    expectInt("pad PREV: B is next (replay)", r.choice("Next", 3), 1);
+    r.run(200);
+    r.press(44); r.lift(44);   // pad 8: RESTART
+    r.run(20);
+    expect("pad RESTART: B again from the top", r.run(20), b);
+    expectInt("RESTART leaves the next song alone", r.choice("Next", 3), 1);
 
     fx->dispatcher(fx, effMainsChanged, 0, 0, nullptr, 0.0f);
     fx->dispatcher(fx, effClose, 0, 0, nullptr, 0.0f);

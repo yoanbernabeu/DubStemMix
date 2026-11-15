@@ -5,26 +5,30 @@
 //
 // Signal flow (the Mac app's gain structure, AudioEngine.swift):
 //
-//   strip 1..6: stem (or, on an empty strip 5 / 6, the siren / Syndrum)
-//     -> fader (fader^2.5 x 0.5 headroom, 0 while muted)
+//   strip 1..6: stem (or, on an empty strip 5 / 6, the siren / Syndrum) -> insert (none, sub, auto-wah)
+//     -> fader (fader^2.5 x 0.5 headroom, 0 while muted, soloed out or dropped)
 //          -> master (closed while FX ONLY is held)
 //          -> post-fader sends to the DELAY, REVERB and BUS 3 buses (knob^2)
 //     -> dub throw (REC ARM held): pre-fader, at full send, to the delay (or reverb, or both)
 //   bus: send sum + the other buses' returns (bus-to-bus sends, one chunk late) -> effect, 100 % wet
 //     -> return level (knob^2) -> master
-//   master: sum x master fader x 0.5 headroom -> +6 dB make-up -> safety limiter -> out
+//   master: sum x master fader x 0.5 -> big knob, kills, dubplate -> pull-up brake -> +6 dB -> limiter -> out
 //
 // MIDImix (factory mapping), same as on the Mac:
 //   MIX page: knobs = sends DLY / REV / PHS on strips 1-6; strips 5-6 empty = siren / Syndrum (pitch, rate or
 //   decay, delay send); strip 7 = delay (speed, feedback, reverb length), strip 8 = space (phaser rate, DLY>,
 //   REV>). Faders = strip levels; faders 7-8 = delay and reverb returns on every page; master fader = master.
-//   MUTE = mute (toggle); REC ARM held = dub throw. Strip 7: MUTE held = HOLD, REC ARM held = x2.
-//   Strip 8: MUTE held = FX ONLY, REC ARM held = TAPE STOP. Siren: MUTE held sounds, REC ARM held rises.
-//   Syndrum: MUTE hits, REC ARM held rolls. BANK RIGHT = FX page, BANK LEFT = MIX, both = PANIC.
+//   MUTE = mute (toggle); SOLO held + MUTE = solo; REC ARM held = dub throw. Strip 7: MUTE held = HOLD,
+//   REC ARM held = x2. Strip 8: MUTE held = FX ONLY, REC ARM held = TAPE STOP. Siren: MUTE held sounds,
+//   REC ARM held rises. Syndrum: MUTE hits, REC ARM held rolls.
+//   BANK RIGHT = next page (MIX -> FX -> MASTER -> INSERTS), BANK LEFT = MIX, both = PANIC.
 //   Knobs catch up with the value before acting (soft takeover), as on the Mac.
+// Pads of the track (PRD § 16.2 ter), from the "Pad 1 note" setting: 1 DROP (held), 2 CRASH, 3 REWIND,
+//   5 PREV, 6 NEXT (move the next song), 7 GO (play the next song now), 8 RESTART (current song from the top).
 //
-// MPC transport: STOP pauses, PLAY resumes, PLAY START jumps to the next song (stopped or playing);
-// at the end of a song the next one starts. Effects and instruments keep sounding while stopped.
+// Songs: two decks. The current song plays from one while the next one waits, opened, in the other: songs
+// chain with no gap. MPC transport: STOP pauses, PLAY resumes, PLAY START jumps to the next song (stopped or
+// playing). Effects and instruments keep sounding while stopped.
 
 #include "mpc_plugin.h"
 
@@ -47,16 +51,23 @@ constexpr int kStemStrips = 6;
 constexpr int kSurfaceStrips = 8;
 constexpr int kFirstInstrumentStrip = 4;   // strips 5 and 6
 constexpr int kFirstEffectStrip = 6;       // strips 7 and 8
+constexpr int kSlots = 24;                 // songs listed on the SONG tab
 
 // MIDImix factory mapping: first knob CC of each strip (the fader is +3), MUTE / SOLO / REC ARM notes.
 constexpr int kStripCC[kSurfaceStrips] = {16, 20, 24, 28, 46, 50, 54, 58};
 constexpr int kMasterCC = 62;
 constexpr int kBankLeft = 25, kBankRight = 26;
 
+// Pads (0-based from the "Pad 1 note" setting).
+enum Pad { kPadDrop = 0, kPadCrash = 1, kPadRewind = 2, kPadPrev = 4, kPadNext = 5, kPadGo = 6, kPadRestart = 7 };
+
 constexpr float kHeadroom = 0.5f;       // per strip and on the master, given back by the make-up gain
 constexpr float kMakeup = 2.0f;         // +6 dB
 constexpr float kPickupWindow = 0.04f;
 constexpr double kPanicWindow = 1.5;    // seconds between the two BANK buttons
+constexpr double kPullUpSeconds = 1.3;  // the pull-up's brake, then a short settle before the song restarts
+constexpr double kPullUpSettle = 0.1;
+constexpr double kPlayedSeconds = 30;   // a song heard this long is marked as played
 constexpr int kMaxChunk = 512;
 
 // Choice index -> bus, for each source's target menu (DLY> to, REV> to, PHS> to).
@@ -78,6 +89,15 @@ struct Physical
     bool picked = true;
 };
 
+// A song opened by the disk thread. The audio thread asks for a song (wantSong, then wantGen) and reads the
+// rings only once readyGen has caught up with wantGen.
+struct Deck
+{
+    StemRing rings[kStemStrips];
+    std::atomic<int> wantSong{-1}, wantGen{0}, readyGen{-1};
+    std::atomic<long long> frames{0};
+};
+
 } // namespace
 
 class DubStemMix : public mpc::Plugin
@@ -88,24 +108,33 @@ public:
     {
         kMaster = 0,
         kStripBase = 1,                                   // per stem strip: fader, mute, send DLY, REV, PHS
-        kFxBase = kStripBase + kStemStrips * 5,           // fx::Param order
-        kDelaySync = kFxBase + fx::Count,
+        kFxBase = kStripBase + kStemStrips * 5,           // fx::Param order, up to fx::FirstCount
+        kDelaySync = kFxBase + fx::FirstCount,
         kReverbModel, kBus3Model, kThrowTarget, kDelayTo, kReverbTo, kBus3To,
         kPage,
         kName1, kMode5 = kName1 + kStemStrips, kMode6,
         kLampMute1, kLampRec1 = kLampMute1 + kSurfaceStrips, kMeter1 = kLampRec1 + kSurfaceStrips,
         kNext = kMeter1 + kSurfaceStrips, kPlaying, kState, kTimeLeft, kStart, kStartPos, kLastCC, kLastNote,
         kCpu, kUnderruns,
-        kNumParams
+        // Step 3 (PRD § 16.2 ter).
+        kSolo1, kKeep1 = kSolo1 + kStemStrips,
+        kFx2Base = kKeep1 + kStemStrips,                  // fx::Param from fx::FirstCount on
+        kInsert1 = kFx2Base + (fx::Count - fx::FirstCount),
+        kInsertValue1 = kInsert1 + kStemStrips,           // 3 per strip
+        kPadBase = kInsertValue1 + kStemStrips * fx::insert::kKnobs,
+        kCue1, kSlot1 = kCue1 + kSlots,
+        kNumParams = kSlot1 + kSlots
     };
     static int fader(int s) { return kStripBase + s * 5; }
     static int mute(int s) { return kStripBase + s * 5 + 1; }
     static int send(int s, int bus) { return kStripBase + s * 5 + 2 + bus; }
-    static int fxParam(int p) { return kFxBase + p; }
+    static int fxParam(int p) { return p < fx::FirstCount ? kFxBase + p : kFx2Base + (p - fx::FirstCount); }
+    static int insertValue(int s, int i) { return kInsertValue1 + s * fx::insert::kKnobs + i; }
 
-    enum Page { kMix, kFx };
+    enum Page { kMix, kFx, kMasterPage, kInserts, kPageCount };
     enum State { kStopped, kRunning, kLoading, kEnded };
     enum Start { kNoStart, kStartPlay, kStartPlayStart };
+    enum Slot { kSlotEmpty, kSlotPlain, kSlotPlayed, kSlotCurrent, kSlotNext, kSlotPlayedNext, kSlotCurrentNext, kSlotStates };
     enum Gesture { kHold, kDouble, kFxOnly, kTapeStop, kSiren, kRise, kRoll, kGestureCount };
 
     static mpc::PluginInfo makeInfo()
@@ -114,7 +143,7 @@ public:
         i.name = "DubStemMix";
         i.vendor = "YoanDev";
         i.uniqueId = MPC_FOURCC('D', 's', 'M', 'x');   // == "uid" in plugin.json
-        i.version = 2;
+        i.version = 3;
         i.isInstrument = true;
         i.numInputs = 0;
         i.numOutputs = 2;
@@ -140,7 +169,7 @@ public:
             addParam(mpc::floatParam(("rev" + n).c_str(), ("REV " + n).c_str(), 0.0f, 1.0f, 0.0f));
             addParam(mpc::floatParam(("phs" + n).c_str(), ("PHS " + n).c_str(), 0.0f, 1.0f, 0.0f));
         }
-        for (int p = 0; p < fx::Count; ++p)
+        for (int p = 0; p < fx::FirstCount; ++p)
             addParam(mpc::floatParam(fx::info(p).id, fx::info(p).name, 0.0f, 1.0f, fx::info(p).def));
         addParam(mpc::boolParam("delaySync", "Delay sync", false));
         addParam(mpc::choiceParam("reverbModel", "Reverb", {"Plate", "Spring"}, 0));
@@ -150,7 +179,7 @@ public:
         addParam(mpc::choiceParam("reverbTo", "REV> to", {"-", "DLY", "PHS"}, 2));
         addParam(mpc::choiceParam("bus3To", "PHS> to", {"-", "DLY", "REV"}, 0));
         // Read-only displays, written by the plugin.
-        addParam(mpc::choiceParam("page", "Page", {"MIX", "FX"}, 0));
+        addParam(mpc::choiceParam("page", "Page", {"MIX", "FX", "MASTER", "INSERTS"}, 0));
         for (int s = 0; s < kStemStrips; ++s)
             addParam(mpc::intParam(("name" + std::to_string(s + 1)).c_str(), ("Name " + std::to_string(s + 1)).c_str(), 0, 999, 0));
         addParam(mpc::choiceParam("mode5", "Strip 5", {"Stem", "Siren"}, 1));
@@ -171,22 +200,55 @@ public:
         addParam(mpc::intParam("lastnote", "Last note", -1, 127, -1));
         addParam(mpc::floatParam("cpu", "CPU", 0.0f, 100.0f, 0.0f, "%", 1));
         addParam(mpc::intParam("underruns", "Underruns", 0, 99999, 0));
+        // Step 3.
+        for (int s = 0; s < kStemStrips; ++s)
+            addParam(mpc::boolParam(("solo" + std::to_string(s + 1)).c_str(), ("Solo " + std::to_string(s + 1)).c_str(), false));
+        for (int s = 0; s < kStemStrips; ++s)
+            addParam(mpc::boolParam(("keep" + std::to_string(s + 1)).c_str(), ("Keep " + std::to_string(s + 1)).c_str(), false));
+        for (int p = fx::FirstCount; p < fx::Count; ++p)
+            addParam(mpc::floatParam(fx::info(p).id, fx::info(p).name, 0.0f, 1.0f, fx::info(p).def));
+        for (int s = 0; s < kStemStrips; ++s)
+            addParam(mpc::choiceParam(("insert" + std::to_string(s + 1)).c_str(), ("Insert " + std::to_string(s + 1)).c_str(),
+                                      {"None", "Sub", "Auto-wah"}, 0));
+        for (int s = 0; s < kStemStrips; ++s)
+            for (int i = 0; i < fx::insert::kKnobs; ++i)
+            {
+                const std::string id = "ins" + std::to_string(s + 1) + std::string(1, (char)('a' + i));
+                const std::string name = "Insert " + std::to_string(s + 1) + std::string(1, (char)('A' + i));
+                addParam(mpc::floatParam(id.c_str(), name.c_str(), 0.0f, 1.0f, 0.0f));
+            }
+        addParam(mpc::intParam("padBase", "Pad 1 note", 0, 112, 37));
+        // The SONG tab's list: touching a song sets its cue (named after the song); its slot says how to show it.
+        for (int i = 0; i < kSlots; ++i)
+            addParam(mpc::boolParam(("cue" + std::to_string(i + 1)).c_str(), i < (int)songs_.size() ? songs_[(size_t)i].name.c_str() : "-", false));
+        for (int i = 0; i < kSlots; ++i)
+            addParam(mpc::choiceParam(("slot" + std::to_string(i + 1)).c_str(), ("Slot " + std::to_string(i + 1)).c_str(),
+                                      {"Empty", "Song", "Played", "Playing", "Next", "Played, next", "Playing, next"}, 0));
 
         for (int i = 0; i < kNumParams; ++i) seen_[i] = get(i);
         for (float& v : applied_) v = -1;
+        for (int& k : insertKind_) k = -1;
         // Effect and instrument knobs never jump at the first touch: they catch up with the value first.
         for (int s = kFirstInstrumentStrip; s < kSurfaceStrips; ++s)
             for (Physical& k : knobs_[s]) k.picked = false;
         for (int s = kFirstEffectStrip; s < kSurfaceStrips; ++s) faders_[s].picked = false;
+        played_.assign(songs_.size(), false);
 
         delay_ = dub_effect_create(DUB_EFFECT_DELAY);
         reverb_ = dub_effect_create(DUB_EFFECT_REVERB_BUS);
         bus3_ = dub_effect_create(DUB_EFFECT_BUS3);
         siren_ = dub_effect_create(DUB_EFFECT_SIREN);
         syndrum_ = dub_effect_create(DUB_EFFECT_SYNDRUM);
+        masterFx_ = dub_effect_create(DUB_EFFECT_MASTER);
+        brake_ = dub_effect_create(DUB_EFFECT_BRAKE);
         limiter_ = dub_effect_create(DUB_EFFECT_LIMITER);
+        for (DubEffect*& e : inserts_) e = dub_effect_create(DUB_EFFECT_INSERT);
 
-        if (!songs_.empty()) loadSong(0);
+        if (!songs_.empty())
+        {
+            request(0, 0);
+            showSong(0);
+        }
         disk_ = std::thread([this] { diskLoop(); });
     }
 
@@ -194,16 +256,18 @@ public:
     {
         quit_.store(true);
         if (disk_.joinable()) disk_.join();
-        for (DubEffect* e : {delay_, reverb_, bus3_, siren_, syndrum_, limiter_}) dub_effect_destroy(e);
+        for (DubEffect* e : effects()) dub_effect_destroy(e);
     }
 
     void prepare(double sampleRate, int) override
     {
         sampleRate_ = sampleRate;
-        for (DubEffect* e : {delay_, reverb_, bus3_, siren_, syndrum_, limiter_})
+        for (DubEffect* e : effects())
             if (e) dub_effect_prepare(e, sampleRate);
+        dub_effect_set(brake_, DUB_BRAKE_SECONDS, (float)kPullUpSeconds);
         glide_ = 1.0f - std::exp(-1.0f / (0.005f * (float)sampleRate));   // ~5 ms
         for (float& v : applied_) v = -1;   // push every effect setting again
+        for (int& k : insertKind_) k = -1;
     }
 
     bool formatValue(int index, float v, std::string& out) override
@@ -222,9 +286,18 @@ public:
             out = buf;
             return true;
         }
-        if (index >= kFxBase && index < kFxBase + fx::Count)
+        const int p = index >= kFxBase && index < kFxBase + fx::FirstCount ? index - kFxBase
+                    : index >= kFx2Base && index < kInsert1 ? fx::FirstCount + (index - kFx2Base) : -1;
+        if (p >= 0)
         {
-            out = fx::display(index - kFxBase, v, getBool(kDelaySync), bpm_.load(std::memory_order_relaxed));
+            out = fx::display(p, v, getBool(kDelaySync), bpm_.load(std::memory_order_relaxed));
+            return true;
+        }
+        if (index >= kInsertValue1 && index < kPadBase)
+        {
+            const int s = (index - kInsertValue1) / fx::insert::kKnobs, i = (index - kInsertValue1) % fx::insert::kKnobs;
+            const int kind = getInt(kInsert1 + s);
+            out = i < fx::insert::knobCount(kind) ? fx::insert::display(fx::insert::knob(kind, i), v) : "";
             return true;
         }
         if (index >= kName1 && index < kName1 + kStemStrips)
@@ -251,6 +324,8 @@ public:
         followScreen();
         handleMidi(ctx);
         handleTransport(ctx.transport, ctx.numFrames);
+        stepPullUp(ctx.numFrames);
+        preloadNext();
         updateSong();
         applyEffects();
 
@@ -267,6 +342,13 @@ public:
     }
 
 private:
+    std::vector<DubEffect*> effects() const
+    {
+        std::vector<DubEffect*> all = {delay_, reverb_, bus3_, siren_, syndrum_, masterFx_, brake_, limiter_};
+        for (DubEffect* e : inserts_) all.push_back(e);
+        return all;
+    }
+
     // ------------------------------------------------------------------------------------------------
     // Console (MixController.swift)
     // ------------------------------------------------------------------------------------------------
@@ -285,6 +367,15 @@ private:
         return strip >= kFirstInstrumentStrip && strip < kFirstEffectStrip && instrumentStrip_[strip - kFirstInstrumentStrip];
     }
 
+    // Solo "in place"; DROP cuts every strip not marked KEEP, but an instrument stays (it is played on purpose).
+    bool audible(int s) const
+    {
+        if (dropping_ && !getBool(kKeep1 + s) && !instrument(s)) return false;
+        bool anySolo = false;
+        for (int i = 0; i < kStemStrips; ++i) anySolo |= getBool(kSolo1 + i);
+        return anySolo ? getBool(kSolo1 + s) : !getBool(mute(s));
+    }
+
     // On MIX, what a knob plays when it is not a send: an effect strip's or an instrument's parameter, or -1.
     int mixKnob(int strip, int row) const
     {
@@ -295,13 +386,26 @@ private:
     // What a knob drives on the current page: a parameter index, or -1.
     int knobTarget(int strip, int row) const
     {
-        if (page_ == kMix)
+        switch (page_)
         {
-            const int p = mixKnob(strip, row);
-            return p >= 0 ? p : send(strip, row);
+            case kMix:
+            {
+                const int p = mixKnob(strip, row);
+                return p >= 0 ? p : send(strip, row);
+            }
+            case kFx:
+            {
+                const int p = fx::kFxLayout[strip][row];
+                return p == fx::None ? -1 : fxParam(p);
+            }
+            case kMasterPage:
+            {
+                const int p = fx::kMasterLayout[strip][row];
+                return p == fx::None ? -1 : fxParam(p);
+            }
+            default:
+                return strip < kStemStrips && row < fx::insert::knobCount(getInt(kInsert1 + strip)) ? insertValue(strip, row) : -1;
         }
-        const int p = fx::kFxLayout[strip][row];
-        return p == fx::None ? -1 : fxParam(p);
     }
     static int faderTarget(int strip)
     {
@@ -343,14 +447,21 @@ private:
         setDisplay(kPage, (float)page);
     }
 
-    // A value changed on the screen (or a project was loaded): the knob or fader driving it must catch up.
+    // A value changed on the screen (or a project was loaded): the knob or fader driving it must catch up,
+    // a touched song becomes the next one, a new insert starts from its defaults.
     void followScreen()
     {
-        for (int i = 0; i < kDelaySync; ++i)
+        for (int i = 0; i < kNumParams; ++i)
         {
             const float v = get(i);
             if (v == seen_[i]) continue;
             seen_[i] = v;
+            if (i >= kCue1 && i < kCue1 + kSlots)
+            {
+                if (v >= 0.5f) { setDisplay(i, 0.0f); cue(i - kCue1); }
+                continue;
+            }
+            if (i == kNext) { nextCued_ = true; continue; }
             for (int s = 0; s < kSurfaceStrips; ++s)
             {
                 for (int row = 0; row < 3; ++row)
@@ -374,7 +485,9 @@ private:
             else if (e.isNoteOn() || e.isNoteOff())
             {
                 if (e.isNoteOn()) setDisplay(kLastNote, (float)e.note());
-                button(e.note(), e.isNoteOn());
+                const int pad = e.note() - getInt(kPadBase);
+                if (pad >= 0 && pad < 16) padHit(pad, e.isNoteOn());
+                else button(e.note(), e.isNoteOn());
             }
         }
     }
@@ -410,7 +523,11 @@ private:
         if (note == kBankLeft || note == kBankRight) { bank(note == kBankLeft, down); return; }
         if (note < 1 || note > 24) return;
         const int strip = (note - 1) / 3, kind = (note - 1) % 3;   // 0 MUTE, 1 SOLO, 2 REC ARM
-        if (kind == 1) return;                                      // SOLO: not on the MPC yet
+        if (kind == 1)
+        {
+            if (down && strip < kStemStrips) setDisplay(kSolo1 + strip, getBool(kSolo1 + strip) ? 0.0f : 1.0f);
+            return;
+        }
         const bool isMute = kind == 0;
         if (strip >= kFirstEffectStrip)
         {
@@ -432,6 +549,24 @@ private:
         refreshLamps();
     }
 
+    void padHit(int pad, bool down)
+    {
+        if (pad == kPadDrop) { dropping_ = down; return; }
+        if (!down) return;
+        switch (pad)
+        {
+            case kPadCrash:
+                if (getInt(kReverbModel) == 1) dub_effect_set(reverb_, DUB_SPRING_CRASH, 1);   // the spring only
+                break;
+            case kPadRewind: pullUp(); break;
+            case kPadPrev: moveNext(-1); break;
+            case kPadNext: moveNext(+1); break;
+            case kPadGo: advance(); break;
+            case kPadRestart: restart(); break;
+            default: break;
+        }
+    }
+
     // Each bank button changes the page as it goes down; the second one pressed while the first is held is
     // PANIC: the page goes back to where it was, and the buses are emptied.
     void bank(bool left, bool down)
@@ -451,7 +586,7 @@ private:
             return;
         }
         pageBeforeBank_ = page_;
-        setPage(left ? kMix : kFx);
+        setPage(left ? kMix : std::min(page_ + 1, (int)kInserts));
     }
 
     // Empties the three buses (echoes, tails, the held loop); HOLD, tape stop and the instruments let go.
@@ -482,12 +617,12 @@ private:
     // let go, its mute and throw are cleared, its knobs catch up with their new targets.
     void updateSong()
     {
-        if (readyGen_.load(std::memory_order_acquire) != loadGen_.load(std::memory_order_relaxed)) return;
+        if (!ready(active_)) return;
         bool changed = false;
         for (int i = 0; i < 2; ++i)
         {
             const int strip = kFirstInstrumentStrip + i;
-            const bool inst = songs_.empty() || !rings_[strip].present.load(std::memory_order_relaxed);
+            const bool inst = songs_.empty() || !decks_[active_].rings[strip].present.load(std::memory_order_relaxed);
             if (inst == instrumentStrip_[i]) continue;
             changed = true;
             instrumentStrip_[i] = inst;
@@ -514,6 +649,7 @@ private:
             case fx::Bus3Kernel: return bus3_;
             case fx::SirenKernel: return siren_;
             case fx::SyndrumKernel: return syndrum_;
+            case fx::MasterKernel: return masterFx_;
             default: return nullptr;
         }
     }
@@ -541,11 +677,31 @@ private:
         dub_effect_set(siren_, DUB_SIREN_RISE, gestures_[kRise] ? 1.0f : 0.0f);
         dub_effect_set(syndrum_, DUB_SYNDRUM_ROLLING, gestures_[kRoll] ? 1.0f : 0.0f);
 
+        // Inserts: a new choice starts from its defaults, as on the Mac.
+        for (int s = 0; s < kStemStrips; ++s)
+        {
+            const int kind = getInt(kInsert1 + s);
+            if (kind != insertKind_[s])
+            {
+                if (insertKind_[s] >= 0)
+                    for (int i = 0; i < fx::insert::knobCount(kind); ++i)
+                        setDisplay(insertValue(s, i), fx::insert::knob(kind, i).def);
+                insertKind_[s] = kind;
+                dub_effect_set(inserts_[s], DUB_SWITCH_SELECT, (float)kind);
+                if (page_ == kInserts) catchUp(s);
+            }
+            for (int i = 0; i < fx::insert::knobCount(kind); ++i)
+            {
+                const fx::insert::Knob& k = fx::insert::knob(kind, i);
+                dub_effect_set(inserts_[s], k.kernelIndex, fx::insert::value(k, get(insertValue(s, i))));
+            }
+        }
+
         // Gain targets, glided per sample in render().
         const int throwTarget = getInt(kThrowTarget);   // 0 delay, 1 reverb, 2 both
         for (int s = 0; s < kStemStrips; ++s)
         {
-            const float g = getBool(mute(s)) ? 0.0f : faderGain(get(fader(s))) * kHeadroom;
+            const float g = audible(s) ? faderGain(get(fader(s))) * kHeadroom : 0.0f;
             stripGain_[s] = g;
             dry_[s].target = gestures_[kFxOnly] ? 0.0f : g;
             for (int b = 0; b < fx::BusCount; ++b)
@@ -559,7 +715,7 @@ private:
         }
         const int returns[3] = {fx::DelayReturn, fx::ReverbReturn, fx::PhaserReturn};
         for (int b = 0; b < fx::BusCount; ++b) return_[b].target = (float)fx::value(returns[b], get(fxParam(returns[b])));
-        masterGain_.target = faderGain(get(kMaster)) * kHeadroom * kMakeup;
+        masterGain_.target = faderGain(get(kMaster)) * kHeadroom;
 
         // Bus-to-bus sends: each bus's knob opens its chosen target, as long as that closes no loop.
         int target[3];
@@ -574,15 +730,45 @@ private:
         }
     }
 
+    // A song that ends inside the chunk hands over to the next one at that very sample: no gap.
     void render(float* outL, float* outR, int n)
     {
-        bool loaded = readyGen_.load(std::memory_order_acquire) == loadGen_.load(std::memory_order_relaxed);
+        const int end = songEndWithin(n);
+        if (end < 0) { renderPart(outL, outR, n); return; }
+        if (end > 0) renderPart(outL, outR, end);
+        advance();
+        if (end < n) renderPart(outL + end, outR + end, n - end);
+    }
+
+    // Where the playing song ends inside the next n frames (every stem read to its end), or -1.
+    int songEndWithin(int n)
+    {
+        if (!playing_ || ended_ || songs_.empty() || !ready(active_)) return -1;
+        int end = -1;
+        for (StemRing& ring : decks_[active_].rings)
+        {
+            if (!ring.present.load(std::memory_order_relaxed)) continue;
+            const size_t r = ring.read.load(std::memory_order_relaxed);
+            size_t w = ring.written.load(std::memory_order_acquire);
+#ifdef DSM_OFFLINE
+            while (w - r < (size_t)n && !ring.finished.load()) { std::this_thread::yield(); w = ring.written.load(std::memory_order_acquire); }
+#endif
+            if (!ring.finished.load(std::memory_order_acquire) || w - r >= (size_t)n) return -1;
+            end = std::max(end, (int)(w - r));
+        }
+        return end;
+    }
+
+    void renderPart(float* outL, float* outR, int n)
+    {
+        Deck& deck = decks_[active_];
+        bool loaded = ready(active_);
 #ifdef DSM_OFFLINE
         // Offline test hosts render faster than real time: wait for the disk instead of dropping out.
         while (playing_ && !songs_.empty() && !ended_ && !loaded)
         {
             std::this_thread::yield();
-            loaded = readyGen_.load(std::memory_order_acquire) == loadGen_.load(std::memory_order_relaxed);
+            loaded = ready(active_);
         }
 #endif
         const bool running = playing_ && loaded && !songs_.empty() && !ended_;
@@ -596,17 +782,15 @@ private:
         }
         float peak[kSurfaceStrips] = {};
 
-        bool allDone = true, anyPresent = false;
         for (int s = 0; s < kStemStrips; ++s)
         {
             float* sL = stripL_;
             float* sR = stripR_;
             std::fill(sL, sL + n, 0.0f);
             std::fill(sR, sR + n, 0.0f);
-            StemRing& ring = rings_[s];
+            StemRing& ring = deck.rings[s];
             if (running && ring.present.load(std::memory_order_relaxed))
             {
-                anyPresent = true;
                 const size_t r = ring.read.load(std::memory_order_relaxed);
                 size_t w = ring.written.load(std::memory_order_acquire);
 #ifdef DSM_OFFLINE
@@ -620,11 +804,10 @@ private:
                     sR[i] = ring.data[k + 1];
                 }
                 ring.read.store(r + take, std::memory_order_release);
-                const bool finished = ring.finished.load(std::memory_order_acquire);
-                if (take < (size_t)n && !finished) underruns_++;
-                if (!(finished && w == r + take)) allDone = false;
+                if (take < (size_t)n && !ring.finished.load(std::memory_order_acquire)) underruns_++;
             }
             if (instrument(s)) dub_effect_process(s == kFirstInstrumentStrip ? siren_ : syndrum_, sL, sR, sL, sR, n);
+            dub_effect_process(inserts_[s], sL, sR, sL, sR, n);
 
             float stripPeak = 0;
             for (int i = 0; i < n; ++i)
@@ -681,13 +864,16 @@ private:
             outL[i] *= g;
             outR[i] *= g;
         }
+        dub_effect_process(masterFx_, outL, outR, outL, outR, n);
+        dub_effect_process(brake_, outL, outR, outL, outR, n);
+        for (int i = 0; i < n; ++i) { outL[i] *= kMakeup; outR[i] *= kMakeup; }
         dub_effect_process(limiter_, outL, outR, outL, outR, n);
 
         for (int s = 0; s < kSurfaceStrips; ++s) meterPeak_[s] = std::fmax(meterPeak_[s], peak[s]);
         if (running)
         {
             framesPlayed_ += n;
-            if (anyPresent && allDone) advance();   // end of song: the next one starts on its own
+            if (!songs_.empty() && framesPlayed_ >= (long long)(kPlayedSeconds * sampleRate_)) played_[(size_t)current_] = true;
         }
     }
 
@@ -708,15 +894,33 @@ private:
         {
             setDisplay(kCpu, std::round(cpu_ * 10.0f) / 10.0f);
             setDisplay(kUnderruns, (float)underruns_);
-            const double total = (double)songFrames_.load(std::memory_order_relaxed);
+            const double total = (double)decks_[active_].frames.load(std::memory_order_relaxed);
             setDisplay(kTimeLeft, (float)std::floor(std::fmax(0.0, total - (double)framesPlayed_) / sampleRate_));
-            const bool loaded = readyGen_.load(std::memory_order_acquire) == loadGen_.load(std::memory_order_relaxed);
-            setDisplay(kState, (float)(ended_ ? kEnded : !playing_ ? kStopped : loaded ? kRunning : kLoading));
+            setDisplay(kState, (float)(ended_ ? kEnded : !playing_ ? kStopped : ready(active_) ? kRunning : kLoading));
+            refreshSlots();
+        }
+    }
+
+    // The SONG tab: how each listed song shows (played, playing, next).
+    void refreshSlots()
+    {
+        const int next = getInt(kNext);
+        for (int i = 0; i < kSlots; ++i)
+        {
+            int state = kSlotEmpty;
+            if (i < (int)songs_.size())
+            {
+                const bool isNext = i == next && (i != current_ || nextCued_);
+                if (i == current_) state = isNext ? kSlotCurrentNext : kSlotCurrent;
+                else if (played_[(size_t)i]) state = isNext ? kSlotPlayedNext : kSlotPlayed;
+                else state = isNext ? kSlotNext : kSlotPlain;
+            }
+            setDisplay(kSlot1 + i, (float)state);
         }
     }
 
     // ------------------------------------------------------------------------------------------------
-    // Transport and songs
+    // Transport, songs and decks
     // ------------------------------------------------------------------------------------------------
 
     void handleTransport(const mpc::Transport& t, int frames)
@@ -759,29 +963,99 @@ private:
         return toBarLine > slack && fromBarLine > slack;
     }
 
-    // Moves to the song picked as "Next", then points "Next" at the one after it.
+    bool ready(int d) const
+    {
+        return decks_[d].readyGen.load(std::memory_order_acquire) == decks_[d].wantGen.load(std::memory_order_relaxed);
+    }
+
+    // Asks the disk thread to open a song on a deck (from its start).
+    void request(int d, int song)
+    {
+        decks_[d].wantSong.store(song, std::memory_order_relaxed);
+        decks_[d].wantGen.fetch_add(1, std::memory_order_release);
+    }
+
+    // The other deck holds the next song, opened and waiting: chaining to it is instant.
+    void preloadNext()
+    {
+        if (songs_.empty()) return;
+        const int next = getInt(kNext);
+        const int other = 1 - active_;
+        if (next < (int)songs_.size() && decks_[other].wantSong.load(std::memory_order_relaxed) != next) request(other, next);
+    }
+
+    void showSong(int index)
+    {
+        setDisplay(kPlaying, (float)index);
+        for (int s = 0; s < kStemStrips; ++s) setDisplay(kName1 + s, (float)index);
+    }
+
+    // Moves to the song picked as "Next" (from the other deck, already open), then points "Next" at the one after
+    // it. At the end of the list, with nothing picked, the set ends.
     void advance()
     {
+        if (songs_.empty()) return;
         const int next = getInt(kNext);
-        if (next >= (int)songs_.size() || next == current_)
+        if (next >= (int)songs_.size() || (next == current_ && !nextCued_))
         {
             ended_ = true;
             return;
         }
-        loadSong(next);
-        if (next + 1 < (int)songs_.size()) setDisplay(kNext, (float)(next + 1));
-    }
-
-    // Asks the disk thread to open a song. Called from the constructor or the audio thread.
-    void loadSong(int index)
-    {
-        current_ = index;
+        const int other = 1 - active_;
+        if (decks_[other].wantSong.load(std::memory_order_relaxed) != next) request(other, next);
+        // The deck left behind has been read into: it must be opened again before it can play anything.
+        decks_[active_].wantSong.store(-1, std::memory_order_relaxed);
+        active_ = other;
+        current_ = next;
         ended_ = false;
         framesPlayed_ = 0;
-        requestedSong_.store(index, std::memory_order_relaxed);
-        loadGen_.fetch_add(1, std::memory_order_release);
-        setDisplay(kPlaying, (float)index);
-        for (int s = 0; s < kStemStrips; ++s) setDisplay(kName1 + s, (float)index);
+        nextCued_ = false;
+        showSong(next);
+        setDisplay(kNext, (float)std::min(next + 1, (int)songs_.size() - 1));
+        seen_[kNext] = get(kNext);
+    }
+
+    // RESTART: the current song from the top, at once; the next one stays as it is.
+    void restart()
+    {
+        if (songs_.empty()) return;
+        request(active_, current_);
+        ended_ = false;
+        framesPlayed_ = 0;
+    }
+
+    // PREV / NEXT pads: move the song that plays next along the list.
+    void moveNext(int step)
+    {
+        if (songs_.empty()) return;
+        cue(std::min(std::max(getInt(kNext) + step, 0), (int)songs_.size() - 1));
+    }
+
+    void cue(int song)
+    {
+        if (song >= (int)songs_.size()) return;
+        setDisplay(kNext, (float)song);
+        nextCued_ = true;
+    }
+
+    // REWIND (pull-up): the master brakes like a tape, the effects' tails stop with it, the song restarts.
+    void pullUp()
+    {
+        if (!playing_ || pullUpLeft_ > 0 || settleLeft_ > 0 || songs_.empty()) return;
+        dub_effect_set(brake_, DUB_BRAKE_ENGAGE, 1);
+        pullUpLeft_ = (long long)(kPullUpSeconds * sampleRate_);
+    }
+    void stepPullUp(int frames)
+    {
+        if (pullUpLeft_ > 0 && (pullUpLeft_ -= frames) <= 0)
+        {
+            for (DubEffect* e : {delay_, reverb_, bus3_}) dub_effect_set(e, DUB_EFFECT_CLEAR, 1);
+            gestures_[kHold] = gestures_[kTapeStop] = false;
+            restart();
+            settleLeft_ = (long long)(kPullUpSettle * sampleRate_);
+        }
+        else if (settleLeft_ > 0 && (settleLeft_ -= frames) <= 0)
+            dub_effect_set(brake_, DUB_BRAKE_ENGAGE, 0);   // nothing comes in yet: passthrough again, silently
     }
 
     // Strip name on screen for a song: the stem's name, the instrument's on an empty strip 5 or 6.
@@ -809,42 +1083,49 @@ private:
         mpc::log("DubStemMix: %d song(s) in %s", (int)songs_.size(), root.c_str());
     }
 
-    // The disk thread: opens the requested song, then keeps every ring topped up.
+    // The disk thread: opens what each deck asks for, then keeps every ring topped up.
     void diskLoop()
     {
-        WavReader readers[kStemStrips];
+        WavReader readers[2][kStemStrips];
         std::vector<float> chunk(kChunkFrames * 2);
-        int gen = -1;
+        int loaded[2] = {-1, -1};
         while (!quit_.load())
         {
-            const int wanted = loadGen_.load(std::memory_order_acquire);
-            if (wanted != gen && !songs_.empty())
-            {
-                // The audio thread does not read the rings until readyGen_ catches up with loadGen_.
-                gen = wanted;
-                const Song& song = songs_[(size_t)requestedSong_.load(std::memory_order_relaxed)];
-                size_t longest = 0;
-                for (int s = 0; s < kStemStrips; ++s)
-                {
-                    StemRing& ring = rings_[s];
-                    ring.read.store(0, std::memory_order_relaxed);
-                    ring.written.store(0, std::memory_order_relaxed);
-                    ring.finished.store(false, std::memory_order_relaxed);
-                    const bool ok = s < (int)song.stems.size() && readers[s].open(song.stems[(size_t)s]);
-                    if (!ok) readers[s].close();
-                    if (ok && readers[s].rate() != 44100)
-                        mpc::log("DubStemMix: %s is %u Hz, the MPC plays at 44100 Hz", song.stems[(size_t)s].c_str(), readers[s].rate());
-                    if (ok) longest = std::max(longest, readers[s].framesLeft());
-                    ring.present.store(ok, std::memory_order_relaxed);
-                    while (ok && fill(ring, readers[s], chunk)) {}
-                }
-                songFrames_.store((long long)longest, std::memory_order_relaxed);
-                readyGen_.store(gen, std::memory_order_release);
-                continue;
-            }
             bool busy = false;
-            for (int s = 0; s < kStemStrips; ++s)
-                if (rings_[s].present.load(std::memory_order_relaxed)) busy |= fill(rings_[s], readers[s], chunk);
+            for (int d = 0; d < 2; ++d)
+            {
+                Deck& deck = decks_[d];
+                const int gen = deck.wantGen.load(std::memory_order_acquire);
+                if (gen != loaded[d])
+                {
+                    // The audio thread does not read this deck until readyGen catches up with wantGen.
+                    loaded[d] = gen;
+                    const int index = deck.wantSong.load(std::memory_order_relaxed);
+                    size_t longest = 0;
+                    for (int s = 0; s < kStemStrips; ++s)
+                    {
+                        StemRing& ring = deck.rings[s];
+                        ring.read.store(0, std::memory_order_relaxed);
+                        ring.written.store(0, std::memory_order_relaxed);
+                        ring.finished.store(false, std::memory_order_relaxed);
+                        const bool ok = index >= 0 && index < (int)songs_.size() && s < (int)songs_[(size_t)index].stems.size()
+                                     && readers[d][s].open(songs_[(size_t)index].stems[(size_t)s]);
+                        if (!ok) readers[d][s].close();
+                        if (ok && readers[d][s].rate() != 44100)
+                            mpc::log("DubStemMix: %s is %u Hz, the MPC plays at 44100 Hz",
+                                     songs_[(size_t)index].stems[(size_t)s].c_str(), readers[d][s].rate());
+                        if (ok) longest = std::max(longest, readers[d][s].framesLeft());
+                        ring.present.store(ok, std::memory_order_relaxed);
+                        while (ok && fill(ring, readers[d][s], chunk)) {}
+                    }
+                    deck.frames.store((long long)longest, std::memory_order_relaxed);
+                    deck.readyGen.store(gen, std::memory_order_release);
+                    busy = true;
+                    continue;
+                }
+                for (int s = 0; s < kStemStrips; ++s)
+                    if (deck.rings[s].present.load(std::memory_order_relaxed)) busy |= fill(deck.rings[s], readers[d][s], chunk);
+            }
             if (!busy) std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
     }
@@ -871,16 +1152,19 @@ private:
 
     // Songs and disk.
     std::vector<Song> songs_;
-    StemRing rings_[kStemStrips];
+    std::vector<bool> played_;
+    Deck decks_[2];
+    int active_ = 0;
     std::thread disk_;
     std::atomic<bool> quit_{false};
-    std::atomic<int> loadGen_{0}, readyGen_{-1}, requestedSong_{0};
-    std::atomic<long long> songFrames_{0};
     std::atomic<double> bpm_{0.0};
 
     // Effects and mix.
     DubEffect *delay_ = nullptr, *reverb_ = nullptr, *bus3_ = nullptr;
-    DubEffect *siren_ = nullptr, *syndrum_ = nullptr, *limiter_ = nullptr;
+    DubEffect *siren_ = nullptr, *syndrum_ = nullptr;
+    DubEffect *masterFx_ = nullptr, *brake_ = nullptr, *limiter_ = nullptr;
+    DubEffect* inserts_[kStemStrips] = {};
+    int insertKind_[kStemStrips];
     float applied_[fx::Count];
     Glide dry_[kStemStrips], post_[kStemStrips][3], pre_[kStemStrips][3], return_[3], busSend_[3][3], masterGain_;
     float stripGain_[kStemStrips] = {};
@@ -889,6 +1173,7 @@ private:
     float busL_[3][kMaxChunk], busR_[3][kMaxChunk];
     float lastRetL_[3][kMaxChunk] = {}, lastRetR_[3][kMaxChunk] = {};
     int lastN_ = 0;
+    long long pullUpLeft_ = 0, settleLeft_ = 0;
 
     // Console.
     float seen_[kNumParams];
@@ -897,12 +1182,12 @@ private:
     long long bankDownLeft_ = -1, bankDownRight_ = -1, clock_ = 0;
     bool gestures_[kGestureCount] = {};
     bool throwing_[kStemStrips] = {};
-    bool hitLamp_ = false;
+    bool hitLamp_ = false, dropping_ = false;
     bool instrumentStrip_[2] = {true, true};
 
     // Transport and displays.
     double sampleRate_ = 44100.0;
-    bool playing_ = false, ended_ = false, lastPpqValid_ = false;
+    bool playing_ = false, ended_ = false, lastPpqValid_ = false, nextCued_ = false;
     double lastPpq_ = 0.0, lastBlockBeats_ = 0.0;
     int current_ = 0;
     long long framesPlayed_ = 0;
