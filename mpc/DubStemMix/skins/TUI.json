@@ -16405,7 +16405,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "title_1_ff9a8f7e.png"
+         "image": "title_9_ff9a8f7e.png"
         }
        },
        "handle remapping": {
@@ -16509,7 +16509,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "title_2_ff9a8f7e.png"
+         "image": "title_10_ff9a8f7e.png"
         }
        },
        "handle remapping": {
@@ -16613,7 +16613,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "title_3_ff9a8f7e.png"
+         "image": "title_11_ff9a8f7e.png"
         }
        },
        "handle remapping": {
@@ -16717,7 +16717,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "title_4_ff9a8f7e.png"
+         "image": "title_12_ff9a8f7e.png"
         }
        },
        "handle remapping": {
@@ -16795,7 +16795,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "title_5_ff9a8f7e.png"
+         "image": "title_13_ff9a8f7e.png"
         }
        },
        "handle remapping": {
@@ -16899,7 +16899,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "title_6_ff9a8f7e.png"
+         "image": "title_14_ff9a8f7e.png"
         }
        },
        "handle remapping": {
@@ -17003,7 +17003,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "title_7_ff9a8f7e.png"
+         "image": "title_15_ff9a8f7e.png"
         }
        },
        "handle remapping": {
@@ -17107,7 +17107,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "title_8_ff9a8f7e.png"
+         "image": "title_16_ff9a8f7e.png"
         }
        },
        "handle remapping": {
@@ -35853,7 +35853,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "panel_414x280_plain.png"
+         "image": "panel_310x280_plain.png"
         }
        },
        "handle remapping": {
@@ -35866,7 +35866,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "8 48 414 280"
+        "bounds": "8 48 310 280"
        }
       },
       {
@@ -35892,7 +35892,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "30 62 380 24"
+        "bounds": "30 62 280 24"
        }
       },
       {
@@ -35909,7 +35909,7 @@
            "version": 1,
            "name": "Nexa",
            "style": "Black",
-           "height": 56.0
+           "height": 48.0
           },
           "colour": "ffede3cf",
           "justification": "horizontallyCentred verticallyCentred",
@@ -35934,7 +35934,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "8 128 414 90"
+        "bounds": "8 128 310 90"
        }
       },
       {
@@ -35960,7 +35960,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "25 268 380 24"
+        "bounds": "18 268 290 24"
        }
       },
       {
@@ -35973,7 +35973,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "panel_414x280_plain.png"
+         "image": "panel_310x280_plain.png"
         }
        },
        "handle remapping": {
@@ -35986,7 +35986,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "430 48 414 280"
+        "bounds": "326 48 310 280"
        }
       },
       {
@@ -36012,7 +36012,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "452 62 380 24"
+        "bounds": "348 62 280 24"
        }
       },
       {
@@ -36029,7 +36029,7 @@
            "version": 1,
            "name": "Nexa",
            "style": "Black",
-           "height": 56.0
+           "height": 48.0
           },
           "colour": "ffede3cf",
           "justification": "horizontallyCentred verticallyCentred",
@@ -36054,7 +36054,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "430 128 414 90"
+        "bounds": "326 128 310 90"
        }
       },
       {
@@ -36080,7 +36080,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "447 268 380 24"
+        "bounds": "336 268 290 24"
        }
       },
       {
@@ -36093,7 +36093,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "panel_414x280_plain.png"
+         "image": "panel_310x280_plain.png"
         }
        },
        "handle remapping": {
@@ -36106,7 +36106,127 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "852 48 414 280"
+        "bounds": "644 48 310 280"
+       }
+      },
+      {
+       "version": 2,
+       "componentData": {
+        "version": 1,
+        "name": "image",
+        "type": "Image",
+        "data": {
+         "version": 2,
+         "imageType": "Regular",
+         "colour": "0",
+         "image": "title_last_channel_ff9a8f7e.png"
+        }
+       },
+       "handle remapping": {
+        "version": 1,
+        "map": []
+       },
+       "bounds": {
+        "version": 1,
+        "acceptsHWFocus": "No",
+        "showWhenDataModelInvalid": "Show",
+        "whenVisible": "Always",
+        "boundsType": "Absolute",
+        "bounds": "666 62 280 24"
+       }
+      },
+      {
+       "version": 2,
+       "componentData": {
+        "version": 1,
+        "name": "value",
+        "type": "Label",
+        "data": {
+         "version": 1,
+         "textStyle": {
+          "version": 1,
+          "font": {
+           "version": 1,
+           "name": "Nexa",
+           "style": "Black",
+           "height": 48.0
+          },
+          "colour": "ffede3cf",
+          "justification": "horizontallyCentred verticallyCentred",
+          "case": "Original"
+         },
+         "type": "Value",
+         "handleName": "Data"
+        }
+       },
+       "handle remapping": {
+        "version": 1,
+        "map": [
+         {
+          "key": "Data",
+          "value": "Parameter 207"
+         }
+        ]
+       },
+       "bounds": {
+        "version": 1,
+        "acceptsHWFocus": "No",
+        "showWhenDataModelInvalid": "Show",
+        "whenVisible": "Always",
+        "boundsType": "Absolute",
+        "bounds": "644 128 310 90"
+       }
+      },
+      {
+       "version": 2,
+       "componentData": {
+        "version": 1,
+        "name": "image",
+        "type": "Image",
+        "data": {
+         "version": 2,
+         "imageType": "Regular",
+         "colour": "0",
+         "image": "title_of_the_last_note_ff9a8f7e.png"
+        }
+       },
+       "handle remapping": {
+        "version": 1,
+        "map": []
+       },
+       "bounds": {
+        "version": 1,
+        "acceptsHWFocus": "No",
+        "showWhenDataModelInvalid": "Show",
+        "whenVisible": "Always",
+        "boundsType": "Absolute",
+        "bounds": "654 268 290 24"
+       }
+      },
+      {
+       "version": 2,
+       "componentData": {
+        "version": 1,
+        "name": "image",
+        "type": "Image",
+        "data": {
+         "version": 2,
+         "imageType": "Regular",
+         "colour": "0",
+         "image": "panel_310x280_plain.png"
+        }
+       },
+       "handle remapping": {
+        "version": 1,
+        "map": []
+       },
+       "bounds": {
+        "version": 1,
+        "acceptsHWFocus": "No",
+        "showWhenDataModelInvalid": "Show",
+        "whenVisible": "Always",
+        "boundsType": "Absolute",
+        "bounds": "962 48 310 280"
        }
       },
       {
@@ -36132,7 +36252,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "874 62 380 24"
+        "bounds": "984 62 280 24"
        }
       },
       {
@@ -36149,7 +36269,7 @@
            "version": 1,
            "name": "Nexa",
            "style": "Black",
-           "height": 56.0
+           "height": 48.0
           },
           "colour": "ffede3cf",
           "justification": "horizontallyCentred verticallyCentred",
@@ -36174,7 +36294,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "852 128 414 90"
+        "bounds": "962 128 310 90"
        }
       },
       {
@@ -36200,7 +36320,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "869 268 380 24"
+        "bounds": "972 268 290 24"
        }
       },
       {
@@ -36213,7 +36333,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "panel_414x280_plain.png"
+         "image": "panel_310x280_plain.png"
         }
        },
        "handle remapping": {
@@ -36226,7 +36346,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "8 336 414 280"
+        "bounds": "8 336 310 280"
        }
       },
       {
@@ -36252,7 +36372,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "30 350 380 24"
+        "bounds": "30 350 280 24"
        }
       },
       {
@@ -36269,7 +36389,7 @@
            "version": 1,
            "name": "Nexa",
            "style": "Black",
-           "height": 56.0
+           "height": 48.0
           },
           "colour": "ffede3cf",
           "justification": "horizontallyCentred verticallyCentred",
@@ -36294,7 +36414,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "8 416 414 90"
+        "bounds": "8 416 310 90"
        }
       },
       {
@@ -36320,7 +36440,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "25 556 380 24"
+        "bounds": "18 556 290 24"
        }
       },
       {
@@ -36333,7 +36453,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "panel_414x280_plain.png"
+         "image": "panel_310x280_plain.png"
         }
        },
        "handle remapping": {
@@ -36346,7 +36466,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "430 336 414 280"
+        "bounds": "326 336 310 280"
        }
       },
       {
@@ -36372,7 +36492,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "452 350 380 24"
+        "bounds": "348 350 280 24"
        }
       },
       {
@@ -36389,7 +36509,7 @@
            "version": 1,
            "name": "Nexa",
            "style": "Black",
-           "height": 56.0
+           "height": 48.0
           },
           "colour": "ffede3cf",
           "justification": "horizontallyCentred verticallyCentred",
@@ -36414,7 +36534,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "430 416 414 90"
+        "bounds": "326 416 310 90"
        }
       },
       {
@@ -36440,7 +36560,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "447 556 380 24"
+        "bounds": "336 556 290 24"
        }
       },
       {
@@ -36453,7 +36573,7 @@
          "version": 2,
          "imageType": "Regular",
          "colour": "0",
-         "image": "panel_414x280_plain.png"
+         "image": "panel_310x280_plain.png"
         }
        },
        "handle remapping": {
@@ -36466,7 +36586,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "852 336 414 280"
+        "bounds": "644 336 310 280"
        }
       },
       {
@@ -36492,7 +36612,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "874 350 380 24"
+        "bounds": "666 350 280 24"
        }
       },
       {
@@ -36509,7 +36629,7 @@
            "version": 1,
            "name": "Nexa",
            "style": "Black",
-           "height": 56.0
+           "height": 48.0
           },
           "colour": "ffede3cf",
           "justification": "horizontallyCentred verticallyCentred",
@@ -36534,7 +36654,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "852 416 414 90"
+        "bounds": "644 416 310 90"
        }
       },
       {
@@ -36560,7 +36680,7 @@
         "showWhenDataModelInvalid": "Show",
         "whenVisible": "Always",
         "boundsType": "Absolute",
-        "bounds": "869 556 380 24"
+        "bounds": "654 556 290 24"
        }
       }
      ]

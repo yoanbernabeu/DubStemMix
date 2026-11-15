@@ -11,13 +11,13 @@ A plugin for Akai MPC standalones (MPC OS 3.10.1+) that turns an Akai MIDImix pl
   - Strip 7 = delay (speed, feedback, reverb length; MUTE = HOLD, REC ARM = ×2), strip 8 = space (phaser rate, DLY>, REV>; MUTE = FX ONLY, REC ARM = TAPE STOP). Faders 7-8 = delay and reverb returns.
   - BANK RIGHT = next page (MIX → FX → MASTER → INSERTS), BANK LEFT = MIX, both together = PANIC. Knobs catch up with the value before acting.
   - SOLO held + MUTE = solo. KEEP (touch, on each strip) keeps a strip through DROP.
-- **Pads** of the DubStemMix track (pad 1's note set in SETUP, 37 by default): 1 DROP (held), 2 CRASH (spring reverb), 3 REWIND (pull-up), 5 PREV and 6 NEXT (move the next song), 7 GO (play the next song now), 8 RESTART (this song from the top).
+- **Pads** of the DubStemMix track, on the two top rows (pad 1's note set in SETUP, 24 by default as on the One+; pads 1-4 send notes the MIDImix already uses, so they do nothing): 9 DROP (held), 10 CRASH (spring reverb), 11 REWIND (pull-up), 13 PREV and 14 NEXT (move the next song), 15 GO (play the next song now), 16 RESTART (this song from the top).
 - **MPC transport**: STOP pauses, PLAY resumes, PLAY START jumps to the next song (stopped or playing). At the end of a song, the next one starts on its own, with no gap (it waits, opened, in a second deck). Effects and instruments keep sounding while stopped.
 - **Screen**:
   - **CONSOLE**: a mirror of the MIDImix in the Mac app's look (names, knobs for the current page, faders, meters, the buttons' lamps, SOLO / KEEP, insert choice on INSERTS). The header (logo, song, time left, next song, console page) is on every tab.
   - **SETUP**: delay sync (to the MPC's tempo), reverb plate / spring, bus 3 phaser / flanger, throw target, where DLY> / REV> / PHS> send, master, pad 1's note and the pad map.
   - **SONG**: the setlist. Touch a song to play it next (a played one, or the one playing, to replay it); played songs are dimmed with a check mark after 30 s.
-  - **TEST**: last CC and note received, last start, CPU, underruns.
+  - **TEST**: last CC, note and channel received, last start, CPU, underruns.
 - Everything set is saved with the MPC project.
 
 ## Build and test on the Mac

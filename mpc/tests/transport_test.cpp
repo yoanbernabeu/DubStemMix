@@ -275,18 +275,20 @@ int main(int argc, char** argv)
     // SOLO (SOLO held + MUTE sends note 2 + 3 (strip - 1)) and DROP (pad 1) with KEEP.
     playing = true; ppq = 1.0;
     r.run(20);
+    r.press(24); r.lift(24);   // pad 1 sends 24 = REC ARM 8 (TAPE STOP): the MIDImix wins, it is no pad
+    expectInt("note 24 stays the MIDImix's (TAPE STOP lamp, released)", r.choice("Lamp R8", 2), 0);
     r.press(5); r.lift(5);   // solo strip 2: strip 1 goes silent
     expect("SOLO strip 2: strip 1 is out", r.run(20), 0.0f);
     r.press(5); r.lift(5);
     expect("SOLO off: strip 1 back", r.run(20), a);
-    r.press(37);   // pad 1: DROP held
+    r.press(32);   // pad 9: DROP held
     expect("DROP held: strip 1 (not KEEP) is cut", r.run(20), 0.0f);
-    r.lift(37);
+    r.lift(32);
     expect("DROP released: back", r.run(20), a);
     fx->setParameter(fx, r.param("Keep 1"), 1.0f);
-    r.press(37);
+    r.press(32);
     expect("DROP held, strip 1 KEEP: still there", r.run(20), a);
-    r.lift(37);
+    r.lift(32);
     fx->setParameter(fx, r.param("Keep 1"), 0.0f);
     playing = false; r.run(5);
 
@@ -327,14 +329,14 @@ int main(int argc, char** argv)
     r.run(80);   // the list refreshes 5 times a second
     expectInt("touching B makes it next", r.choice("Next", 3), 1);
     expectInt("B's slot shows NEXT", r.choice("Slot 2", 7), 4);
-    r.press(43); r.lift(43);   // pad 7: GO
+    r.press(38); r.lift(38);   // pad 15: GO
     expect("pad GO: B plays now", r.run(40), b);
-    r.press(42); r.lift(42);   // pad 6: NEXT moves the next song on
+    r.press(37); r.lift(37);   // pad 14: NEXT moves the next song on
     expectInt("pad NEXT: C stays next (last song)", r.choice("Next", 3), 2);
-    r.press(41); r.lift(41);   // pad 5: PREV
+    r.press(36); r.lift(36);   // pad 13: PREV
     expectInt("pad PREV: B is next (replay)", r.choice("Next", 3), 1);
     r.run(200);
-    r.press(44); r.lift(44);   // pad 8: RESTART
+    r.press(39); r.lift(39);   // pad 16: RESTART
     r.run(20);
     expect("pad RESTART: B again from the top", r.run(20), b);
     expectInt("RESTART leaves the next song alone", r.choice("Next", 3), 1);

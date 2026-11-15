@@ -62,6 +62,7 @@ INSERT_VALUE1 = INSERT1 + STEMS
 PAD_BASE = INSERT_VALUE1 + STEMS * INSERT_KNOBS
 CUE1 = PAD_BASE + 1
 SLOT1 = CUE1 + SLOTS
+LAST_CHANNEL = SLOT1 + SLOTS
 def fx(name): return FX_BASE + FX.index(name) if name in FX else FX2_BASE + FX2.index(name)
 def insert_value(s, i): return INSERT_VALUE1 + s * INSERT_KNOBS + i
 
@@ -424,8 +425,10 @@ def setup(a):
     c.append(knob(PAD_BASE, TEXT, (36, bottom + 86, art.KNOB + 8, art.KNOB + 8)))
     c.append(value(PAD_BASE, (16, bottom + 158, 110, 22), 17, TEXT2, font="Roboto"))
     c.append(image(a.title("CHECK ON TEST", TEXT2, 9, 120, 20, "m"), (11, bottom + 186, 120, 20)))
-    pads = [(1, "DROP", RED, "HOLD"), (2, "CRASH", REVERB, "SPRING"), (3, "REWIND", BUS3, "PULL-UP"), (4, "-", TEXT2, ""),
-            (5, "PREV", TEXT, "CUE THE ONE ABOVE"), (6, "NEXT", DELAY, "CUE THE ONE BELOW"), (7, "GO", DELAY, "PLAY NEXT"), (8, "RESTART", TEXT, "THIS SONG")]
+    # The two top rows (pads 1-4 send the MIDImix's own notes on the MPC, so the bottom rows stay unused).
+    pads = [(9, "DROP", RED, "HOLD"), (10, "CRASH", REVERB, "SPRING"), (11, "REWIND", BUS3, "PULL-UP"), (12, "-", TEXT2, ""),
+            (13, "PREV", TEXT, "CUE THE ONE ABOVE"), (14, "NEXT", DELAY, "CUE THE ONE BELOW"), (15, "GO", DELAY, "PLAY NEXT"),
+            (16, "RESTART", TEXT, "THIS SONG")]
     for i, (n, label, colour, hint) in enumerate(pads):
         col, row = i % 4, 1 - i // 4
         x, y = 160 + col * 114, bottom + 50 + row * 180
@@ -463,14 +466,15 @@ def songs(a):
 def test(a):
     c = header(a)
     readouts = [("LAST CC", LAST_CC, "fader 1 = CC 19"), ("LAST NOTE", LAST_NOTE, "MUTE 1 = 1 · pad 1 = PAD 1 NOTE"),
-                ("LAST START", START, "PLAY or PLAY START"), ("START POSITION", START_POS, "in beats"),
-                ("CPU", CPU, "this plugin, % of the audio time"), ("UNDERRUNS", UNDERRUNS, "the card did not keep up")]
+                ("LAST CHANNEL", LAST_CHANNEL, "of the last note"), ("LAST START", START, "PLAY or PLAY START"),
+                ("START POSITION", START_POS, "in beats"), ("CPU", CPU, "this plugin, % of the audio time"),
+                ("UNDERRUNS", UNDERRUNS, "the card did not keep up")]
     for i, (t, param, hint) in enumerate(readouts):
-        x, y = 8 + (i % 3) * 422, 48 + (i // 3) * 288
-        c.append(image(a.panel(414, 280), (x, y, 414, 280)))
-        c.append(image(a.title(t, TEXT2, 14, 380, 24), (x + 22, y + 14, 380, 24)))
-        c.append(value(param, (x, y + 80, 414, 90), 56, TEXT, "Black", font="Nexa"))
-        c.append(image(a.title(hint, TEXT2, 10, 380, 24, "m"), (x + 17, y + 220, 380, 24)))
+        x, y = 8 + (i % 4) * 318, 48 + (i // 4) * 288
+        c.append(image(a.panel(310, 280), (x, y, 310, 280)))
+        c.append(image(a.title(t, TEXT2, 14, 280, 24), (x + 22, y + 14, 280, 24)))
+        c.append(value(param, (x, y + 80, 310, 90), 48, TEXT, "Black", font="Nexa"))
+        c.append(image(a.title(hint, TEXT2, 9, 290, 24, "m"), (x + 10, y + 220, 290, 24)))
     return c
 
 def tab(name, key, children):
@@ -499,8 +503,8 @@ def main():
         if index >= len(names) or names[index] != name:
             sys.exit("make_skin.py: parameter %d is %r, expected %r - update the indices"
                      % (index, names[index] if index < len(names) else None, name))
-    if len(names) != SLOT1 + SLOTS:
-        sys.exit("make_skin.py: the plugin has %d parameters, expected %d" % (len(names), SLOT1 + SLOTS))
+    if names[LAST_CHANNEL] != "Last channel" or len(names) != LAST_CHANNEL + 1:
+        sys.exit("make_skin.py: the plugin has %d parameters, expected %d" % (len(names), LAST_CHANNEL + 1))
 
     replacements = dict(SETUP_CHOICES)
     for s in range(STEMS):

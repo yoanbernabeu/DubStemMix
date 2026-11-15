@@ -23,8 +23,9 @@
 //   REC ARM held rises. Syndrum: MUTE hits, REC ARM held rolls.
 //   BANK RIGHT = next page (MIX -> FX -> MASTER -> INSERTS), BANK LEFT = MIX, both = PANIC.
 //   Knobs catch up with the value before acting (soft takeover), as on the Mac.
-// Pads of the track (PRD § 16.2 ter), from the "Pad 1 note" setting: 1 DROP (held), 2 CRASH, 3 REWIND,
-//   5 PREV, 6 NEXT (move the next song), 7 GO (play the next song now), 8 RESTART (current song from the top).
+// Pads of the track (PRD § 16.2 ter), from the "Pad 1 note" setting: 9 DROP (held), 10 CRASH, 11 REWIND,
+//   13 PREV, 14 NEXT (move the next song), 15 GO (play the next song now), 16 RESTART (current song from the top).
+//   Notes 1-27 always belong to the MIDImix.
 //
 // Songs: two decks. The current song plays from one while the next one waits, opened, in the other: songs
 // chain with no gap. MPC transport: STOP pauses, PLAY resumes, PLAY START jumps to the next song (stopped or
@@ -58,8 +59,10 @@ constexpr int kStripCC[kSurfaceStrips] = {16, 20, 24, 28, 46, 50, 54, 58};
 constexpr int kMasterCC = 62;
 constexpr int kBankLeft = 25, kBankRight = 26;
 
-// Pads (0-based from the "Pad 1 note" setting).
-enum Pad { kPadDrop = 0, kPadCrash = 1, kPadRewind = 2, kPadPrev = 4, kPadNext = 5, kPadGo = 6, kPadRestart = 7 };
+// Pads (0-based from the "Pad 1 note" setting), on the two top rows: pads 1-4 send notes 24-27 on the MPC,
+// which the MIDImix already uses (REC ARM 8, BANK, SOLO), so the bottom rows stay unused.
+enum Pad { kPadDrop = 8, kPadCrash = 9, kPadRewind = 10, kPadPrev = 12, kPadNext = 13, kPadGo = 14, kPadRestart = 15 };
+constexpr int kLastMidiMixNote = 27;
 
 constexpr float kHeadroom = 0.5f;       // per strip and on the master, given back by the make-up gain
 constexpr float kMakeup = 2.0f;         // +6 dB
@@ -123,7 +126,8 @@ public:
         kInsertValue1 = kInsert1 + kStemStrips,           // 3 per strip
         kPadBase = kInsertValue1 + kStemStrips * fx::insert::kKnobs,
         kCue1, kSlot1 = kCue1 + kSlots,
-        kNumParams = kSlot1 + kSlots
+        kLastChannel = kSlot1 + kSlots,
+        kNumParams
     };
     static int fader(int s) { return kStripBase + s * 5; }
     static int mute(int s) { return kStripBase + s * 5 + 1; }
@@ -217,13 +221,14 @@ public:
                 const std::string name = "Insert " + std::to_string(s + 1) + std::string(1, (char)('A' + i));
                 addParam(mpc::floatParam(id.c_str(), name.c_str(), 0.0f, 1.0f, 0.0f));
             }
-        addParam(mpc::intParam("padBase", "Pad 1 note", 0, 112, 37));
+        addParam(mpc::intParam("padBase", "Pad 1 note", 0, 112, 24));
         // The SONG tab's list: touching a song sets its cue (named after the song); its slot says how to show it.
         for (int i = 0; i < kSlots; ++i)
             addParam(mpc::boolParam(("cue" + std::to_string(i + 1)).c_str(), i < (int)songs_.size() ? songs_[(size_t)i].name.c_str() : "-", false));
         for (int i = 0; i < kSlots; ++i)
             addParam(mpc::choiceParam(("slot" + std::to_string(i + 1)).c_str(), ("Slot " + std::to_string(i + 1)).c_str(),
                                       {"Empty", "Song", "Played", "Playing", "Next", "Played, next", "Playing, next"}, 0));
+        addParam(mpc::intParam("lastChannel", "Last channel", 0, 16, 0));
 
         for (int i = 0; i < kNumParams; ++i) seen_[i] = get(i);
         for (float& v : applied_) v = -1;
@@ -484,9 +489,9 @@ private:
             }
             else if (e.isNoteOn() || e.isNoteOff())
             {
-                if (e.isNoteOn()) setDisplay(kLastNote, (float)e.note());
+                if (e.isNoteOn()) { setDisplay(kLastNote, (float)e.note()); setDisplay(kLastChannel, (float)(e.channel() + 1)); }
                 const int pad = e.note() - getInt(kPadBase);
-                if (pad >= 0 && pad < 16) padHit(pad, e.isNoteOn());
+                if (e.note() > kLastMidiMixNote && pad >= 0 && pad < 16) padHit(pad, e.isNoteOn());
                 else button(e.note(), e.isNoteOn());
             }
         }
