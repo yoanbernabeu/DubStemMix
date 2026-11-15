@@ -35,6 +35,8 @@ mpc/package.sh 1.2.3 dist   # release: dist/mpc/<plugin, no songs> + dist/DubSte
 
 `tools/make-app.sh` runs `mpc/package.sh` and puts the plugin inside the app; the release workflow attaches the plugin's zip next to the app's.
 
+`python3 mpc/DubStemMix/preview_skin.py web/src/assets/screenshots/mpc` redraws the screen pictures of the docs from the screen files.
+
 The SDK is fetched (pinned) into `mpc/.sdk` on first run; it needs Python 3.9+ and downloads the Zig compiler once. `build.sh` writes the screen (`DubStemMix/make_skin.py` → `DubStemMix/skins/`) from the parameter list. Run `mpc/build.sh` after `mpc/test.sh`: the test build waits for the disk and must not go on the MPC.
 
 ## Install on the MPC

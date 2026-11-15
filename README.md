@@ -33,6 +33,11 @@ The user documentation lives on the website:
 7. [Projects and sets](https://yoanbernabeu.github.io/DubStemMix/docs/sets/)
 8. [Playing live](https://yoanbernabeu.github.io/DubStemMix/docs/live/)
 9. [Settings and help](https://yoanbernabeu.github.io/DubStemMix/docs/settings/)
+10. [On an Akai MPC](https://yoanbernabeu.github.io/DubStemMix/docs/mpc/)
+
+## On an Akai MPC
+
+DubStemMix also runs as a plugin on an Akai MPC standalone (MPC OS 3.10.1 or later, tested on an MPC One+): plug the MIDImix into the MPC and play your set with no Mac on stage. **File ▸ Export Setlist to MPC…** writes the plugin and the set on the MPC's card, one 44.1 kHz WAV per strip made from the stems the tunes already use. Each release also carries the plugin alone, `DubStemMix-MPC-<version>.zip`. How to play it: [On an Akai MPC](https://yoanbernabeu.github.io/DubStemMix/docs/mpc/). The plugin's code, built with Akai's MPC Plugin SDK on the same effects engine as the app, is in [`mpc/`](mpc/README.md).
 
 The rest of this README is for people who want to build, change or extend the app.
 
@@ -71,7 +76,7 @@ A Swift package, four targets:
 | Target | What it holds |
 |---|---|
 | `Sources/DubDSP` | the real-time DSP kernels of the built-in effects, in C: tape delay, plate and spring reverb, phaser, flanger, master chain, sub, auto-wah. No allocation and no lock on the audio thread. |
-| `Sources/DubStemMixCore` | everything without UI, and tested: the audio engine (AVAudioEngine), the bus routing, the MIDI controller and the mix logic (`MixController`), projects and setlists, plugins hosting, recording, tempo detection, the update check. |
+| `Sources/DubStemMixCore` | everything without UI, and tested: the audio engine (AVAudioEngine), the bus routing, the MIDI controller and the mix logic (`MixController`), projects and setlists, plugins hosting, recording, tempo detection, the update check, the export to the MPC plugin (`MPCExport`). |
 | `Sources/StemSplit` | stem separation: audio decoding, overlap-add, htdemucs_ft inference through ONNX Runtime, model download and verification. |
 | `Sources/DubStemMix` | the SwiftUI app: `AppModel` (split by topic in `AppModel+*.swift`), the console, the preparation screen, the setlist workshop, the settings, the self-checks. |
 
@@ -82,6 +87,7 @@ Other folders:
 - `tools/`: `make-app.sh` (packaging), `midi-monitor.swift` (prints what a MIDI controller sends), `make-icon.swift`.
 - `Packaging/Info.plist`, `Design/` (icon), `install.sh`.
 - `web/`: the website and the docs (Astro), see below.
+- `mpc/`: the Akai MPC plugin (C++, Akai's MPC Plugin SDK, the `DubDSP` kernels compiled unchanged), its screen generator, its tests and packaging. See [`mpc/README.md`](mpc/README.md).
 
 ## Design notes
 

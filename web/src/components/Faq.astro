@@ -3,6 +3,7 @@ import Section from "./Section.astro";
 const faq = [
   ["Do I need the Akai MIDImix?", "No. Everything works with the mouse and the keyboard: knobs, faders, MUTE (⌥-click for solo), THROW, pages, gestures. The console adds the hands."],
   ["Other controllers?", "Only the MIDImix today. The mix logic never sees it directly: the MIDImix is a profile, plain data. A controller with the same shape (8 strips with 3 knobs, a fader and buttons, two bank buttons, a master fader), like the Novation Launch Control XL, needs only a profile. Pull requests welcome."],
+  ["Can I play without a Mac on stage?", "Yes, on an Akai MPC (MPC OS 3.10.1 or later): plug the MIDImix into it and play the DubStemMix plugin. The Mac prepares the set and writes it on the card with File ▸ Export Setlist to MPC. Everything is on the On an Akai MPC docs page."],
   ["Windows, Linux, Intel Macs?", "macOS on Apple Silicon only. The interface and the audio engine are built on Apple frameworks (SwiftUI, Core Audio, Audio Units), so a Windows or Linux version would mean rewriting a large part of the app. Intel Macs are untested; building from source may work."],
   ["Does splitting a song send my music anywhere?", "No. The separation (Demucs, htdemucs_ft) runs on your Mac, inside the app, with no Python to install. Only the model is downloaded, once, after asking you."],
   ["Can I use my VST plugins?", "DubStemMix loads Audio Unit plugins, the Mac format most plugin makers ship alongside VST: on a bus in place of a built-in effect, or as a strip insert. Chain effects by patching the buses into each other."],
@@ -23,7 +24,7 @@ const faqLd = {
 };
 ---
 <script is:inline type="application/ld+json" set:html={JSON.stringify(faqLd)} />
-<Section id="faq" index="04" title="FAQ">
+<Section id="faq" index="05" title="FAQ">
   <div class="mx-auto max-w-3xl divide-y divide-border border-y border-border">
     {faq.map(([q, a]) => (
       <details class="group py-4">

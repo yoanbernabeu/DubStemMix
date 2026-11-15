@@ -8,3 +8,4 @@ web/.astro/
 mpc/.sdk/
 mpc/DubStemMix/build/
 mpc/DubStemMix/Content/Songs/
+mpc/DubStemMix/__pycache__/
