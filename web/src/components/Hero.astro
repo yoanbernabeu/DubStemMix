@@ -5,6 +5,25 @@ import Led from "./Led.astro";
 import { site } from "../site";
 // Tape repeats: each one later and quieter, like the delay's feedback.
 const echoes = [0.62, 0.4, 0.25, 0.14, 0.07];
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const ways = [
+  {
+    kicker: "01 · the app",
+    title: "On your Mac",
+    color: "delay",
+    text: "The whole studio: split full songs into stems, build your setlists, play them on the MIDImix (or the mouse), record your versions, load your Audio Unit plugins.",
+    needs: site.macRequirements,
+    links: [{ label: "Install", href: "#install" }, { label: "Docs", href: `${base}/docs/` }],
+  },
+  {
+    kicker: "02 · the plugin",
+    title: "On your Akai MPC",
+    color: "reverb",
+    text: "The same console and effects on the MPC, the MIDImix plugged into it: no computer on stage. The app writes your set on the card, or you copy your stems by hand.",
+    needs: site.mpcRequirements,
+    links: [{ label: "Download", href: site.mpcDownload }, { label: "How it works", href: "#mpc" }],
+  },
+];
 ---
 <header id="top" class="relative overflow-hidden">
   <div class="mx-auto max-w-6xl px-4 pt-16 pb-10 sm:px-6 sm:pt-24 sm:pb-14">
@@ -29,12 +48,28 @@ const echoes = [0.62, 0.4, 0.25, 0.14, 0.07];
       <p class="animate-rise max-w-2xl text-lg leading-relaxed text-cream/90 sm:text-xl" style="animation-delay:.55s">
         Six stems on six faders, two more to play the effects, the way it was done at King Tubby's: pull the vocal, throw the snare into the echo,
         drop everything but bass and drums, let the spring crash. <strong>No DAW, no session to prepare, nothing to map.</strong>{" "}
-        Plug the Akai MIDImix, drop a folder of stems, play.
+        Plug the Akai MIDImix into your Mac or into an Akai MPC, load the stems, play.
       </p>
       <div class="animate-rise flex flex-wrap gap-3" style="animation-delay:.65s">
-        <a href="#install" class="label-wide inline-flex h-12 items-center rounded bg-cream px-6 text-sm text-bg transition-colors hover:bg-delay">Install</a>
         <a href={site.repo} rel="noopener" class="label-wide inline-flex h-12 items-center rounded border-[1.5px] border-border px-6 text-sm transition-colors hover:border-cream">Source</a>
       </div>
+    </div>
+
+    <!-- One console, two ways to play it: the macOS app or the Akai MPC plugin. -->
+    <div class="animate-rise mt-12 grid gap-px overflow-hidden rounded border-[1.5px] border-border bg-border md:grid-cols-2" style="animation-delay:.7s">
+      {ways.map((w) => (
+        <div class="flex flex-col gap-4 bg-bg p-6 sm:p-7">
+          <p class="mono text-[11px] text-dim">{w.kicker}</p>
+          <h2 class="label-wide flex items-center gap-3 text-xl sm:text-2xl" style={`color:var(--color-${w.color})`}><Led color={w.color} /> {w.title}</h2>
+          <p class="text-sm leading-relaxed text-cream/85">{w.text}</p>
+          <p class="mono text-[11px] text-dim">{w.needs}</p>
+          <div class="mt-auto flex flex-wrap gap-3 pt-2">
+            {w.links.map((l, i) => (
+              <a href={l.href} class:list={["label-wide inline-flex h-11 items-center rounded px-5 text-[13px] transition-colors", i === 0 ? "bg-cream text-bg hover:bg-delay" : "border-[1.5px] border-border hover:border-cream"]}>{l.label}</a>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   </div>
 
