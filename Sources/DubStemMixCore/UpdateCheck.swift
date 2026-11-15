@@ -48,7 +48,8 @@ public struct ReleaseInfo: Equatable, Sendable {
         guard let release = try? JSONDecoder().decode(Release.self, from: data),
               release.draft != true, release.prerelease != true,
               let version = AppVersion(release.tag_name),
-              let zip = release.assets.first(where: { $0.name.hasPrefix("DubStemMix-") && $0.name.hasSuffix(".zip") })
+              // Exactly the app's zip: a release also carries the MPC plugin's.
+              let zip = release.assets.first(where: { $0.name == "DubStemMix-\(release.tag_name.hasPrefix("v") ? String(release.tag_name.dropFirst()) : release.tag_name).zip" })
         else { return nil }
         self.version = version
         zipURL = zip.browser_download_url

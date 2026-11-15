@@ -37,7 +37,7 @@ The user documentation lives on the website:
 
 ## On an Akai MPC
 
-DubStemMix also runs as a plugin on an Akai MPC standalone (MPC OS 3.10.1 or later, tested on an MPC One+): plug the MIDImix into the MPC and play your set with no Mac on stage. **File ▸ Export Setlist to MPC…** writes the plugin and the set on the MPC's card, one 44.1 kHz WAV per strip made from the stems the tunes already use. Each release also carries the plugin alone, `DubStemMix-MPC-<version>.zip`. How to play it: [On an Akai MPC](https://yoanbernabeu.github.io/DubStemMix/docs/mpc/). The plugin's code, built with Akai's MPC Plugin SDK on the same effects engine as the app, is in [`mpc/`](mpc/README.md).
+DubStemMix also runs as a plugin on an Akai MPC standalone (MPC OS 3.10.1 or later, tested on an MPC One+): plug the MIDImix into the MPC and play your set with no Mac on stage. **File ▸ Export Setlist to MPC…** writes the plugin and the set on the MPC's card, one 44.1 kHz WAV per strip made from the stems the tunes already use. Each release also carries the plugin alone, `MPC-DubStemMix-<version>.zip`. How to play it: [On an Akai MPC](https://yoanbernabeu.github.io/DubStemMix/docs/mpc/). The plugin's code, built with Akai's MPC Plugin SDK on the same effects engine as the app, is in [`mpc/`](mpc/README.md).
 
 The rest of this README is for people who want to build, change or extend the app.
 

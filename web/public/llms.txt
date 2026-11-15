@@ -43,7 +43,7 @@ D (hold) drop: everything cut but the strips marked KEEP. H (hold) hold: the del
 ## On an Akai MPC (plugin)
 
 - The same console, effects and gestures as a plugin on the MPC, with the MIDImix plugged into the MPC's USB port. Built with Akai's MPC Plugin SDK on the app's own effects engine.
-- Songs: File > Export Setlist to MPC in the app writes the plugin and the set on the card (one 44.1 kHz WAV per strip from the stems the tunes already use, plus title, tempo and strip names); unchanged tunes are not copied again. Without the app: download DubStemMix-MPC.zip (https://github.com/yoanbernabeu/DubStemMix/releases/latest/download/DubStemMix-MPC.zip) and copy 44.1 kHz WAV stems on the card by hand.
+- Songs: File > Export Setlist to MPC in the app writes the plugin and the set on the card (one 44.1 kHz WAV per strip from the stems the tunes already use, plus title, tempo and strip names); unchanged tunes are not copied again. Without the app: download MPC-DubStemMix.zip (https://github.com/yoanbernabeu/DubStemMix/releases/latest/download/MPC-DubStemMix.zip) and copy 44.1 kHz WAV stems on the card by hand.
 - MPC transport: PLAY START plays the next tune, STOP pauses, PLAY resumes; tunes chain with no gap. The SONG tab is the live setlist (touch a tune to play it next, or again). Pads 9-16: DROP, CRASH, REWIND, PREV, NEXT, GO, RESTART.
 - Not on the MPC: Audio Unit plugins, stem separation, recording, pre-fader sends; the MIDImix's LEDs stay off (the screen shows them).
 

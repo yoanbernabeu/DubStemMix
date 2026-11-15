@@ -30,7 +30,7 @@ In DubStemMix on the Mac: **File ▸ Export Setlist to MPC…** (or the setlist'
 mpc/prepare-song.sh "1 My Song" drums.wav bass.wav instruments.wav vocals.wav   # -> Content/Songs, 44.1 kHz WAV
 mpc/test.sh     # SDK host simulator + transport and console test
 mpc/build.sh    # MPC build -> mpc/DubStemMix/build/YoanDev - VST - DubStemMix/
-mpc/package.sh 1.2.3 dist   # release: dist/mpc/<plugin, no songs> + dist/DubStemMix-MPC-1.2.3.zip
+mpc/package.sh 1.2.3 dist   # release: dist/mpc/<plugin, no songs> + dist/MPC-DubStemMix-1.2.3.zip
 ```
 
 `tools/make-app.sh` runs `mpc/package.sh` and puts the plugin inside the app; the release workflow attaches the plugin's zip next to the app's.

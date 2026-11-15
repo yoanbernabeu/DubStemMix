@@ -1,9 +1,9 @@
 #!/bin/sh
 # Packages the MPC plugin for a release (PRD § 16.2 quater):
 #   <out>/mpc/YoanDev - VST - DubStemMix/     the plugin, no songs (shipped inside the Mac app)
-#   <out>/DubStemMix-MPC-<version>.zip         the same folder and INSTALL.txt (attached to the GitHub release)
-#   <out>/DubStemMix-MPC.zip                   the same zip under a fixed name, for the website's download link
-#                                              (github.com/<repo>/releases/latest/download/DubStemMix-MPC.zip)
+#   <out>/MPC-DubStemMix-<version>.zip         the same folder and INSTALL.txt (attached to the GitHub release)
+#   <out>/MPC-DubStemMix.zip                   the same zip under a fixed name, for the website's download link
+#                                              (github.com/<repo>/releases/latest/download/MPC-DubStemMix.zip)
 # Usage: mpc/package.sh <version> [out]
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -52,8 +52,8 @@ Akai does not test or support third-party plugins: save your projects often.
 MIT licence - https://github.com/yoanbernabeu/DubStemMix
 TXT
 
-ZIP="$OUT/DubStemMix-MPC-$VERSION.zip"
+ZIP="$OUT/MPC-DubStemMix-$VERSION.zip"
 rm -f "$ZIP"
 (cd "$OUT/mpc" && COPYFILE_DISABLE=1 zip -qr -X "$ZIP" "$NAME" INSTALL.txt)
-cp "$ZIP" "$OUT/DubStemMix-MPC.zip"
+cp "$ZIP" "$OUT/MPC-DubStemMix.zip"
 echo "Built $OUT/mpc/$NAME -> $ZIP ($(du -h "$ZIP" | cut -f1))"

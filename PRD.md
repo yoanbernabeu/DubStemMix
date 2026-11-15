@@ -536,7 +536,7 @@ Export validé sur la One+ le 16/11/2026 avec une grosse setlist (« c'est parfa
 
 Étape 3 validée sur la One+ le 16/11/2026 (« c'est tout bon »), pads compris.
 
-- **Distribution** : le plugin est **livré dans l'app Mac** et écrit sur la carte à chaque export (toujours la version de l'app), **et** la pipeline joint à chaque release GitHub un zip du plugin seul (`DubStemMix-MPC-x.y.z.zip`, avec ses instructions d'installation). Même numéro de version que l'app. Licence MIT ; Akai ne prend pas en charge les plugins tiers (dit dans les instructions).
+- **Distribution** : le plugin est **livré dans l'app Mac** et écrit sur la carte à chaque export (toujours la version de l'app), **et** la pipeline joint à chaque release GitHub un zip du plugin seul (`MPC-DubStemMix-x.y.z.zip`, avec ses instructions d'installation). Même numéro de version que l'app. Licence MIT ; Akai ne prend pas en charge les plugins tiers (dit dans les instructions).
 - **Export to MPC…** (sur une setlist) :
   - **Destination** : l'app propose les cartes et clés branchées (avec leur place libre), ou un **dossier** au choix pour qui veut copier lui-même sur la carte. Elle écrit `VST2 Plugins/YoanDev - VST - DubStemMix/`, plugin compris, et propose d'**éjecter** la carte à la fin.
   - **La carte devient exactement cette setlist**, dans son ordre : les morceaux qui n'y sont plus sont retirés. Un morceau déjà présent et inchangé n'est **pas recopié** (export rapide).

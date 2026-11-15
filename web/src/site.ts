@@ -6,7 +6,7 @@ export const site = {
   releases: "https://github.com/yoanbernabeu/DubStemMix/releases",
   latest: "https://github.com/yoanbernabeu/DubStemMix/releases/latest",
   // The MPC plugin alone, from the latest release (fixed name, see mpc/package.sh).
-  mpcDownload: "https://github.com/yoanbernabeu/DubStemMix/releases/latest/download/DubStemMix-MPC.zip",
+  mpcDownload: "https://github.com/yoanbernabeu/DubStemMix/releases/latest/download/MPC-DubStemMix.zip",
   videoId: "bo1voaD_10Q",
   brewCommand: "brew install --cask yoanbernabeu/tap/dubstemmix",
   installCommand:

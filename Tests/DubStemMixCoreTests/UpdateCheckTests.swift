@@ -28,6 +28,19 @@ import Testing
     #expect(ReleaseInfo(githubJSON: Data(json.replacingOccurrences(of: "\"prerelease\": false", with: "\"prerelease\": true").utf8)) == nil)
 }
 
+@Test func theUpdateIsTheAppZipNeverTheMPCPlugin() throws {
+    // A release also carries the MPC plugin, listed first here: the update must still be the app.
+    let json = """
+    {"tag_name": "v0.15.1", "html_url": "https://github.com/yoanbernabeu/DubStemMix/releases/tag/v0.15.1",
+     "draft": false, "prerelease": false,
+     "assets": [{"name": "DubStemMix-MPC-0.15.1.zip", "browser_download_url": "https://example.com/a.zip"},
+                {"name": "MPC-DubStemMix.zip", "browser_download_url": "https://example.com/b.zip"},
+                {"name": "DubStemMix-0.15.1.zip", "browser_download_url": "https://example.com/DubStemMix-0.15.1.zip"}]}
+    """
+    let release = try #require(ReleaseInfo(githubJSON: Data(json.utf8)))
+    #expect(release.zipURL.lastPathComponent == "DubStemMix-0.15.1.zip")
+}
+
 @Test func automaticCheckRunsAtMostOnceADay() {
     let now = Date()
     #expect(UpdateCheck.isDue(lastCheck: nil, now: now))

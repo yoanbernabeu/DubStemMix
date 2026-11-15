@@ -9,3 +9,4 @@ mpc/.sdk/
 mpc/DubStemMix/build/
 mpc/DubStemMix/Content/Songs/
 mpc/DubStemMix/__pycache__/
+mpc/.venv/
