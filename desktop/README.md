@@ -12,9 +12,10 @@ Milestones L1 (the JUCE base) and L3 (the console's look) of PRD § 17.5. For no
 - **Everything is playable with the mouse**: knobs (drag up and down), faders, MUTE, THROW (held), KEEP, SOLO (the SOLO button, then MUTE), the pages, DROP / REWIND / HOLD / CRASH, the insert of each strip, the reverb and bus 3 models, delay sync, the throw target, where each bus is sent, the siren's wave and the Syndrum's roll. Touch a song in the setlist to play it next.
 - **MIDImix**, factory mapping, exactly as on the MPC. Plugged or unplugged while running. Its LEDs are lit (MUTE, REC ARM, BANK).
 - **Keyboard**: Space play / pause, N next song, D drop (held), H hold (held), C crash, R rewind, Esc panic.
+- **The song's waveform** with its playhead (the last 30 s in ochre), and **cables between the bus cards** for bus-to-bus sends (dashed while the send knob is at zero).
 - `SOUND CARD…` picks the card and the buffer size. The engine runs at 44.1 kHz; a sound card at another rate is resampled to.
 
-Not there yet (they need the app's own engine, milestone L2): projects and stems dropped on strips, the waveform (a progress bar stands in), the song's tempo, the master meter and limiter indicator, the cables between bus cards. Then setlists, recording, third-party plugins, stem separation.
+Not there yet (they need the app's own engine, milestone L2): projects and stems dropped on strips, moving in the song by clicking the waveform, the song's tempo, the master meter and limiter indicator. Then setlists, recording, third-party plugins, stem separation.
 
 ## Build and run
 

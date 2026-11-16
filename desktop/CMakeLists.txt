@@ -55,5 +55,6 @@ target_link_libraries(dubstemmix-desktop PRIVATE
   DubStemMixAssets
   juce::juce_audio_utils
   juce::juce_audio_devices
+  juce::juce_audio_formats
   juce::juce_gui_basics
   juce::juce_recommended_config_flags)

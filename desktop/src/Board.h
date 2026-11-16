@@ -10,6 +10,7 @@
 #pragma once
 
 #include "Engine.h"
+#include "Waveform.h"
 #include "BinaryData.h"
 
 #include <functional>
@@ -58,6 +59,7 @@ public:
     {
         setSize(kWidth, kHeight);
         setOpaque(true);
+        if (const char* folder = std::getenv("MPC_PLUGIN_FOLDER")) waveforms_.setFolder(juce::String::fromUTF8(folder));
     }
 
     // SOLO held (the console's SOLO button, or the SOLO button of the master column): MUTE then solos.
@@ -254,15 +256,21 @@ private:
     }
     juce::String busBrief(int bus) const { return bus == fx::Delay ? "DLY" : bus == fx::Reverb ? "REV" : bus3Name(true); }
 
-    // Where a bus's return is also sent ("DLY>REV"), or "DLY>-" when nowhere.
-    juce::String sendCaption(int bus) const
+    // The bus a bus's return is also sent to, or -1.
+    int busTarget(int bus) const
     {
         const Engine& engine = Engine::get();
         const int which = engine.choice(engine.busTo[bus], 3);
         // The plugin's choices skip the bus itself: {-, the two other buses in order}.
-        int other = -1;
         for (int b = 0, k = 0; b < fx::BusCount; ++b)
-            if (b != bus && ++k == which) other = b;
+            if (b != bus && ++k == which) return b;
+        return -1;
+    }
+
+    // Where a bus's return is also sent ("DLY>REV"), or "DLY>-" when nowhere.
+    juce::String sendCaption(int bus) const
+    {
+        const int other = busTarget(bus);
         return busBrief(bus) + ">" + (other < 0 ? juce::String("-") : busBrief(other));
     }
 
@@ -452,24 +460,38 @@ private:
         write(g, look::u("SOUND CARD…"), sound, look::label(11.5f), look::text, juce::Justification::centred);
         call(sound, [this] { if (onSoundCard) onSoundCard(); });
 
-        // Progress: the waveform's place until the engine can give one (the last 30 s turn ochre, PRD § 5.6).
+        // Waveform of the whole song, with the playhead; the last 30 s turn ochre (PRD § 5.6).
         const juce::Rectangle<float> bar(250.0f, 78.0f, 1172.0f, 78.0f);
         card(g, bar, look::surface, look::border);
-        const int seconds = left.fromFirstOccurrenceOf("-", false, false).upToFirstOccurrenceOf(":", false, false).getIntValue() * 60
-                            + left.fromLastOccurrenceOf(":", false, false).getIntValue();
-        if (title != progressSong_) { progressSong_ = title; longest_ = seconds; }
-        longest_ = juce::jmax(longest_, seconds);
-        if (longest_ > 0)
+        const int songs = waveforms_.songCount();
+        const std::shared_ptr<const Waveform> wave = waveforms_.get(engine.choice(engine.nowPlaying, juce::jmax(2, songs)));
+        if (wave == nullptr || wave->seconds <= 0.0)
         {
-            const float done = 1.0f - (float)seconds / (float)longest_;
-            const juce::Rectangle<float> track = bar.reduced(14.0f, 32.0f);
-            g.setColour(look::border);
-            g.fillRoundedRectangle(track, 3.0f);
-            g.setColour(seconds <= 30 ? look::delay : look::text);
-            g.fillRoundedRectangle(track.withWidth(juce::jmax(6.0f, track.getWidth() * done)), 3.0f);
-            g.setColour(look::delay);
-            g.fillRect(track.getX() + track.getWidth() * done - 1.0f, bar.getY() + 6.0f, 2.0f, bar.getHeight() - 12.0f);
+            if (songs > 0) write(g, "READING THE WAVEFORM", bar, look::mono(9.0f), look::dim, juce::Justification::centred);
+            return;
         }
+        // The engine only gives the time left, in whole seconds: the playhead glides between two ticks.
+        const int secondsLeft = left.fromFirstOccurrenceOf("-", false, false).upToFirstOccurrenceOf(":", false, false).getIntValue() * 60
+                                + left.fromLastOccurrenceOf(":", false, false).getIntValue();
+        const double now = juce::Time::getMillisecondCounterHiRes() * 0.001;
+        if (secondsLeft != lastSecondsLeft_) { lastSecondsLeft_ = secondsLeft; lastTick_ = now; }
+        const bool running = playing && engine.choice(engine.state, 4) == 1;
+        const double position = juce::jlimit(0.0, wave->seconds, wave->seconds - secondsLeft + (running ? juce::jmin(0.98, now - lastTick_) : 0.0));
+        const float done = (float)(position / wave->seconds);
+        const juce::Rectangle<float> area = bar.reduced(2.0f, 6.0f);
+        const float pitch = area.getWidth() / (float)Waveforms::kBars;
+        const double lastThirty = wave->seconds - 30.0;
+        for (int i = 0; i < Waveforms::kBars; ++i)
+        {
+            const float at = ((float)i + 0.5f) / (float)Waveforms::kBars;
+            const float h = juce::jmax(1.5f, wave->peaks[(size_t)i] * area.getHeight() * 0.92f);
+            const bool ending = at * wave->seconds >= lastThirty;
+            const juce::Colour colour = ending ? look::delay : look::text;
+            g.setColour(at <= done ? colour : colour.withAlpha(ending ? 0.45f : 0.28f));
+            g.fillRect(area.getX() + (float)i * pitch, area.getCentreY() - h * 0.5f, juce::jmax(1.0f, pitch - 1.0f), h);
+        }
+        g.setColour(look::delay);
+        g.fillRect(area.getX() + area.getWidth() * done - 1.0f, bar.getY() + 1.0f, 2.0f, bar.getHeight() - 2.0f);
     }
 
     // ---- The three bus cards ----
@@ -513,6 +535,41 @@ private:
                 zone(Zone::Cycle, target, engine.throwTarget, 3);
             }
             write(g, summaries[b], {r.getRight() - 190.0f, r.getY() + 10.0f, 178.0f, 18.0f}, look::mono(10.0f), look::dim, juce::Justification::centredRight);
+        }
+
+        // Bus-to-bus sends drawn as cables (PRD § 5.3): from the source card's output socket to the target
+        // card's input socket, dashed while the send knob is at zero.
+        auto socket = [&g](float x, juce::Colour colour)
+        {
+            g.setColour(look::bg);
+            g.fillEllipse(x - 4.0f, 230.0f, 8.0f, 8.0f);
+            g.setColour(colour);
+            g.drawEllipse(x - 3.5f, 230.5f, 7.0f, 7.0f, 1.5f);
+        };
+        for (int b = 0; b < fx::BusCount; ++b)
+        {
+            const int target = busTarget(b);
+            if (target < 0) continue;
+            const juce::Colour colour = busColour(b);
+            const float from = 250.0f + (float)b * 393.0f + 240.0f, to = 250.0f + (float)target * 393.0f + 147.0f;
+            juce::Path cable;
+            cable.startNewSubPath(from, 234.0f);
+            cable.quadraticTo((from + to) * 0.5f, 234.0f + 24.0f, to, 234.0f);
+            if (engine.value(engine.effect[fx::kBusSend[b]]) > 0.004f)
+            {
+                g.setColour(colour);
+                g.strokePath(cable, juce::PathStrokeType(2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            }
+            else
+            {
+                const float dashes[2] = {4.0f, 4.0f};
+                juce::Path dashed;
+                juce::PathStrokeType(1.5f).createDashedStroke(dashed, cable, dashes, 2);
+                g.setColour(colour.withAlpha(0.7f));
+                g.fillPath(dashed);
+            }
+            socket(from, colour);
+            socket(to, colour);
         }
     }
 
@@ -726,8 +783,9 @@ private:
     std::vector<Zone> zones_;
     std::unique_ptr<Zone> active_;
     bool soloMode_ = false;
-    juce::String progressSong_;
-    int longest_ = 0;
+    Waveforms waveforms_;
+    int lastSecondsLeft_ = -1;
+    double lastTick_ = 0.0;
 };
 
 } // namespace dsm

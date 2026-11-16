@@ -314,6 +314,8 @@ int runSnapshot(const juce::File& target, const juce::String& pageName)
     }
     dsm::Board board;
     board.status.soundError = "snapshot";
+    board.createComponentSnapshot(board.getLocalBounds(), true, 1.0f);   // asks for the waveform
+    wait(3.0);
     const juce::Image image = board.createComponentSnapshot(board.getLocalBounds(), true, 1.0f);
     target.deleteFile();
     juce::FileOutputStream out(target);
