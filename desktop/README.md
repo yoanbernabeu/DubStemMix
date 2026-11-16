@@ -32,6 +32,7 @@ desktop/build.sh                                        # -> desktop/build/dubst
 desktop/build/dubstemmix-desktop                        # an empty session
 desktop/build/dubstemmix-desktop song.dubstem           # a project, or a setlist (.dubset)
 desktop/build/dubstemmix-desktop --selftest             # no display, no sound card: makes test songs and checks
+desktop/build/dubstemmix-desktop --screentest pictures/  # no display: plays the screen like a user, checks, saves pictures
 desktop/build/dubstemmix-desktop --snapshot out.png fx  # draws a page (mix, fx, master, inserts) to a picture
 ```
 
@@ -43,5 +44,6 @@ The first build downloads JUCE and Akai's MPC Plugin SDK headers (the engine is 
 ## Tested, not tested
 
 - `--selftest` makes test songs, then checks the stems (placing, several per strip, another sample rate), the console's gestures with the levels of the MPC plugin's own test, moving in the song, the loop and its seamless loop point, the end, saving and reopening a project, names, the recent files, tempo detection, a Mac-only setting surviving a save, a missing stem and locating it. It runs in CI on Linux.
+- `--screentest` builds the real console and plays it like a user, with no window: files dropped, stems carried, right-click menus, the play, back and loop buttons, a click in the waveform, faders and knobs dragged, MUTE, THROW held, KEEP, SOLO, the pages, the bus cards, the tempo controls, double-clicks to rename, the limiter, a setlist. It checks the result of each gesture and saves pictures. It runs in CI on Linux too. It cannot reach the system's file dialogs, nor judge the sound.
 - Not tried on Linux yet: the MIDImix and its LEDs, and sound on a real PC.
 - Windows: not built yet.

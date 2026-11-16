@@ -29,3 +29,12 @@ jobs:
         run: desktop/build.sh
       - name: Self-test (no display, no sound card)
         run: desktop/build/dubstemmix-desktop --selftest
+      - name: Screen test (the console played like a user, no display)
+        run: desktop/build/dubstemmix-desktop --screentest "$RUNNER_TEMP/screen"
+      - name: Keep the screen test's pictures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-screen-linux
+          path: ${{ runner.temp }}/screen/*.png
+          if-no-files-found: ignore

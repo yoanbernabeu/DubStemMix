@@ -491,6 +491,7 @@ private:
     // a touched song becomes the next one, a new insert starts from its defaults.
     void followScreen()
     {
+        bool lampsStale = false;
         for (int i = 0; i < kNumParams; ++i)
         {
             const float v = get(i);
@@ -518,7 +519,10 @@ private:
                 if (faderTarget(s) == i) release(faders_[s], v);
             }
             if (i == kMaster) release(master_, v);
+            // A MUTE set on the screen lights its lamp, and so the console's LED, like one pressed on the console.
+            if (i >= kStripBase && i < kFxBase && (i - kStripBase) % 5 == 1) lampsStale = true;
         }
+        if (lampsStale) refreshLamps();
     }
 
     void handleMidi(const mpc::ProcessContext& ctx)

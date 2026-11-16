@@ -2,6 +2,8 @@
 //
 //   dubstemmix-desktop [song.dubstem | set.dubset]   opens a project or a setlist made here or on the Mac
 //   dubstemmix-desktop --selftest                    no sound card: makes test songs, plays them, checks
+//   dubstemmix-desktop --screentest [folder]         no window: plays the console's screen like a user (clicks,
+//                                                    drags, drops, menus), checks, and saves pictures in folder
 //   dubstemmix-desktop --snapshot out.png [mix|fx|master|inserts] [song.dubstem | set.dubset]
 //                                                    draws the console to a picture, no window, no sound card
 //
@@ -515,6 +517,262 @@ int runSelfTest()
     return failures == 0 ? 0 : 1;
 }
 
+// ----------------------------------------------------------------------------------------------------
+// Screen test: the real console, played like a user would - clicks, drags, double-clicks, right-clicks and
+// files dropped at the controls' places - with no window and no sound card. What it cannot reach: the
+// system's own file dialogs, and how it sounds.
+// ----------------------------------------------------------------------------------------------------
+
+class ScreenUser
+{
+public:
+    explicit ScreenUser(dsm::Board& board) : board_(board) {}
+
+    // The board lays out its controls as it draws: look before touching.
+    void look() { board_.createComponentSnapshot(board_.getLocalBounds(), true, 1.0f); }
+
+    void press(float x, float y, bool right = false) { look(); board_.mouseDown(event({x, y}, {x, y}, right, false)); }
+    void release(float x, float y) { board_.mouseUp(event({x, y}, {x, y}, false, false)); wait(0.05); }
+    void click(float x, float y) { press(x, y); release(x, y); }
+    void rightClick(float x, float y) { press(x, y, true); release(x, y); }
+    void doubleClick(float x, float y) { look(); board_.mouseDoubleClick(event({x, y}, {x, y}, false, false)); }
+    void drag(float x, float y, float toX, float toY, bool shift = false)
+    {
+        press(x, y);
+        board_.mouseDrag(event({toX, toY}, {x, y}, false, true, shift));
+        board_.mouseUp(event({toX, toY}, {x, y}, false, true));
+        wait(0.05);
+    }
+    void drop(const juce::Array<juce::File>& files, float x, float y)
+    {
+        juce::StringArray paths;
+        for (const juce::File& f : files) paths.add(f.getFullPathName());
+        board_.filesDropped(paths, (int)x, (int)y);
+    }
+    bool picture(const juce::File& file)
+    {
+        const juce::Image image = board_.createComponentSnapshot(board_.getLocalBounds(), true, 1.0f);
+        file.deleteFile();
+        juce::FileOutputStream out(file);
+        return out.openedOk() && juce::PNGImageFormat().writeImageToStream(image, out);
+    }
+
+private:
+    juce::MouseEvent event(juce::Point<float> at, juce::Point<float> downAt, bool right, bool dragged, bool shift = false)
+    {
+        int flags = right ? juce::ModifierKeys::rightButtonModifier : juce::ModifierKeys::leftButtonModifier;
+        if (shift) flags |= juce::ModifierKeys::shiftModifier;
+        const juce::Time now = juce::Time::getCurrentTime();
+        return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(), at, juce::ModifierKeys(flags), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                &board_, &board_, now, downAt, now, 1, dragged);
+    }
+    dsm::Board& board_;
+};
+
+int runScreenTest(const juce::File& pictures)
+{
+    const juce::File root = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                                .getChildFile("dubstemmix-screen-" + juce::String(juce::Time::currentTimeMillis()));
+    const juce::File kick = writeStem(root, "Tune (Kick).wav", 0.25f, 20.0);
+    const juce::File bass = writeStem(root, "Tune (Bass).wav", 0.20f, 20.0);
+    const juce::File keys = writeStem(root, "Tune (Keys).wav", 0.10f, 20.0);
+    const juce::File horns = writeStem(root, "Tune (Horns).wav", 0.05f, 20.0);
+
+    Engine& engine = Engine::get();
+    engine.open();
+    dsm::AppModel app(true);
+    app.newSession();
+    dsm::Board board(app);
+    board.status.soundError = "screen test";
+    ScreenUser user(board);
+    dsm::Transport& t = dsm::transport();
+
+    // What a dialog would answer.
+    juce::String typed;
+    int pickedItem = 0, opened = 0, saved = 0, fresh = 0;
+    juce::String menuItems;
+    board.onAskText = [&typed](const juce::String&, const juce::String&, std::function<void(const juce::String&)> done) { done(typed); };
+    board.showMenu = [&pickedItem, &menuItems](juce::PopupMenu& menu, std::function<void(int)> picked)
+    {
+        menuItems = {};
+        for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) menuItems << it.getItem().text << "|";
+        picked(pickedItem);
+    };
+    board.onOpen = [&opened] { ++opened; };
+    board.onSave = [&saved] { ++saved; };
+    board.onNew = [&fresh] { ++fresh; };
+    board.onOpenFile = [&app](const juce::File& f) { if (app.open(f) && f.hasFileExtension("dubset")) app.openSong(0); };
+
+    int failures = 0;
+    auto expect = [&failures](const char* what, float got, float want, float tolerance = 0.003f)
+    {
+        const bool ok = std::fabs(got - want) <= tolerance;
+        if (!ok) failures++;
+        std::printf("%s  %-62s got %.4f want %.4f\n", ok ? "PASS" : "FAIL", what, (double)got, (double)want);
+    };
+    auto yes = [&expect](const char* what, bool ok) { expect(what, ok ? 1.0f : 0.0f, 1.0f); };
+    {
+        SilentPlayer player;
+        auto level = [&engine] { return engine.lastLevel.load(); };
+        const float masterGain = std::pow(0.8f, 2.5f);
+        const float unity = std::pow(0.8f, 2.5f) * 0.5f * masterGain;
+        // Where things are on the 1440 x 900 board.
+        auto stripX = [](int s) { return 329.0f + 122.0f * (float)s + 57.0f; };
+        const float knobY[3] = {322.0f, 414.0f, 506.0f}, muteY = 605.0f, throwY = 641.0f, thirdY = 671.0f, nameY = 576.0f;
+        const float faderTop = 705.0f, faderBottom = 811.0f, poolRow = 182.0f;
+        const float pageY[4] = {327.0f, 363.0f, 399.0f, 435.0f}, masterX = 1363.0f;
+
+        // ---- Stems: dropped, carried, placed from the menu ----
+        user.drop({kick, bass, keys}, 100.0f, 400.0f);
+        expect("files dropped on the sidebar: in the stems to place", (float)app.session.pool.size(), 3.0f);
+        user.drag(116.0f, poolRow, stripX(0), 500.0f);
+        expect("a stem carried from the list onto strip 1", (float)app.session.strips[0].size(), 1.0f);
+        yes("...it is the kick", app.session.strips[0].size() == 1 && app.session.strips[0][0].file == kick);
+        pickedItem = 2;   // "Place on strip 2"
+        user.rightClick(116.0f, poolRow);
+        yes("right-click on a stem: the menu offers the strips", menuItems.contains("Place on strip 2") && menuItems.contains("Remove"));
+        yes("...and places the bass on strip 2", app.session.strips[1].size() == 1 && app.session.strips[1][0].file == bass);
+        user.drop({horns}, stripX(3), 600.0f);
+        yes("a file dropped on strip 4 goes there", app.session.strips[3].size() == 1 && app.session.pool.size() == 1);
+        pickedItem = 100;   // "Back to the stems to place"
+        user.rightClick(stripX(3), 842.0f);
+        yes("right-click on a strip's stem: back to the stems to place", app.session.strips[3].empty() && app.session.pool.size() == 2);
+        wait(0.8);
+
+        // ---- Transport ----
+        user.click(273.0f, 42.0f);
+        wait(0.8);
+        yes("the play button starts the song", engine.isPlaying());
+        expect("...strips 1 and 2 sound", level(), 0.45f * unity);
+        user.click(250.0f + 1172.0f * 0.5f, 117.0f);
+        wait(0.5);
+        expect("a click in the middle of the waveform jumps there", (float)engine.seconds(), 10.5f, 0.7f);
+        user.click(325.0f, 42.0f);
+        wait(0.4);
+        expect("the back button returns to the start", (float)engine.seconds(), 0.4f, 0.4f);
+        const bool loopBefore = app.session.loop;
+        user.click(377.0f, 42.0f);
+        yes("the loop button switches the loop", app.session.loop != loopBefore && t.loop.load() == app.session.loop);
+
+        // ---- A strip: fader, MUTE, THROW held, a send knob, KEEP, SOLO ----
+        user.drag(stripX(0) - 12.0f, 740.0f, stripX(0) - 12.0f, faderBottom + 6.0f);
+        wait(0.6);
+        expect("fader 1 dragged to the bottom: only strip 2 left", level(), 0.20f * unity);
+        user.drag(stripX(0) - 12.0f, faderBottom, stripX(0) - 12.0f, faderTop);
+        wait(0.6);
+        expect("fader 1 dragged to the top", level(), 0.25f * 0.5f * masterGain + 0.20f * unity);
+        user.click(stripX(0), muteY);
+        wait(0.6);
+        expect("MUTE 1 clicked: only strip 2 left", level(), 0.20f * unity);
+        yes("...its lamp is lit", engine.on(engine.lampMute[0]));
+        user.click(stripX(0), muteY);
+        user.press(stripX(1), throwY);
+        wait(0.3);
+        yes("THROW 2 held: lit while it is down", engine.on(engine.lampRec[1]));
+        user.release(stripX(1), throwY);
+        wait(0.3);
+        yes("...and off when let go", !engine.on(engine.lampRec[1]));
+        user.drag(stripX(0), knobY[0], stripX(0), knobY[0] - 80.0f);
+        expect("the delay send of strip 1 turned up by dragging", engine.value(engine.send[0][0]), 0.5f, 0.01f);
+        user.click(stripX(1), thirdY);
+        yes("KEEP 2 clicked", engine.on(engine.keep[1]));
+        user.click(masterX, 647.0f);
+        user.click(stripX(1), muteY);
+        yes("SOLO, then MUTE 2: strip 2 soloed", engine.on(engine.solo[1]) && !engine.on(engine.mute[1]));
+        user.click(stripX(1), muteY);
+        user.click(masterX, 647.0f);
+        yes("...and off again", !engine.on(engine.solo[1]));
+
+        // ---- Pages, an effect knob, an insert ----
+        user.click(masterX, pageY[1]);
+        wait(0.3);
+        expect("the FX button shows the FX page", (float)engine.currentPage(), (float)dsm::kFx);
+        const float before = engine.value(engine.effect[fx::DelayFeedback]);
+        user.drag(stripX(0), knobY[1], stripX(0), knobY[1] - 40.0f);
+        expect("FX page: strip 1's middle knob is the delay feedback", engine.value(engine.effect[fx::DelayFeedback]), before + 0.25f, 0.01f);
+        user.picture(pictures.getChildFile("screen-fx.png"));
+        user.click(masterX, pageY[3]);
+        wait(0.3);
+        expect("the INSERTS button shows the INSERTS page", (float)engine.currentPage(), (float)dsm::kInserts);
+        user.click(stripX(1), thirdY);
+        expect("INSERTS page: a click gives strip 2 the sub", (float)engine.choice(engine.insert[1], fx::insert::KindCount), (float)fx::insert::Sub);
+        user.click(masterX, pageY[0]);
+        wait(0.3);
+        expect("the MIX button comes back to MIX", (float)engine.currentPage(), (float)dsm::kMix);
+
+        // ---- Bus cards: where a bus is sent, its model, pre / post ----
+        user.click(250.0f + 151.0f, 189.0f);
+        expect("delay card: TO sends the delay to the reverb", (float)engine.choice(engine.busTo[fx::Delay], 3), 1.0f);
+        user.click(250.0f + 393.0f + 60.0f, 212.0f);
+        expect("reverb card: a click on the model gives the spring", (float)engine.choice(engine.reverbModel, 2), 1.0f);
+        user.click(250.0f + 393.0f + 172.0f, 212.0f);
+        yes("reverb card: POST becomes PRE", t.preFader[fx::Reverb].load());
+        user.click(250.0f + 282.0f, 212.0f);
+        yes("delay card: POST becomes PRE", t.preFader[fx::Delay].load());
+        user.picture(pictures.getChildFile("screen-mix.png"));
+
+        // ---- Tempo ----
+        app.setBpm(70.0);
+        user.click(1011.0f, 51.0f);
+        expect("x2 doubles the tempo", (float)app.session.bpm, 140.0f);
+        user.click(977.0f, 51.0f);
+        expect("÷2 halves it", (float)app.session.bpm, 70.0f);
+        user.drag(910.0f, 35.0f, 910.0f, 15.0f);
+        expect("the tempo dragged up by 20 points", (float)app.session.bpm, 75.0f);
+        const bool syncBefore = engine.on(engine.delaySync);
+        user.click(1049.0f, 51.0f);
+        yes("SYNC switches the delay's sync", engine.on(engine.delaySync) != syncBefore);
+        for (int i = 0; i < 4; ++i) { user.click(979.0f, 30.0f); wait(0.5); }
+        // Each tap also redraws the board first, so the taps are a little more than half a second apart.
+        expect("four taps about half a second apart set the tempo", (float)app.session.bpm, 108.0f, 14.0f);
+
+        // ---- Names, the limiter, the session buttons ----
+        typed = "Screen Dub";
+        user.doubleClick(500.0f, 32.0f);
+        yes("double-click on the title renames the song", app.session.displayTitle() == "Screen Dub");
+        typed = "sub bass";
+        user.doubleClick(stripX(1), nameY);
+        yes("double-click on a strip's name renames it", app.session.stripName(1) == "SUB BASS");
+        user.click(masterX, 839.0f);
+        yes("LIMITER ON clicked: off", !t.limiterOn.load());
+        user.click(masterX, 839.0f);
+        yes("...and on again", t.limiterOn.load());
+        user.click(1302.0f, 42.0f);
+        user.click(1385.0f, 42.0f);
+        user.click(1212.0f, 42.0f);
+        yes("SAVE, NEW and OPEN ask their dialogs", saved == 1 && fresh == 1 && opened == 1);
+
+        // ---- A setlist: dropped on the window, a song picked in the sidebar ----
+        const juce::File first = root.getChildFile("First.dubstem"), second = root.getChildFile("Second.dubstem");
+        app.saveAs(first);
+        app.rename("Second Tune");
+        app.saveAs(second);
+        const juce::File set = root.getChildFile("Night.dubset");
+        set.replaceWithText("{\"version\": 1, \"name\": \"Night\", \"projects\": [{\"path\": \"\", \"relativePath\": \"First.dubstem\", \"color\": 2, \"tag\": \"opener\"},"
+                            " {\"path\": \"\", \"relativePath\": \"Second.dubstem\"}]}");
+        user.drop({set}, 700.0f, 500.0f);
+        wait(0.5);
+        expect("a setlist dropped on the window opens on its first song", (float)app.setlistIndex, 0.0f);
+        expect("...with its two songs", (float)app.setlist.songs.size(), 2.0f);
+        // Two stems wait to be placed: their rows, then the setlist's.
+        const float firstRow = 132.0f + 16.0f + 16.0f + 2.0f * 40.0f + 12.0f + 34.0f;
+        user.click(116.0f, firstRow + 42.0f + 19.0f);
+        wait(0.5);
+        expect("a click on the second song loads it", (float)app.setlistIndex, 1.0f);
+        yes("...stopped, with its title", !engine.isPlaying() && app.session.displayTitle() == "Second Tune");
+        pickedItem = 0;
+        user.click(1212.0f, 42.0f);
+        yes("OPEN now lists the recent files", menuItems.contains("Night") && menuItems.contains("(setlist)") && menuItems.contains("Clear Menu"));
+        user.picture(pictures.getChildFile("screen-setlist.png"));
+        t.preFader[fx::Reverb].store(false);
+        t.preFader[fx::Delay].store(false);
+    }
+    root.deleteRecursively();
+    std::printf("Result: %s\n", failures == 0 ? "all passed" : "FAILED");
+    std::fflush(stdout);
+    return failures == 0 ? 0 : 1;
+}
+
 // Draws the console to a PNG: how the look is checked without a screen.
 int runSnapshot(dsm::AppModel& app, const juce::File& target, const juce::String& pageName)
 {
@@ -549,6 +807,15 @@ public:
     {
         juce::StringArray arguments = getCommandLineParameterArray();
         if (arguments.contains("--selftest")) { finish(runSelfTest()); return; }
+        const int screenTest = arguments.indexOf("--screentest");
+        if (screenTest >= 0)
+        {
+            const juce::File pictures = screenTest + 1 < arguments.size() ? juce::File::getCurrentWorkingDirectory().getChildFile(arguments[screenTest + 1])
+                                                                          : juce::File::getSpecialLocation(juce::File::tempDirectory);
+            pictures.createDirectory();
+            finish(runScreenTest(pictures));
+            return;
+        }
 
         const juce::File here = juce::File::getCurrentWorkingDirectory();
         juce::File snapshot;

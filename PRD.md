@@ -638,6 +638,8 @@ Jalons (ordre de travail, ajustable) :
 - **Boucle calée à l'échantillon** : plus de silence au point de boucle.
 - Vérifié : auto-test (51 contrôles) sur le Mac ; capture d'un vrai projet. Non couvert par l'auto-test : le son des envois pré-fader (à juger à l'oreille). En attente de l'essai de Yoan.
 
+**Test d'écran (16/11/2026, demandé par Yoan : « t'as pas moyen de t'auto-tester en lançant l'app ? »)** : `--screentest` construit la vraie console et la joue comme un utilisateur, sans fenêtre : fichiers déposés, stems portés à la souris, menus du clic droit, boutons du transport, clic dans la forme d'onde, faders et potards glissés, MUTE, THROW tenu, KEEP, SOLO, pages, cartes des bus, tempo, doubles-clics pour renommer, limiteur, setlist (46 contrôles, plus des captures). Il tourne aussi dans la pipeline Linux. Il ne peut ni ouvrir les fenêtres du système (choix d'un fichier), ni juger le son. Premier défaut trouvé et corrigé : un MUTE cliqué à l'écran coupait la tranche sans allumer son voyant ni la LED de la console.
+
 ### 17.4 Points ouverts
 
 - **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 

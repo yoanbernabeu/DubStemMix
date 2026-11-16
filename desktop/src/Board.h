@@ -57,6 +57,11 @@ public:
     // What needs a dialog is done by the board's owner.
     std::function<void()> onSoundCard, onOpen, onSave, onNew, onAddStems, onLocate;
     std::function<void(const juce::File&)> onOpenFile;
+    // Shows a menu and gives back the item picked (0: none). Replaced by the screen test, which picks by itself.
+    std::function<void(juce::PopupMenu&, std::function<void(int)>)> showMenu = [](juce::PopupMenu& menu, std::function<void(int)> picked)
+    {
+        menu.showMenuAsync(juce::PopupMenu::Options(), std::move(picked));
+    };
     // Asks for a line of text (a name), then gives it back.
     std::function<void(const juce::String& what, const juce::String& current, std::function<void(const juce::String&)>)> onAskText;
 
@@ -237,7 +242,7 @@ private:
             if (fromStrip >= 0) menu.addItem(100, "Back to the stems to place");
             menu.addSeparator();
             menu.addItem(101, "Remove");
-            menu.showMenuAsync(juce::PopupMenu::Options(), [this, fromStrip, index](int picked)
+            showMenu(menu, [this, fromStrip, index](int picked)
             {
                 if (picked >= 1 && picked <= kStems) app_.move(fromStrip, index, picked - 1);
                 else if (picked == 100) app_.move(fromStrip, index, -1);
@@ -694,7 +699,7 @@ private:
                 menu.addItem(10 + i, recent[i].getFileNameWithoutExtension() + (recent[i].hasFileExtension("dubset") ? "  (setlist)" : ""));
             menu.addSeparator();
             menu.addItem(2, "Clear Menu");
-            menu.showMenuAsync(juce::PopupMenu::Options(), [this, recent](int picked)
+            showMenu(menu, [this, recent](int picked)
             {
                 if (picked == 1) { if (onOpen) onOpen(); }
                 else if (picked == 2) app_.settings.clearRecent();
