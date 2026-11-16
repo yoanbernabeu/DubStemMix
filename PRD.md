@@ -557,3 +557,44 @@ Export validé sur la One+ le 16/11/2026 avec une grosse setlist (« c'est parfa
 
 - **Maquette validée sur la One+ le 15/11/2026** (`mpc/`, plugin « YoanDev - VST - DubStemMix ») : la MIDImix arrive au plugin par l'entrée MIDI de la piste (faders et MUTE) ; 4 stems lus depuis la carte SD sans décrochage (0 underrun) pour **0,3 %** de CPU ; l'écran suit les valeurs changées par le plugin ; PLAY reprend, PLAY START passe au suivant, à l'arrêt comme en lecture (la MPC ne s'arrête pas : sa position revient au début, distinguée du bouclage de la séquence qui revient sur une barre de mesure) ; l'enchaînement en fin de morceau fonctionne. Le plugin ne lit la liste des morceaux qu'à son chargement. Reste à vérifier : le rendu des vu-mètres (« peu testés » d'après le SDK).
 - **Place sur la carte** : environ 300 Mo par morceau de 6 stems, donc environ 6 Go pour 21 titres.
+
+## 17. DubStemMix sur Linux et Windows (maquette validée le 16 novembre 2026)
+
+Cadré en discussion le 16 novembre 2026. Objectif : jouer un set sur un PC, avec la MIDImix, le son et les gestes de DubStemMix.
+
+### 17.1 Principe (décisions du 16/11/2026)
+
+- **Une troisième app**, à côté de l'app Mac et du plugin MPC. L'app Mac n'est pas touchée. Les trois partagent le produit (ce document) et les effets intégrés (`Sources/DubDSP`), pas le reste du code : c'est assumé.
+- **Elle part du code du plugin MPC** (`mpc/DubStemMix/src`), qui contient déjà toute la console sans rien d'Apple et se compile déjà sur un ordinateur pour ses tests.
+- **Linux d'abord.** Windows viendra du même code, plus tard, quand quelqu'un pourra l'essayer sur une vraie machine.
+- **Garde-fous contre la dérive** : ce PRD unique, le tableau `FEATURES.md`, la skill `feature` (une évolution = une PR pour toutes les apps concernées) et des tests « même geste, même résultat ».
+- **Outils et licence** : la maquette utilise de petites briques libres compatibles MIT (son, MIDI, fenêtre). Le choix définitif (ces briques, ou JUCE qui apporte les plugins VST3 mais impose l'AGPL) se fera après la maquette.
+
+### 17.2 Maquette (cadrage validé le 16/11/2026)
+
+But : lever les risques avant de cadrer le vrai portage, comme pour la MPC (§ 16.4). Elle ne sera pas publiée.
+
+- **Ce qu'elle joue** : un dossier d'export MPC déjà présent sur le Mac (un WAV 44,1 kHz par tranche, `song.json`). Pas d'import, pas de projet `.dubstem`.
+- **Console** : la MIDImix avec le mapping d'usine. Comme la maquette reprend le moteur du plugin MPC, les pages, les effets et les gestes de la console suivent sans travail en plus ; seuls sont jugés à ce stade les faders, les MUTE, les envois et le delay.
+- **Clavier** : Espace = lecture / pause, N = morceau suivant. Rien d'autre.
+- **Fenêtre simple**, sans le look du Mac : 8 tranches (nom, fader, MUTE, vu-mètre), titre du morceau et temps restant, choix de la carte son et de la taille de buffer, MIDImix connectée ou non, charge et compteur de décrochages.
+- **LEDs de la MIDImix** : on vérifie qu'elles s'allument (possible sur un ordinateur, pas sur la MPC).
+- **Rangement** : dossier `desktop/` du dépôt.
+
+Hors maquette : identité visuelle, projets et setlists, atelier, séparation, enregistrement, plugins tiers, installation en un clic, Windows.
+
+### 17.3 Ce qu'on vérifie
+
+| Essai | Où | Ce qu'il prouve |
+|---|---|---|
+| Le son, les gestes, la latence ressentie | Sur le Mac, l'app compilée telle quelle, vraie carte son | Le moteur et la console tiennent hors de la MPC |
+| Installation, fenêtre, MIDImix en USB, LEDs | Linux dans une machine virtuelle sur le Mac (UTM, Ubuntu) | L'app tourne sous Linux |
+| Compilation et tests sur PC classique | Pipeline GitHub (Linux x86) | Le code se construit ailleurs que sur ARM |
+
+**Limite connue** : le son dans une machine virtuelle n'est pas représentatif (latence, craquements). « Ça tient un set sous Linux » ne pourra être affirmé qu'après un essai sur un vrai PC.
+
+### 17.4 Points ouverts
+
+- Outils définitifs et licence (MIT ou AGPL), après la maquette.
+- Un vrai PC Linux, ou un volontaire, pour l'essai du son.
+- Quelles fonctionnalités de l'app Mac suivent, et dans quel ordre : colonne Linux / Windows de `FEATURES.md`, à remplir au cadrage du vrai portage.
