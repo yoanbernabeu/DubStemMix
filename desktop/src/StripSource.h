@@ -77,4 +77,21 @@ struct Transport
 
 Transport& transport();
 
+// A third-party plugin in the engine's path (PRD § 5.5, § 11.5): on a bus it takes the place of the built-in
+// effect (100 % wet, like it), on a strip the place of the built-in insert. The app owns them; the engine only
+// calls the one in place, in stereo, at 44.1 kHz, at most 512 frames at a time.
+struct Processor
+{
+    virtual ~Processor() = default;
+    virtual void process(float* left, float* right, int frames) = 0;
+};
+
+struct Hooks
+{
+    std::atomic<Processor*> bus[3] = {};
+    std::atomic<Processor*> insert[kStemStrips] = {};
+};
+
+Hooks& hooks();
+
 } // namespace dsm

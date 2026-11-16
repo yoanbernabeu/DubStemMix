@@ -866,7 +866,8 @@ private:
                 if (take < (size_t)n && !ring.finished.load(std::memory_order_acquire)) underruns_++;
             }
             if (instrument(s)) dub_effect_process(s == kFirstInstrumentStrip ? siren_ : syndrum_, sL, sR, sL, sR, n);
-            dub_effect_process(inserts_[s], sL, sR, sL, sR, n);
+            if (dsm::Processor* plugin = dsm::hooks().insert[s].load(std::memory_order_acquire)) plugin->process(sL, sR, n);
+            else dub_effect_process(inserts_[s], sL, sR, sL, sR, n);
 
             float stripPeak = 0;
             for (int i = 0; i < n; ++i)
@@ -902,7 +903,8 @@ private:
         DubEffect* buses[3] = {delay_, reverb_, bus3_};
         for (int b = 0; b < 3; ++b)
         {
-            dub_effect_process(buses[b], busL_[b], busR_[b], busL_[b], busR_[b], n);
+            if (dsm::Processor* plugin = dsm::hooks().bus[b].load(std::memory_order_acquire)) plugin->process(busL_[b], busR_[b], n);
+            else dub_effect_process(buses[b], busL_[b], busR_[b], busL_[b], busR_[b], n);
             for (int i = 0; i < n; ++i)
             {
                 lastRetL_[b][i] = busL_[b][i];

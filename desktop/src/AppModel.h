@@ -7,6 +7,7 @@
 
 #include "Session.h"
 #include "Tempo.h"
+#include "Plugins.h"
 
 #include <juce_data_structures/juce_data_structures.h>
 
@@ -23,7 +24,7 @@ public:
         juce::PropertiesFile::Options options;
         options.applicationName = forTest ? "DubStemMix-selftest" : "DubStemMix";
         options.filenameSuffix = ".settings";
-        options.folderName = "DubStemMix";
+        options.folderName = forTest ? "DubStemMix-selftest" : "DubStemMix";   // a test never sees the user's plugins or settings
         options.osxLibrarySubFolder = "Application Support";
         file_ = std::make_unique<juce::PropertiesFile>(options);
         transport().limiterOn.store(file_->getBoolValue("limiterOn", true));
@@ -50,6 +51,12 @@ public:
         file_->setValue("recent", paths.joinIntoString("\n"));
     }
     void clearRecent() { file_->setValue("recent", ""); }
+
+    juce::File folder() const { return file_->getFile().getParentDirectory(); }
+
+    // The parameters a plugin's macros held last time, whatever the song (PRD § 5.5).
+    juce::String macros(const juce::String& plugin) const { return file_->getValue("macros." + juce::String::toHexString(plugin.hashCode64())); }
+    void setMacros(const juce::String& plugin, const juce::String& list) { file_->setValue("macros." + juce::String::toHexString(plugin.hashCode64()), list); }
 
     // Where sessions are recorded: the DubStemMix folder unless another was chosen (PRD § 5.12).
     juce::File recordingFolder(const juce::File& fallback) const
@@ -78,7 +85,7 @@ public:
     {
         const juce::File file = file_->getFile();
         file_.reset();
-        if (forTest_) file.deleteFile();
+        if (forTest_) file.getParentDirectory().deleteRecursively();
     }
 
 private:
@@ -92,9 +99,32 @@ public:
     Settings settings;
     Session session = Session::fresh();
 
-    explicit AppModel(bool forTest = false) : settings(forTest)
+    explicit AppModel(bool forTest = false) : settings(forTest), plugins(settings.folder())
     {
         home = juce::File::getSpecialLocation(juce::File::userMusicDirectory).getChildFile("DubStemMix");
+        plugins.recallMacros = [this](const juce::String& plugin) { return settings.macros(plugin); };
+        plugins.rememberMacros = [this](const juce::String& plugin, const juce::String& list) { settings.setMacros(plugin, list); };
+    }
+
+    // ---- Third-party plugins (PRD § 5.5, § 11.5): a slot per bus and per strip ----
+
+    PluginHost plugins;
+
+    // What the session would hold now: the engine's settings, then the plugins in their slots, kept under a key
+    // of this app's own so the Mac app's Audio Unit entries are never touched.
+    void collect()
+    {
+        unsigned pluginStrips = 0;
+        for (int s = 0; s < kStems; ++s) if (plugins.insert[s].holdsPlugin()) pluginStrips |= 1u << s;
+        session.collect(Engine::get(), pluginStrips);
+        session.setExtra("desktop", plugins.save());
+    }
+
+    // Puts a plugin in a slot, or the built-in effect back ("").
+    void setPlugin(Slot& slot, const juce::String& identifier)
+    {
+        juce::String error;
+        message = plugins.set(slot, identifier, error) ? juce::String() : "plugin: " + error;
     }
 
     // ---- The DubStemMix folder: the library and the setlists (PRD § 13) ----
@@ -336,6 +366,7 @@ public:
         setlistIndex = -1;
         for (int s = 0; s < kStems; ++s) { engine.set(engine.mute[s], 0.0f); engine.set(engine.solo[s], 0.0f); }
         session.apply(engine);
+        plugins.load(juce::var());   // every slot back to its built-in effect
         reload(false);
         saved_ = session.fingerprint();
         message = {};
@@ -361,11 +392,15 @@ public:
         detecting_.store(false);
         Engine& engine = Engine::get();
         session.apply(engine);
+        missingPlugins_ = plugins.load(session.extra("desktop"));
         reload(false);
-        session.collect(engine);
+        collect();
         saved_ = session.fingerprint();
         const int missing = session.missingCount();
         message = missing > 0 ? juce::String(missing) + (missing == 1 ? " stem not found" : " stems not found") : juce::String();
+        // A plugin not installed here: said, its slot keeps the built-in effect, and it stays in the project.
+        if (missingPlugins_.size() > 0)
+            message = (message.isEmpty() ? juce::String() : message + juce::String::fromUTF8(" · ")) + "plugin not installed: " + missingPlugins_.joinIntoString(", ");
         return true;
     }
 
@@ -375,7 +410,7 @@ public:
 
     bool saveAs(const juce::File& file)
     {
-        session.collect(Engine::get());
+        collect();
         if (session.title.isEmpty()) session.title = file.getFileNameWithoutExtension();
         const bool isNewPlace = file != session.document;
         if (!session.save(file)) { message = "cannot write " + file.getFileName(); return false; }
@@ -388,14 +423,14 @@ public:
     void autosave()
     {
         if (!hasDocument()) return;
-        session.collect(Engine::get());
+        collect();
         if (session.fingerprint() != saved_) save();
     }
 
     bool isSaved()
     {
         if (!hasDocument()) return false;
-        session.collect(Engine::get());
+        collect();
         return session.fingerprint() == saved_;
     }
 
@@ -624,6 +659,7 @@ private:
         t.load(session.files());
     }
 
+    juce::StringArray missingPlugins_;
     RecordingSession recording_;
     juce::File recordingFolder_;
     int songLoads_ = 0, loggedLoad_ = -1;

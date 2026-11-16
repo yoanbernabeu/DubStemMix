@@ -660,6 +660,17 @@ Jalons (ordre de travail, ajustable) :
 
 **L5 essayé par Yoan le 16/11/2026** : une session d'1 min 15 enregistrée sur son Mac (WAV, fiche avec la setlist, la carte son et deux morceaux horodatés) ; il a demandé la suite sans rien signaler.
 
+**L6 codé le 16/11/2026** : les plugins tiers (§ 5.5, § 11.5).
+- **Formats** : VST3 et LV2, plus Audio Unit sur macOS (ce qui permet à Yoan d'essayer avec ses plugins). Recherche des plugins installés en tâche de fond (« Scan for plugins… »), liste gardée d'un lancement à l'autre, effets seulement ; un plugin qui fait planter la recherche est sauté la fois suivante.
+- **Emplacements** : un par bus (le nom de l'effet sur la carte est un menu : effet intégré, ou plugins rangés par éditeur, « Open plugin window ») et un par tranche (insert, sur la page INSERTS).
+- **Macros** : sur la page FX, les potards du bus deviennent des macros qu'on affecte aux paramètres du plugin (clic sur une macro vide, clic droit pour changer) ; trois macros par insert sur la page INSERTS. La MIDImix les pilote avec le rattrapage habituel ; un réglage fait dans la fenêtre du plugin revient sur le potard. Affectations mémorisées par plugin, reproposées dans tous les morceaux.
+- **Projet** : plugin, état complet et macros enregistrés ; plugin absent → effet intégré, message, et le plugin reste inscrit dans le projet. Même plugin dans le même emplacement au morceau suivant : il reste branché, seuls ses réglages changent.
+- **Écarts avec le Mac**, à confirmer par Yoan :
+  - **5 macros par bus au lieu de 6** : une macro est le réglage du moteur placé sous ce potard, et la page FX n'en a que cinq par bus.
+  - **Les plugins tournent dans l'app** (JUCE n'offre pas de processus séparé tout fait) : un plugin qui plante fait tomber l'app. Sur le Mac, il est isolé.
+  - **Les plugins d'un projet ne passent pas d'une app à l'autre** : ceux de l'app Mac (Audio Units) et ceux de cette app sont écrits à deux endroits distincts du projet, et chaque app laisse intact ce que l'autre a écrit.
+- Vérifié : auto-test et test d'écran avec un petit plugin propre aux tests (emplacement, macros dans les deux sens, projet, plugin absent, menus) ; sur le Mac de Yoan, `--check-plugins TAL` trouve 29 effets (dont Dub Filter, Vinyl, TAL Reverb 4) et charge TAL Reverb 4 en Audio Unit et en VST3 avec le son qui le traverse. Non vérifié : la fenêtre d'un vrai plugin, le son à l'oreille, LV2 et VST3 sous Linux avec de vrais plugins. En attente de l'essai de Yoan.
+
 ### 17.4 Points ouverts
 
 - **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 

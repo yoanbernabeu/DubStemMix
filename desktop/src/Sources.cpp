@@ -15,6 +15,12 @@ Transport& transport()
     return instance;
 }
 
+Hooks& hooks()
+{
+    static Hooks instance;
+    return instance;
+}
+
 namespace {
 
 constexpr double kEngineRate = 44100.0;

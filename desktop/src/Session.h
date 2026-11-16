@@ -188,7 +188,7 @@ public:
         juce::String s = title + "|" + juce::String(bpm) + "|" + (loop ? "1" : "0") + "|" + juce::JSON::toString(root_["fx"], true)
                          + juce::JSON::toString(root_["busSends"], true) + juce::JSON::toString(root_["inserts"], true)
                          + juce::JSON::toString(root_["keep"], true) + root_["reverbModel"].toString() + root_["bus3Model"].toString()
-                         + root_["throwTarget"].toString() + (root_["delaySync"] ? "s" : "-");
+                         + root_["throwTarget"].toString() + (root_["delaySync"] ? "s" : "-") + juce::JSON::toString(root_["desktop"], true);
         for (int i = 0; i < kStems; ++i)
         {
             s << "|" << stripNames[i];
@@ -245,7 +245,12 @@ public:
         transport().loop.store(loop);
     }
 
-    void collect(const Engine& engine)
+    // What the app keeps in the document under a key of its own (its plugins, which the Mac app does not read).
+    juce::var extra(const char* key) const { return root_[juce::Identifier(key)]; }
+    void setExtra(const char* key, const juce::var& value) { object()->setProperty(juce::Identifier(key), value); }
+
+    // `pluginStrips`: a bit per strip whose insert is a plugin of this app; its entry here is left alone.
+    void collect(const Engine& engine, unsigned pluginStrips = 0)
     {
         juce::DynamicObject* o = object();
         auto* fxValues = new juce::DynamicObject();
@@ -278,6 +283,7 @@ public:
         for (int s = 0; s < kStems; ++s)
         {
             const juce::Identifier key{juce::String(s)};
+            if (pluginStrips & (1u << s)) continue;
             const int which = engine.choice(engine.insert[s], fx::insert::KindCount);
             const bool plugin = !inserts->getProperty(key)["plugin"].isVoid();
             if (which == fx::insert::None) { if (!plugin) inserts->removeProperty(key); continue; }

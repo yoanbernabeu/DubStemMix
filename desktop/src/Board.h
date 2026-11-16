@@ -466,6 +466,8 @@ private:
                 return {};
             default:
                 if (s >= kStems) return {};
+                if (app_.plugins.insert[s].holdsPlugin()) return app_.plugins.insert[s].plugin->name.toUpperCase().substring(0, 12);
+                if (app_.plugins.insert[s].missingName().isNotEmpty()) { colour = look::rec; return "NO PLUGIN"; }
                 switch (engine.choice(engine.insert[s], fx::insert::KindCount))
                 {
                     case fx::insert::Sub: return "SUB";
@@ -473,6 +475,82 @@ private:
                     default: colour = look::dim; return "NO INSERT";
                 }
         }
+    }
+
+    // ---- Plugins: a slot's menu, a macro's menu ----
+
+    struct BuiltIn { const char* name; int param; int which; int count; };
+
+    // Built-in effects first, then the plugins installed, by maker; then the plugin's window and the scan.
+    void slotMenu(Slot& slot)
+    {
+        Engine& engine = Engine::get();
+        const bool plugged = slot.holdsPlugin();
+        juce::PopupMenu menu;
+        std::vector<BuiltIn> builtIns;
+        if (slot.isBus && slot.index == fx::Delay) builtIns = {{"Dub Delay", -1, 0, 0}};
+        else if (slot.isBus && slot.index == fx::Reverb) builtIns = {{"Plate", engine.reverbModel, 0, 2}, {"Spring", engine.reverbModel, 1, 2}};
+        else if (slot.isBus) builtIns = {{"Bi-Phaser", engine.bus3Model, 0, 2}, {"Tape Flanger", engine.bus3Model, 1, 2}};
+        else builtIns = {{"No insert", engine.insert[slot.index], fx::insert::None, fx::insert::KindCount},
+                         {"Sub", engine.insert[slot.index], fx::insert::Sub, fx::insert::KindCount},
+                         {"Auto-wah", engine.insert[slot.index], fx::insert::Wah, fx::insert::KindCount}};
+        for (int i = 0; i < (int)builtIns.size(); ++i)
+            menu.addItem(1 + i, builtIns[(size_t)i].name, true,
+                         !plugged && (builtIns[(size_t)i].param < 0 || engine.choice(builtIns[(size_t)i].param, builtIns[(size_t)i].count) == builtIns[(size_t)i].which));
+        menu.addSeparator();
+        const std::vector<PluginHost::Choice> choices = app_.plugins.choices();
+        juce::String maker;
+        juce::PopupMenu sub;
+        for (int i = 0; i < (int)choices.size(); ++i)
+        {
+            if (choices[(size_t)i].manufacturer != maker)
+            {
+                if (maker.isNotEmpty()) menu.addSubMenu(maker, sub);
+                sub = juce::PopupMenu();
+                maker = choices[(size_t)i].manufacturer;
+            }
+            sub.addItem(100 + i, choices[(size_t)i].name, true, plugged && slot.plugin->identifier == choices[(size_t)i].identifier);
+        }
+        if (maker.isNotEmpty()) menu.addSubMenu(maker, sub);
+        if (choices.empty()) menu.addItem(-1, "No plugin found yet", false);
+        menu.addSeparator();
+        menu.addItem(50, "Open plugin window", plugged);
+        menu.addItem(51, app_.plugins.scanning.load() ? look::u("Scanning…") : look::u("Scan for plugins…"), !app_.plugins.scanning.load());
+        Slot* target = &slot;
+        showMenu(menu, [this, target, builtIns, choices](int picked)
+        {
+            Engine& en = Engine::get();
+            if (picked >= 1 && picked <= (int)builtIns.size())
+            {
+                // Back to the built-in effect; for a strip, the insert asked for.
+                app_.setPlugin(*target, {});
+                const BuiltIn& b = builtIns[(size_t)picked - 1];
+                if (b.param >= 0) en.setChoice(b.param, b.which, b.count);
+            }
+            else if (picked == 50) app_.plugins.showWindow(*target);
+            else if (picked == 51) app_.plugins.scan();
+            else if (picked >= 100 && picked - 100 < (int)choices.size()) app_.setPlugin(*target, choices[(size_t)picked - 100].identifier);
+            repaint();
+        });
+    }
+
+    // The plugin's parameters, to give one to a macro knob. Kept for this plugin in every song (PRD § 5.5).
+    void macroMenu(Slot& slot, int macro)
+    {
+        if (!slot.holdsPlugin()) return;
+        juce::PopupMenu menu;
+        menu.addItem(1, "None", true, slot.macros[(size_t)macro] < 0);
+        menu.addSeparator();
+        const auto& parameters = slot.plugin->processor->getParameters();
+        for (int i = 0; i < parameters.size() && i < 400; ++i)
+            menu.addItem(10 + i, parameters[i]->getName(40), true, slot.macros[(size_t)macro] == i);
+        Slot* target = &slot;
+        showMenu(menu, [this, target, macro](int picked)
+        {
+            if (picked == 1) app_.plugins.assign(*target, macro, -1);
+            else if (picked >= 10) app_.plugins.assign(*target, macro, picked - 10);
+            repaint();
+        });
     }
 
     // ---- Sidebar: logo, session, stems to place, setlist, status ----
@@ -829,8 +907,14 @@ private:
     {
         Engine& engine = Engine::get();
         const juce::String titles[3] = {"DELAY", "REVERB", bus3Name()};
-        const juce::String models[3] = {"Dub Delay", engine.choice(engine.reverbModel, 2) == 1 ? "Spring" : "Plate",
-                                        engine.choice(engine.bus3Model, 2) == 1 ? "Tape Flanger" : "Bi-Phaser"};
+        const juce::String builtIn[3] = {"Dub Delay", engine.choice(engine.reverbModel, 2) == 1 ? "Spring" : "Plate",
+                                         engine.choice(engine.bus3Model, 2) == 1 ? "Tape Flanger" : "Bi-Phaser"};
+        juce::String models[3];
+        for (int b = 0; b < fx::BusCount; ++b)
+        {
+            const Slot& slot = app_.plugins.bus[b];
+            models[b] = slot.holdsPlugin() ? slot.plugin->name : slot.missingName().isNotEmpty() ? builtIn[b] + " (no " + slot.missingName() + ")" : builtIn[b];
+        }
         const juce::String summaries[3] = {
             engine.text(engine.effect[fx::DelayTime]) + look::u(" · FB ") + engine.text(engine.effect[fx::DelayFeedback]),
             "decay " + engine.text(engine.effect[fx::ReverbDecay]),
@@ -843,9 +927,10 @@ private:
             g.setColour(colour);
             g.fillRoundedRectangle(r.getX() + 12.0f, r.getY() + 12.0f, 4.0f, 40.0f, 2.0f);
             write(g, titles[b], {r.getX() + 28.0f, r.getY() + 10.0f, 90.0f, 18.0f}, look::label(12.5f), colour);
-            write(g, models[b], {r.getX() + 28.0f, r.getY() + 32.0f, 120.0f, 20.0f}, look::name(12.5f), look::dim);
-            if (b == fx::Reverb) zone(Zone::Cycle, {r.getX() + 28.0f, r.getY() + 30.0f, 120.0f, 24.0f}, engine.reverbModel, 2);
-            if (b == fx::Bus3) zone(Zone::Cycle, {r.getX() + 28.0f, r.getY() + 30.0f, 120.0f, 24.0f}, engine.bus3Model, 2);
+            // The effect's name is the slot's menu: the built-in effect, or any plugin installed (PRD § 5.5).
+            write(g, models[b], {r.getX() + 28.0f, r.getY() + 32.0f, 120.0f, 20.0f}, look::name(12.5f),
+                  app_.plugins.bus[b].holdsPlugin() ? look::text : look::dim);
+            call({r.getX() + 28.0f, r.getY() + 30.0f, 120.0f, 24.0f}, [this, b] { slotMenu(app_.plugins.bus[b]); });
 
             // Where this bus's return also goes (bus-to-bus sends, PRD § 5.3): touch to change.
             float x = r.getX() + 118.0f;
@@ -870,7 +955,9 @@ private:
                 pill(g, target, targets[engine.choice(engine.throwTarget, 3)], false, colour);
                 zone(Zone::Cycle, target, engine.throwTarget, 3);
             }
-            write(g, summaries[b], {r.getRight() - 190.0f, r.getY() + 10.0f, 178.0f, 18.0f}, look::mono(10.0f), look::dim, juce::Justification::centredRight);
+            // A plugin on a send bus must be set 100 % wet: the dry signal already goes through the strip (PRD § 5.5).
+            write(g, app_.plugins.bus[b].holdsPlugin() ? look::u("plugin · set it 100 % wet") : summaries[b], {r.getRight() - 190.0f, r.getY() + 10.0f, 178.0f, 18.0f},
+                  look::mono(10.0f), look::dim, juce::Justification::centredRight);
         }
 
         // Bus-to-bus sends drawn as cables (PRD § 5.3): from the source card's output socket to the target
@@ -969,6 +1056,24 @@ private:
             if (target < 0) { knob(g, cx, cy, 30.0f, -1.0f, look::border); continue; }
             const int effect = engine.knobEffect(s, row);
             const bool plainSend = page == kMix && !isEffect && !isInstrument;
+            // A plugin in the bus (FX page) or in the strip's insert (INSERTS page): the knob is one of its macros.
+            Slot* slot = page == kFx && s < kStems && app_.plugins.bus[s / 2].holdsPlugin() ? &app_.plugins.bus[s / 2]
+                         : page == kInserts && !isEffect && app_.plugins.insert[s].holdsPlugin() ? &app_.plugins.insert[s] : nullptr;
+            const int macro = slot == nullptr ? -1 : slot->isBus ? (s % 2) * 3 + row : row;
+            if (slot != nullptr && macro < slot->macroCount())
+            {
+                const juce::Colour macroColour = slot->isBus ? busColour(slot->index) : look::text;
+                const bool assigned = slot->macros[(size_t)macro] >= 0;
+                knob(g, cx, cy, 24.0f, assigned ? engine.value(target) : -1.0f, macroColour);
+                if (assigned) zone(Zone::Knob, {cx - 36.0f, cy - 36.0f, 72.0f, 72.0f}, target);
+                else call({cx - 36.0f, cy - 36.0f, 72.0f, 72.0f}, [this, slot, macro] { macroMenu(*slot, macro); });
+                zones_.back().menu = [this, slot, macro] { macroMenu(*slot, macro); };
+                write(g, assigned ? slot->macroName(macro) : "MACRO " + juce::String(macro + 1), {r.getX(), cy + 26.0f, r.getWidth(), 13.0f}, look::label(8.5f),
+                      assigned ? macroColour : look::dim, juce::Justification::centred);
+                write(g, assigned ? slot->macroText(macro) : juce::String("click to assign"), {r.getX(), cy + 39.0f, r.getWidth(), 13.0f}, look::mono(8.5f),
+                      assigned ? look::text : look::dim, juce::Justification::centred);
+                continue;
+            }
             const juce::Colour colour = plainSend ? busColour(row) : effect != fx::None ? effectColour(effect) : look::text;
             knob(g, cx, cy, plainSend ? 30.0f : 24.0f, engine.value(target), colour);
             zone(Zone::Knob, {cx - 36.0f, cy - 36.0f, 72.0f, 72.0f}, target);
@@ -1031,10 +1136,13 @@ private:
             zone(Zone::Hold, second, -1, 0, recArmNote(s));
             if (page == kInserts)
             {
-                const juce::String kinds[3] = {look::u("INSERT · NONE"), look::u("INSERT · SUB"), look::u("INSERT · WAH")};
+                // The strip's insert: none, a built-in effect, or any plugin installed (PRD § 11.5).
+                const Slot& insertSlot = app_.plugins.insert[s];
                 const int kind = engine.choice(engine.insert[s], fx::insert::KindCount);
-                pill(g, third, kinds[kind], kind != fx::insert::None, look::text);
-                zone(Zone::Cycle, third, engine.insert[s], fx::insert::KindCount);
+                const juce::String caption = insertSlot.holdsPlugin() ? look::u("INSERT · PLUGIN") : kind == fx::insert::Sub ? look::u("INSERT · SUB")
+                                             : kind == fx::insert::Wah ? look::u("INSERT · WAH") : look::u("INSERT · NONE");
+                pill(g, third, caption, insertSlot.holdsPlugin() || kind != fx::insert::None, look::text);
+                call(third, [this, s] { slotMenu(app_.plugins.insert[s]); });
             }
             else
             {

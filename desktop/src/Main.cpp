@@ -4,6 +4,7 @@
 //   dubstemmix-desktop --selftest                    no sound card: makes test songs, plays them, checks
 //   dubstemmix-desktop --screentest [folder]         no window: plays the console's screen like a user (clicks,
 //                                                    drags, drops, menus), checks, and saves pictures in folder
+//   dubstemmix-desktop --check-plugins [name]        looks for the plugins installed, lists them, tries those named
 //   dubstemmix-desktop --snapshot out.png [mix|fx|master|inserts] [song.dubstem | set.dubset]
 //                                                    draws the console to a picture, no window, no sound card
 //
@@ -179,6 +180,7 @@ private:
     {
         if (++ticks_ % 30 == 1) { console_.poll(); app_.tick(); }
         app_.followRecording();
+        app_.plugins.sync();
         console_.lightLeds();
 
         dsm::Board::Status& status = board_.status;
@@ -366,6 +368,49 @@ public:
 // ----------------------------------------------------------------------------------------------------
 // Checks without a window
 // ----------------------------------------------------------------------------------------------------
+
+// The tests' own plugin: a gain, with one setting ("Gain") and its state. Loaded through the same slots,
+// macros and project entries as an installed plugin.
+class TestGain : public juce::AudioProcessor
+{
+public:
+    TestGain() : juce::AudioProcessor(BusesProperties().withInput("In", juce::AudioChannelSet::stereo(), true).withOutput("Out", juce::AudioChannelSet::stereo(), true))
+    {
+        addParameter(gain_ = new juce::AudioParameterFloat(juce::ParameterID("gain", 1), "Gain", 0.0f, 1.0f, 1.0f));
+        addParameter(tone_ = new juce::AudioParameterFloat(juce::ParameterID("tone", 1), "Tone", 0.0f, 1.0f, 0.5f));
+    }
+    const juce::String getName() const override { return "Test Gain"; }
+    void prepareToPlay(double, int) override {}
+    void releaseResources() override {}
+    void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override { buffer.applyGain(gain_->get()); }
+    double getTailLengthSeconds() const override { return 0.0; }
+    bool acceptsMidi() const override { return false; }
+    bool producesMidi() const override { return false; }
+    juce::AudioProcessorEditor* createEditor() override { return nullptr; }
+    bool hasEditor() const override { return false; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram(int) override {}
+    const juce::String getProgramName(int) override { return {}; }
+    void changeProgramName(int, const juce::String&) override {}
+    void getStateInformation(juce::MemoryBlock& data) override { const float v[2] = {gain_->get(), tone_->get()}; data.append(v, sizeof v); }
+    void setStateInformation(const void* data, int size) override
+    {
+        if (size < (int)(2 * sizeof(float))) return;
+        const float* v = static_cast<const float*>(data);
+        *gain_ = v[0];
+        *tone_ = v[1];
+    }
+
+private:
+    juce::AudioParameterFloat* gain_ = nullptr;
+    juce::AudioParameterFloat* tone_ = nullptr;
+};
+
+void addTestPlugin(dsm::AppModel& app)
+{
+    app.plugins.addInternal("Test Gain", [] { return std::unique_ptr<juce::AudioProcessor>(new TestGain()); });
+}
 
 // A stem holding a constant level: the output level then tells what is playing.
 juce::File writeStem(const juce::File& folder, const char* name, float level, double seconds, int rate = 44100)
@@ -597,6 +642,71 @@ int runSelfTest()
         app.save();
         const juce::var kept = juce::JSON::parse(project.loadFileAsString());
         expect("...and stays written in the project", (float)kept["stems"].size(), 3.0f);
+        // Third-party plugins (PRD § 5.5, § 11.5), with the tests' own gain plugin.
+        addTestPlugin(app);
+        app.open(project);
+        wait(0.8);
+        engine.togglePlay();
+        wait(0.8);
+        // (The bass stem was deleted above: only strip 1 sounds here.)
+        expect("before any plugin: strip 1", level(), 0.35f * unity);
+        dsm::Slot& insert1 = app.plugins.insert[0];
+        app.setPlugin(insert1, "internal:Test Gain");
+        yes("a plugin goes into strip 1's insert", insert1.holdsPlugin() && app.message.isEmpty());
+        wait(0.5);
+        expect("...at its own settings: nothing changes yet", level(), 0.35f * unity);
+        app.plugins.assign(insert1, 0, 0);   // first INSERTS knob of the strip = the plugin's Gain
+        expect("a macro takes the plugin's value: the knob does not jump", engine.value(engine.insertValue[0][0]), 1.0f);
+        engine.set(engine.insertValue[0][0], 0.5f);
+        app.plugins.sync();
+        wait(0.5);
+        expect("the knob turned down halves strip 1 through the plugin", level(), 0.35f * 0.5f * unity);
+        insert1.plugin->parameter(0)->setValueNotifyingHost(0.25f);
+        app.plugins.sync();
+        expect("a setting changed in the plugin's own window comes back to the knob", engine.value(engine.insertValue[0][0]), 0.25f);
+        dsm::Slot& reverbSlot = app.plugins.bus[fx::Reverb];
+        app.setPlugin(reverbSlot, "internal:Test Gain");
+        app.plugins.assign(reverbSlot, 0, 1);   // first knob of the reverb on the FX page = the plugin's Tone
+        engine.set(engine.effect[fx::ReverbDecay], 0.3f);
+        app.plugins.sync();
+        expect("a bus plugin: the FX page's reverb knob drives its macro", reverbSlot.plugin->parameter(1)->getValue(), 0.3f);
+        yes("...and the engine calls it in place of the built-in reverb", dsm::hooks().bus[fx::Reverb].load() == reverbSlot.plugin.get());
+        app.save();
+        const juce::var withPlugins = juce::JSON::parse(project.loadFileAsString());
+        yes("the project keeps the plugins under the app's own key", withPlugins["desktop"]["inserts"]["0"]["plugin"].toString() == "internal:Test Gain"
+                                                                       && withPlugins["desktop"]["slots"]["reverb"]["macros"][0].toString() == "1");
+        yes("...and writes no built-in insert for that strip in the Mac's entries", withPlugins["inserts"]["0"].isVoid());
+
+        app.newSession();
+        yes("New: every slot back to its built-in effect", !insert1.holdsPlugin() && !reverbSlot.holdsPlugin() && dsm::hooks().insert[0].load() == nullptr);
+        app.open(project);
+        wait(0.8);
+        yes("the project opens with its plugins in their slots", insert1.holdsPlugin() && reverbSlot.holdsPlugin());
+        expect("...with their settings", insert1.plugin->parameter(0)->getValue(), 0.25f);
+        yes("...and their macros", insert1.macros[0] == 0 && reverbSlot.macros[0] == 1);
+        engine.togglePlay();
+        wait(0.8);
+        expect("...and sounds the same", level(), 0.35f * 0.25f * unity);
+        dsm::Slot& insert2 = app.plugins.insert[1];
+        app.setPlugin(insert2, "internal:Test Gain");
+        yes("the same plugin elsewhere gets the macros it had last time", insert2.macros[0] == 1);
+        app.setPlugin(insert2, {});
+        yes("back to the built-in insert: none", !insert2.holdsPlugin() && engine.choice(engine.insert[1], fx::insert::KindCount) == fx::insert::None);
+
+        // A plugin that is not installed here: said, the built-in effect stays, the project keeps it.
+        juce::var gone = juce::JSON::parse(project.loadFileAsString());
+        gone["desktop"]["inserts"]["0"].getDynamicObject()->setProperty("plugin", "VST3-Gone-1234");
+        gone["desktop"]["inserts"]["0"].getDynamicObject()->setProperty("name", "Gone Verb");
+        project.replaceWithText(juce::JSON::toString(gone));
+        app.open(project);
+        yes("a plugin not installed is said", app.message.contains("Gone Verb") && !insert1.holdsPlugin());
+        app.setBpm(81.0);
+        app.save();
+        yes("...and stays in the project", juce::JSON::parse(project.loadFileAsString())["desktop"]["inserts"]["0"]["plugin"].toString() == "VST3-Gone-1234");
+        app.setPlugin(insert1, {});
+        app.setPlugin(reverbSlot, {});
+        app.save();
+
         // Recording (PRD § 5.9): the master as a float WAV in a session folder, with the songs played.
         app.home = root.getChildFile("home");
         app.newSession();
@@ -841,8 +951,9 @@ int runScreenTest(const juce::File& pictures)
         user.click(masterX, pageY[3]);
         wait(0.3);
         expect("the INSERTS button shows the INSERTS page", (float)engine.currentPage(), (float)dsm::kInserts);
+        pickedItem = 2;   // Sub
         user.click(stripX(1), thirdY);
-        expect("INSERTS page: a click gives strip 2 the sub", (float)engine.choice(engine.insert[1], fx::insert::KindCount), (float)fx::insert::Sub);
+        expect("INSERTS page: the insert's menu gives strip 2 the sub", (float)engine.choice(engine.insert[1], fx::insert::KindCount), (float)fx::insert::Sub);
         user.click(masterX, pageY[0]);
         wait(0.3);
         expect("the MIX button comes back to MIX", (float)engine.currentPage(), (float)dsm::kMix);
@@ -850,8 +961,10 @@ int runScreenTest(const juce::File& pictures)
         // ---- Bus cards: where a bus is sent, its model, pre / post ----
         user.click(250.0f + 151.0f, 189.0f);
         expect("delay card: TO sends the delay to the reverb", (float)engine.choice(engine.busTo[fx::Delay], 3), 1.0f);
+        pickedItem = 2;   // Spring
         user.click(250.0f + 393.0f + 60.0f, 212.0f);
-        expect("reverb card: a click on the model gives the spring", (float)engine.choice(engine.reverbModel, 2), 1.0f);
+        yes("reverb card: the effect's name opens its menu", menuItems.contains("Plate|Spring|") && menuItems.contains("Open plugin window"));
+        expect("...and picking Spring gives the spring", (float)engine.choice(engine.reverbModel, 2), 1.0f);
         user.click(250.0f + 393.0f + 172.0f, 212.0f);
         yes("reverb card: POST becomes PRE", t.preFader[fx::Reverb].load());
         user.click(250.0f + 282.0f, 212.0f);
@@ -913,6 +1026,27 @@ int runScreenTest(const juce::File& pictures)
         user.picture(pictures.getChildFile("screen-setlist.png"));
         t.preFader[fx::Reverb].store(false);
         t.preFader[fx::Delay].store(false);
+
+        // ---- A plugin, through the menus (PRD § 5.5) ----
+        addTestPlugin(app);
+        pickedItem = 100;   // the first plugin of the list
+        user.click(250.0f + 393.0f + 60.0f, 212.0f);
+        yes("reverb card: the menu lists the plugins by maker, and puts one in the slot", app.plugins.bus[fx::Reverb].holdsPlugin());
+        user.click(masterX, pageY[1]);
+        wait(0.3);
+        pickedItem = 11;   // its second parameter
+        user.click(stripX(2), knobY[0]);
+        yes("FX page: a click on an empty macro lists the plugin's parameters", menuItems.contains("Gain|Tone|"));
+        yes("...and gives it the one picked", app.plugins.bus[fx::Reverb].macros[0] == 1);
+        user.drag(stripX(2), knobY[0], stripX(2), knobY[0] - 40.0f);
+        app.plugins.sync();
+        expect("...which the knob then drives", app.plugins.bus[fx::Reverb].plugin->parameter(1)->getValue(), 0.75f, 0.01f);
+        user.picture(pictures.getChildFile("screen-plugin.png"));
+        pickedItem = 2;   // Spring: the built-in reverb again
+        user.click(250.0f + 393.0f + 60.0f, 212.0f);
+        yes("the menu puts the built-in effect back", !app.plugins.bus[fx::Reverb].holdsPlugin());
+        user.click(masterX, pageY[0]);
+        wait(0.3);
 
         // ---- Recording and the recorded sessions (PRD § 5.9) ----
         app.home = root.getChildFile("home");
@@ -1048,6 +1182,57 @@ int runScreenTest(const juce::File& pictures)
     return failures == 0 ? 0 : 1;
 }
 
+// Looks for the plugins installed, lists them, and tries the ones whose name holds `wanted`: loaded in the
+// reverb's slot, a second of sound through them, their parameters counted. The scan runs in the background
+// while the app's main thread stays free, as in the app: Audio Units need it to load.
+class PluginCheck : private juce::Timer
+{
+public:
+    PluginCheck(const juce::String& wanted, std::function<void(int)> done) : wanted_(wanted), done_(std::move(done))
+    {
+        Engine::get().open();
+        app_.plugins.scan();
+        startTimer(200);
+    }
+
+private:
+    void timerCallback() override
+    {
+        if (app_.plugins.scanning.load()) return;
+        stopTimer();
+        const std::vector<dsm::PluginHost::Choice> choices = app_.plugins.choices();
+        std::printf("%d effect plugin(s) found\n", (int)choices.size());
+        for (const auto& choice : choices) std::printf("  %s - %s\n", choice.manufacturer.toRawUTF8(), choice.name.toRawUTF8());
+        int failures = 0, tried = 0;
+        if (wanted_.isNotEmpty())
+        {
+            SilentPlayer player;
+            for (const auto& choice : choices)
+            {
+                if (!choice.name.containsIgnoreCase(wanted_)) continue;
+                ++tried;
+                dsm::Slot& slot = app_.plugins.bus[fx::Reverb];
+                app_.setPlugin(slot, choice.identifier);
+                if (!slot.holdsPlugin()) { std::printf("FAIL  %s: %s\n", choice.name.toRawUTF8(), app_.message.toRawUTF8()); ++failures; continue; }
+                wait(1.0);
+                juce::MemoryBlock state;
+                slot.plugin->processor->getStateInformation(state);
+                std::printf("PASS  %s: loaded, %d parameters, %d bytes of state, %d in / %d out\n", choice.name.toRawUTF8(),
+                            slot.plugin->processor->getParameters().size(), (int)state.getSize(), slot.plugin->processor->getTotalNumInputChannels(),
+                            slot.plugin->processor->getTotalNumOutputChannels());
+                app_.setPlugin(slot, {});
+            }
+            if (tried == 0) std::printf("no plugin named like \"%s\"\n", wanted_.toRawUTF8());
+        }
+        std::fflush(stdout);
+        done_(failures == 0 ? 0 : 1);
+    }
+
+    dsm::AppModel app_;
+    juce::String wanted_;
+    std::function<void(int)> done_;
+};
+
 // Draws the console to a PNG: how the look is checked without a screen.
 int runSnapshot(dsm::AppModel& app, const juce::File& target, const juce::String& pageName)
 {
@@ -1082,6 +1267,13 @@ public:
     {
         juce::StringArray arguments = getCommandLineParameterArray();
         if (arguments.contains("--selftest")) { finish(runSelfTest()); return; }
+        const int pluginCheck = arguments.indexOf("--check-plugins");
+        if (pluginCheck >= 0)
+        {
+            pluginCheck_ = std::make_unique<PluginCheck>(pluginCheck + 1 < arguments.size() ? arguments[pluginCheck + 1] : juce::String(),
+                                                         [this](int code) { finish(code); });
+            return;
+        }
         const int screenTest = arguments.indexOf("--screentest");
         if (screenTest >= 0)
         {
@@ -1126,6 +1318,7 @@ public:
 
     void shutdown() override
     {
+        pluginCheck_.reset();
         window_.reset();
         app_.reset();
     }
@@ -1140,6 +1333,7 @@ private:
 
     std::unique_ptr<dsm::AppModel> app_;
     std::unique_ptr<MainWindow> window_;
+    std::unique_ptr<PluginCheck> pluginCheck_;
 };
 
 } // namespace
