@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#include "Board.h"
+#include "Workshop.h"
 
 #include <cstdio>
 #include <thread>
@@ -53,7 +53,7 @@ void wait(double seconds) { std::this_thread::sleep_for(std::chrono::duration<do
 class MainComponent : public juce::Component, private juce::Timer
 {
 public:
-    explicit MainComponent(dsm::AppModel& app) : app_(app), board_(app)
+    explicit MainComponent(dsm::AppModel& app) : app_(app), board_(app), workshop_(app)
     {
         juce::AudioDeviceManager::AudioDeviceSetup setup;
         setup.sampleRate = dsm::kRate;
@@ -72,7 +72,19 @@ public:
         {
             askText(what, current, std::move(done));
         };
+        board_.onWorkshop = [this] { enterWorkshop(); };
         addAndMakeVisible(board_);
+
+        workshop_.onBack = [this] { leaveWorkshop(); };
+        workshop_.onAskText = board_.onAskText;
+        workshop_.onConfirm = [this](const juce::String& question, std::function<void()> yes) { confirm("Setlists", question, std::move(yes)); };
+        workshop_.onLocate = [this](int line)
+        {
+            chooser_ = std::make_unique<juce::FileChooser>("Folder holding the song", songsFolder());
+            chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                                  [this, line](const juce::FileChooser& c) { if (c.getResult().isDirectory()) workshop_.locate(line, c.getResult()); });
+        };
+        addChildComponent(workshop_);
         setWantsKeyboardFocus(true);
         setSize(dsm::Board::kWidth, dsm::Board::kHeight);
         startTimerHz(30);
@@ -93,12 +105,16 @@ public:
     void resized() override
     {
         const float scale = juce::jmin((float)getWidth() / (float)dsm::Board::kWidth, (float)getHeight() / (float)dsm::Board::kHeight);
-        board_.setTransform(juce::AffineTransform::scale(scale).translated(((float)getWidth() - (float)dsm::Board::kWidth * scale) * 0.5f,
-                                                                           ((float)getHeight() - (float)dsm::Board::kHeight * scale) * 0.5f));
+        const juce::AffineTransform fit = juce::AffineTransform::scale(scale).translated(((float)getWidth() - (float)dsm::Board::kWidth * scale) * 0.5f,
+                                                                                         ((float)getHeight() - (float)dsm::Board::kHeight * scale) * 0.5f);
+        board_.setTransform(fit);
+        workshop_.setTransform(fit);
     }
 
     bool keyPressed(const juce::KeyPress& key) override
     {
+        // The workshop is not for playing: only its own keys answer there.
+        if (workshop_.isVisible()) return workshop_.keyPressed(key);
         Engine& engine = Engine::get();
         const juce::juce_wchar c = juce::CharacterFunctions::toLowerCase((juce::juce_wchar)key.getKeyCode());
         if (key.getModifiers().isCommandDown())
@@ -121,6 +137,7 @@ public:
     // DROP and HOLD last as long as their key is down.
     bool keyStateChanged(bool) override
     {
+        if (workshop_.isVisible()) return false;
         held(dropDown_, 'D', dsm::kDropNote);
         held(holdDown_, 'H', dsm::muteNote(6));
         return false;
@@ -154,7 +171,38 @@ private:
             status.soundError = {};
         }
         else status.soundError = soundError_.isEmpty() ? juce::String("no sound card") : soundError_;
-        board_.repaint();
+        if (workshop_.isVisible()) workshop_.repaint(); else board_.repaint();
+    }
+
+    // ---- The setlist workshop takes the console's place (PRD § 13) ----
+
+    void confirm(const juce::String& title, const juce::String& question, std::function<void()> yes)
+    {
+        juce::AlertWindow::showOkCancelBox(juce::MessageBoxIconType::QuestionIcon, title, question, "OK", "Cancel", this,
+                                           juce::ModalCallbackFunction::create([yes = std::move(yes)](int ok) { if (ok == 1) yes(); }));
+    }
+
+    // Entering while a song plays asks first, then stops it. The open session is left as it is.
+    void enterWorkshop()
+    {
+        auto enter = [this]
+        {
+            dsm::transport().playing.store(false);
+            app_.autosave();
+            workshop_.open();
+            board_.setVisible(false);
+            workshop_.setVisible(true);
+            workshop_.grabKeyboardFocus();
+        };
+        if (Engine::get().isPlaying()) confirm("Setlists", "The song is playing. Stop it and open the setlists?", enter); else enter();
+    }
+
+    void leaveWorkshop()
+    {
+        workshop_.close();
+        workshop_.setVisible(false);
+        board_.setVisible(true);
+        grabKeyboardFocus();
     }
 
     // ---- Session dialogs ----
@@ -247,6 +295,7 @@ private:
     dsm::Output output_;
     dsm::Console console_;
     dsm::Board board_;
+    dsm::Workshop workshop_;
     std::unique_ptr<juce::FileChooser> chooser_;
     int ticks_ = 0;
     bool dropDown_ = false, holdDown_ = false;
@@ -526,7 +575,7 @@ int runSelfTest()
 class ScreenUser
 {
 public:
-    explicit ScreenUser(dsm::Board& board) : board_(board) {}
+    explicit ScreenUser(juce::Component& board) : board_(board) {}
 
     // The board lays out its controls as it draws: look before touching.
     void look() { board_.createComponentSnapshot(board_.getLocalBounds(), true, 1.0f); }
@@ -547,7 +596,7 @@ public:
     {
         juce::StringArray paths;
         for (const juce::File& f : files) paths.add(f.getFullPathName());
-        board_.filesDropped(paths, (int)x, (int)y);
+        if (auto* target = dynamic_cast<juce::FileDragAndDropTarget*>(&board_)) target->filesDropped(paths, (int)x, (int)y);
     }
     bool picture(const juce::File& file)
     {
@@ -566,7 +615,7 @@ private:
         return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(), at, juce::ModifierKeys(flags), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                                 &board_, &board_, now, downAt, now, 1, dragged);
     }
-    dsm::Board& board_;
+    juce::Component& board_;
 };
 
 int runScreenTest(const juce::File& pictures)
@@ -766,6 +815,104 @@ int runScreenTest(const juce::File& pictures)
         user.picture(pictures.getChildFile("screen-setlist.png"));
         t.preFader[fx::Reverb].store(false);
         t.preFader[fx::Delay].store(false);
+
+        // ---- The setlist workshop (PRD § 13) ----
+        app.home = root.getChildFile("home");
+        const juce::File songs = app.home.getChildFile("Songs");
+        songs.createDirectory();
+        const char* titles[4] = {"Alpha Steppa", "Bass Culture", "Chant Down", "Dread Time"};
+        juce::File projects[4];
+        for (int i = 0; i < 4; ++i)
+        {
+            app.newSession();
+            app.addFiles({i % 2 == 0 ? kick : bass}, 0);
+            app.setBpm(70.0 + i);
+            wait(0.5);
+            projects[i] = songs.getChildFile(juce::String(titles[i]) + ".dubstem");
+            app.saveAs(projects[i]);
+        }
+        dsm::Workshop workshop(app);
+        ScreenUser editor(workshop);
+        juce::String question;
+        workshop.onAskText = board.onAskText;
+        workshop.showMenu = board.showMenu;
+        workshop.onConfirm = [&question](const juce::String& q, std::function<void()> yes) { question = q; yes(); };
+        int back = 0;
+        workshop.onBack = [&back] { ++back; };
+        workshop.open();
+        expect("the library lists every project of the DubStemMix folder", (float)app.library.size(), 4.0f);
+        yes("...by title, with its tempo", app.library.size() == 4 && app.library[0].title == "Alpha Steppa" && app.library[3].bpm == 73.0);
+
+        typed = "Friday";
+        editor.click(51.0f, 715.0f);
+        yes("NEW asks a name and creates the setlist in the Setlists folder", app.editing.name == "Friday" && app.setlistsFolder().getChildFile("Friday.dubset").existsAsFile());
+        const float libraryRow0 = 140.0f + 15.0f, lineRow0 = 140.0f + 17.0f;
+        editor.drag(500.0f, libraryRow0, 1000.0f, lineRow0);
+        editor.drag(500.0f, libraryRow0 + 34.0f * 2, 1000.0f, 400.0f);
+        editor.drag(500.0f, libraryRow0 + 34.0f, 1000.0f, lineRow0 + 38.0f);
+        yes("songs dragged from the library land where they are dropped", app.editing.songs.size() == 3 && app.editing.songs[0].title == "Alpha Steppa"
+                                                                           && app.editing.songs[1].title == "Bass Culture" && app.editing.songs[2].title == "Chant Down");
+        editor.drag(500.0f, libraryRow0, 1000.0f, 400.0f);
+        expect("a song already in the setlist is not added twice", (float)app.editing.songs.size(), 3.0f);
+        editor.drag(1000.0f, lineRow0 + 38.0f * 2, 1000.0f, lineRow0 - 10.0f);
+        yes("a line dragged to the top moves there", app.editing.songs[0].title == "Chant Down" && app.editing.songs[1].title == "Alpha Steppa");
+        editor.click(820.0f + 76.0f, lineRow0);
+        expect("a click on the colour dot gives the line its first colour", (float)app.editing.songs[0].colour, 0.0f);
+        typed = "opener";
+        editor.click(820.0f + 400.0f, lineRow0);
+        yes("a click on the tag asks for it", app.editing.songs[0].tag == "opener");
+        pickedItem = 104;   // Colour > Green
+        editor.rightClick(1000.0f, lineRow0 + 38.0f);
+        expect("right-click > Colour > Green", (float)app.editing.songs[1].colour, 3.0f);
+        dsm::Setlist reread;
+        juce::String error;
+        dsm::Setlist::load(app.setlistsFolder().getChildFile("Friday.dubset"), reread, error);
+        yes("every change is written at once: order, colour and tag are in the file", reread.songs.size() == 3 && reread.songs[0].title == "Chant Down"
+                                                                                        && reread.songs[0].colour == 0 && reread.songs[0].tag == "opener" && reread.songs[1].colour == 3);
+        yes("...and the screen says so", app.editingSaved.startsWith(juce::String::fromUTF8("SAVED · ")));
+
+        workshop.setSearch("dread");
+        expect("the search narrows the library", (float)workshop.shownLibrary().size(), 1.0f);
+        editor.drag(500.0f, libraryRow0, 1000.0f, 600.0f);
+        yes("...and the song found can be dragged in", app.editing.songs.size() == 4 && app.editing.songs[3].title == "Dread Time");
+        workshop.setSearch("");
+        editor.click(1000.0f, lineRow0 + 38.0f * 3);
+        workshop.keyPressed(juce::KeyPress(juce::KeyPress::backspaceKey));
+        expect("a selected line is removed with Backspace", (float)app.editing.songs.size(), 3.0f);
+
+        editor.click(354.0f + 12.0f, libraryRow0);
+        yes("the play mark of a library song starts its preview", dsm::Preview::get().isPlaying(projects[0].getFullPathName()));
+        editor.picture(pictures.getChildFile("screen-workshop.png"));
+        editor.click(354.0f + 12.0f, libraryRow0);
+        yes("...and stops it", !dsm::Preview::get().isPlaying());
+
+        editor.click(138.0f, 715.0f);
+        yes("DUPLICATE makes a copy and opens it", app.editing.name == "Friday copy" && app.setlistFiles.size() == 2 && app.editing.songs.size() == 3);
+        typed = "Saturday";
+        editor.click(228.0f, 715.0f);
+        yes("RENAME renames its file", app.editing.name == "Saturday" && app.setlistsFolder().getChildFile("Saturday.dubset").existsAsFile()
+                                         && !app.setlistsFolder().getChildFile("Friday copy.dubset").existsAsFile());
+        editor.click(300.0f, 715.0f);
+        yes("DELETE asks, then removes the setlist, not its songs", question.contains("Saturday") && app.setlistFiles.size() == 1 && projects[0].existsAsFile());
+        editor.click(100.0f, 144.0f);
+        yes("a click on a setlist opens it", app.editing.name == "Friday");
+        editor.click(1326.0f, 97.0f);
+        yes("LOAD IN THE CONSOLE gives the setlist to the console and goes back", back == 1 && app.setlist.name == "Friday" && app.setlist.songs.size() == 3 && app.setlistIndex == -1);
+
+        // Back on the console: the sidebar's "+" and the reordering menu.
+        app.openSong(0);
+        wait(0.5);
+        pickedItem = 1;   // the only song of the library not in the setlist
+        const float header = 132.0f + 16.0f + 54.0f + 12.0f;
+        user.click(173.0f, header + 5.0f);
+        yes("the sidebar's + lists only the songs not in the setlist", menuItems == "Dread Time|");
+        yes("...and adds the one picked right after the song open", app.setlist.songs.size() == 4 && app.setlist.songs[1].title == "Dread Time");
+        pickedItem = 2;   // Move down
+        user.rightClick(116.0f, header + 34.0f + 19.0f);
+        yes("right-click > Move down moves the open song, which stays the open one", app.setlist.songs[1].title == "Chant Down" && app.setlistIndex == 1);
+        user.picture(pictures.getChildFile("screen-console-setlist.png"));
+        dsm::Setlist::load(app.setlist.document, reread, error);
+        yes("...and the setlist's file follows", reread.songs.size() == 4 && reread.songs[0].title == "Dread Time");
     }
     root.deleteRecursively();
     std::printf("Result: %s\n", failures == 0 ? "all passed" : "FAILED");

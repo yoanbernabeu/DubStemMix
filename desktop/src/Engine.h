@@ -285,6 +285,105 @@ private:
 };
 
 // ----------------------------------------------------------------------------------------------------
+// Preview: a song's raw mix, no effects, for the setlist workshop (PRD § 13). One song at a time, on the
+// console's sound card.
+// ----------------------------------------------------------------------------------------------------
+
+class Preview
+{
+public:
+    static Preview& get() { static Preview instance; return instance; }
+
+    // Plays these stems together from the start.
+    void play(const std::vector<std::string>& files, const juce::String& key)
+    {
+        stop();
+        juce::AudioFormatManager formats;
+        formats.registerBasicFormats();
+        const juce::ScopedLock lock(lock_);
+        length_ = 0.0;
+        for (const std::string& path : files)
+        {
+            juce::AudioFormatReader* reader = formats.createReaderFor(juce::File(juce::String::fromUTF8(path.c_str())));
+            if (reader == nullptr) continue;
+            length_ = juce::jmax(length_, (double)reader->lengthInSamples / reader->sampleRate);
+            auto source = std::make_unique<juce::AudioFormatReaderSource>(reader, true);
+            auto player = std::make_unique<juce::AudioTransportSource>();
+            player->setSource(source.get(), 32768, &thread_, reader->sampleRate, 2);
+            player->setGain(0.5f);   // the console's headroom: everything up plays 6 dB under the song
+            mixer_.addInputSource(player.get(), false);
+            sources_.push_back(std::move(source));
+            players_.push_back(std::move(player));
+        }
+        if (players_.empty()) return;
+        mixer_.prepareToPlay(blockSize_, rate_);
+        for (auto& player : players_) player->start();
+        key_ = key;
+        playing_ = true;
+    }
+
+    void stop()
+    {
+        const juce::ScopedLock lock(lock_);
+        mixer_.removeAllInputs();
+        for (auto& player : players_) player->setSource(nullptr);
+        players_.clear();
+        sources_.clear();
+        playing_ = false;
+        key_ = {};
+    }
+
+    bool isPlaying(const juce::String& key) const { return playing_ && key_ == key; }
+    bool isPlaying() const { return playing_; }
+    juce::String key() const { return key_; }
+    double length() const { return length_; }
+    double position() const
+    {
+        const juce::ScopedLock lock(lock_);
+        return players_.empty() ? 0.0 : players_[0]->getCurrentPosition();
+    }
+    void seek(double seconds)
+    {
+        const juce::ScopedLock lock(lock_);
+        for (auto& player : players_) player->setPosition(seconds);
+    }
+
+    // The sound card's side.
+    void prepare(double rate, int blockSize)
+    {
+        const juce::ScopedLock lock(lock_);
+        rate_ = rate;
+        blockSize_ = blockSize;
+        if (!players_.empty()) mixer_.prepareToPlay(blockSize_, rate_);
+    }
+    void addTo(float* left, float* right, int frames)
+    {
+        if (!playing_) return;
+        const juce::ScopedTryLock lock(lock_);
+        if (!lock.isLocked() || players_.empty()) return;
+        if (buffer_.getNumSamples() < frames) buffer_.setSize(2, frames, false, false, true);
+        juce::AudioSourceChannelInfo block(&buffer_, 0, frames);
+        mixer_.getNextAudioBlock(block);
+        for (int i = 0; i < frames; ++i) { left[i] += buffer_.getSample(0, i); right[i] += buffer_.getSample(1, i); }
+    }
+
+private:
+    Preview() : thread_("DubStemMix preview") { thread_.startThread(); }
+    ~Preview() { stop(); thread_.stopThread(2000); }
+
+    juce::CriticalSection lock_;
+    juce::TimeSliceThread thread_;
+    juce::MixerAudioSource mixer_;
+    std::vector<std::unique_ptr<juce::AudioFormatReaderSource>> sources_;
+    std::vector<std::unique_ptr<juce::AudioTransportSource>> players_;
+    juce::AudioBuffer<float> buffer_;
+    std::atomic<bool> playing_{false};
+    juce::String key_;
+    double length_ = 0.0, rate_ = kRate;
+    int blockSize_ = 512;
+};
+
+// ----------------------------------------------------------------------------------------------------
 // Sound card: the engine's 44.1 kHz, resampled when the card runs at another rate
 // ----------------------------------------------------------------------------------------------------
 
@@ -301,6 +400,7 @@ public:
         right_.reset();
         held_ = 0;
         lateBuffers.store(0);
+        Preview::get().prepare(cardRate_, device->getCurrentBufferSizeSamples());
     }
     void audioDeviceStopped() override {}
 
@@ -332,6 +432,7 @@ public:
             std::memmove(engineL_, engineL_ + used, sizeof(float) * (size_t)held_);
             std::memmove(engineR_, engineR_ + used, sizeof(float) * (size_t)held_);
         }
+        Preview::get().addTo(left, right, frames);
         for (int c = 0; c < channels; ++c)
             if (out[c] != nullptr) std::memcpy(out[c], c == 0 ? left : c == 1 ? right : silence_, sizeof(float) * (size_t)frames);
 

@@ -51,6 +51,21 @@ public:
     }
     void clearRecent() { file_->setValue("recent", ""); }
 
+    // Projects dropped into the library from elsewhere: remembered from one launch to the next (PRD § 13).
+    juce::Array<juce::File> libraryExtras() const
+    {
+        juce::Array<juce::File> files;
+        for (const juce::String& path : juce::StringArray::fromLines(file_->getValue("library")))
+            if (juce::File::isAbsolutePath(path) && juce::File(path).existsAsFile()) files.add(juce::File(path));
+        return files;
+    }
+    void addLibraryExtra(const juce::File& file)
+    {
+        juce::StringArray paths = juce::StringArray::fromLines(file_->getValue("library"));
+        paths.addIfNotAlreadyThere(file.getFullPathName());
+        file_->setValue("library", paths.joinIntoString("\n"));
+    }
+
     ~Settings()
     {
         const juce::File file = file_->getFile();
@@ -69,7 +84,138 @@ public:
     Settings settings;
     Session session = Session::fresh();
 
-    explicit AppModel(bool forTest = false) : settings(forTest) {}
+    explicit AppModel(bool forTest = false) : settings(forTest)
+    {
+        home = juce::File::getSpecialLocation(juce::File::userMusicDirectory).getChildFile("DubStemMix");
+    }
+
+    // ---- The DubStemMix folder: the library and the setlists (PRD § 13) ----
+
+    juce::File home;                       // ~/Music/DubStemMix
+    std::vector<SongInfo> library;         // every project found, by title
+    std::vector<juce::File> setlistFiles;  // every setlist of the Setlists folder, by name
+    Setlist editing;                       // the setlist open in the workshop
+    juce::String editingSaved;             // "SAVED · 18:42"
+
+    juce::File setlistsFolder() const { return home.getChildFile("Setlists"); }
+
+    void scanLibrary()
+    {
+        library.clear();
+        juce::Array<juce::File> files = home.findChildFiles(juce::File::findFiles, true, "*.dubstem");
+        for (const juce::File& extra : settings.libraryExtras()) files.addIfNotAlreadyThere(extra);
+        for (const juce::File& f : files) library.push_back(SongInfo::read(f));
+        std::sort(library.begin(), library.end(), [](const SongInfo& a, const SongInfo& b) { return a.title.compareIgnoreCase(b.title) < 0; });
+        setlistFiles.clear();
+        juce::Array<juce::File> sets = setlistsFolder().findChildFiles(juce::File::findFiles, false, "*.dubset");
+        sets.sort();
+        for (const juce::File& f : sets) setlistFiles.push_back(f);
+    }
+
+    void addToLibrary(const juce::File& project)
+    {
+        if (!project.hasFileExtension("dubstem")) return;
+        settings.addLibraryExtra(project);
+        scanLibrary();
+    }
+
+    // ---- The workshop's setlist: every change is written at once ----
+
+    bool edit(const juce::File& file)
+    {
+        juce::String error;
+        Setlist loaded;
+        if (!Setlist::load(file, loaded, error)) { message = file.getFileName() + ": " + error; return false; }
+        editing = std::move(loaded);
+        editingSaved = {};
+        return true;
+    }
+
+    void saveEditing()
+    {
+        if (editing.document == juce::File()) return;
+        if (editing.save()) editingSaved = juce::String::fromUTF8("SAVED · ") + juce::Time::getCurrentTime().formatted("%H:%M");
+        // The console plays the same file: it follows.
+        if (editing.document == setlist.document) reloadConsoleSetlist();
+    }
+
+    juce::File freeSetlistFile(const juce::String& wanted) const
+    {
+        const juce::String base = juce::File::createLegalFileName(wanted.trim().isEmpty() ? juce::String("Setlist") : wanted.trim());
+        juce::File file = setlistsFolder().getChildFile(base + ".dubset");
+        for (int n = 2; file.existsAsFile(); ++n) file = setlistsFolder().getChildFile(base + " " + juce::String(n) + ".dubset");
+        return file;
+    }
+
+    void newSetlist(const juce::String& name)
+    {
+        editing = Setlist();
+        editing.document = freeSetlistFile(name);
+        editing.name = editing.document.getFileNameWithoutExtension();
+        saveEditing();
+        scanLibrary();
+    }
+
+    void duplicateSetlist()
+    {
+        if (editing.document == juce::File()) return;
+        editing.document = freeSetlistFile(editing.name + " copy");
+        editing.name = editing.document.getFileNameWithoutExtension();
+        saveEditing();
+        scanLibrary();
+    }
+
+    void renameSetlist(const juce::String& name)
+    {
+        if (editing.document == juce::File() || name.trim().isEmpty()) return;
+        const juce::File old = editing.document, target = freeSetlistFile(name);
+        const bool wasConsole = old == setlist.document;
+        editing.document = target;
+        editing.name = target.getFileNameWithoutExtension();
+        if (editing.save()) old.deleteFile();
+        if (wasConsole) setlist.document = target;
+        saveEditing();
+        scanLibrary();
+    }
+
+    void deleteSetlist()
+    {
+        if (editing.document == juce::File()) return;
+        editing.document.deleteFile();
+        editing = Setlist();
+        editingSaved = {};
+        scanLibrary();
+    }
+
+    // "LOAD IN THE CONSOLE": the setlist being built becomes the console's. No song is opened.
+    void loadInConsole()
+    {
+        if (editing.document == juce::File()) return;
+        saveEditing();
+        openSetlist(editing.document);
+        settings.noteRecent(editing.document);
+    }
+
+    // ---- The console's setlist, live (PRD § 13): reorder, and add a song after the one playing ----
+
+    void moveSong(int index, int by)
+    {
+        const int to = index + by;
+        if (index < 0 || index >= (int)setlist.songs.size() || to < 0 || to >= (int)setlist.songs.size()) return;
+        const juce::File current = setlistIndex >= 0 ? setlist.songs[(size_t)setlistIndex].project.file : juce::File();
+        setlist.move(index, to);
+        setlistIndex = current != juce::File() ? setlist.indexOf(current) : -1;
+        setlist.save();
+    }
+
+    // Returns false when the song is already in the setlist (no song twice).
+    bool addAfterCurrent(const juce::File& project)
+    {
+        if (setlist.document == juce::File()) return false;
+        if (setlist.insert(project, setlistIndex + 1) >= 0) return false;
+        setlist.save();
+        return true;
+    }
     Setlist setlist;
     int setlistIndex = -1;       // the setlist's song now open, or -1
     juce::String message;        // the last thing worth telling (an error, a missing stem)
@@ -285,6 +431,20 @@ public:
         setlistIndex = -1;
         message = {};
         return true;
+    }
+
+    // After the workshop changed the file the console plays: same songs marked as played, same song open.
+    void reloadConsoleSetlist()
+    {
+        const juce::File current = setlistIndex >= 0 && setlistIndex < (int)setlist.songs.size() ? setlist.songs[(size_t)setlistIndex].project.file : juce::File();
+        juce::Array<juce::File> played;
+        for (const Setlist::Song& song : setlist.songs) if (song.played) played.add(song.project.file);
+        juce::String error;
+        Setlist loaded;
+        if (!Setlist::load(setlist.document, loaded, error)) return;
+        setlist = std::move(loaded);
+        for (Setlist::Song& song : setlist.songs) song.played = played.contains(song.project.file);
+        setlistIndex = current != juce::File() ? setlist.indexOf(current) : -1;
     }
 
     // A song of the setlist is loaded stopped, at its start; the previous one's effect tails ring on.

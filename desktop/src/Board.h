@@ -32,6 +32,13 @@ inline juce::Typeface::Ptr face(int which)
     };
     return faces[which];
 }
+// The fixed palette of a setlist line's colour (PRD § 13): red, rust, amber, green, teal, blue, purple, cream.
+inline juce::Colour lineColour(int index)
+{
+    static const juce::Colour colours[8] = {juce::Colour(0xffe5412d), juce::Colour(0xffc2553a), juce::Colour(0xffd9a441), juce::Colour(0xff7e9b5a),
+                                            juce::Colour(0xff4e9c94), juce::Colour(0xff5b86b5), juce::Colour(0xff8f6fb5), juce::Colour(0xffede3cf)};
+    return colours[juce::jlimit(0, 7, index)];
+}
 // A string literal holding non-ASCII characters (the source files are UTF-8).
 inline juce::String u(const char* utf8) { return juce::String::fromUTF8(utf8); }
 // Archivo, bold and wide, for labels; Archivo for names; JetBrains Mono for values.
@@ -42,6 +49,8 @@ inline juce::Font mono(float size) { return juce::Font(juce::FontOptions(face(2)
 
 class Board : public juce::Component, public juce::FileDragAndDropTarget
 {
+    friend class Workshop;   // the setlist workshop draws with the same bricks
+
 public:
     static constexpr int kWidth = 1440, kHeight = 900;
 
@@ -55,7 +64,7 @@ public:
     };
     Status status;
     // What needs a dialog is done by the board's owner.
-    std::function<void()> onSoundCard, onOpen, onSave, onNew, onAddStems, onLocate;
+    std::function<void()> onSoundCard, onOpen, onSave, onNew, onAddStems, onLocate, onWorkshop;
     std::function<void(const juce::File&)> onOpenFile;
     // Shows a menu and gives back the item picked (0: none). Replaced by the screen test, which picks by itself.
     std::function<void(juce::PopupMenu&, std::function<void(int)>)> showMenu = [](juce::PopupMenu& menu, std::function<void(int)> picked)
@@ -554,7 +563,30 @@ private:
             y += 12.0f;
             double total = 0.0;
             for (const Setlist::Song& song : setlist.songs) total += song.seconds;
-            write(g, look::u("SETLIST · ") + setlist.name.toUpperCase(), {18.0f, y, 204.0f, 12.0f}, look::mono(8.5f), look::dim);
+            write(g, look::u("SETLIST · ") + setlist.name.toUpperCase(), {18.0f, y, 140.0f, 12.0f}, look::mono(8.5f), look::dim);
+            // "+": a song of the library, added right after the one playing, without cutting the music (PRD § 13).
+            const juce::Rectangle<float> add(164.0f, y - 2.0f, 18.0f, 15.0f), edit(186.0f, y - 2.0f, 34.0f, 15.0f);
+            pill(g, add, "+", false, look::text);
+            call(add, [this]
+            {
+                app_.scanLibrary();
+                juce::PopupMenu menu;
+                std::vector<juce::File> offered;
+                for (const SongInfo& song : app_.library)
+                {
+                    if (app_.setlist.indexOf(song.file) >= 0) continue;   // no song twice
+                    offered.push_back(song.file);
+                    menu.addItem((int)offered.size(), song.title);
+                }
+                if (offered.empty()) menu.addItem(-1, "Every song of the library is in the setlist", false);
+                showMenu(menu, [this, offered](int picked)
+                {
+                    if (picked >= 1 && picked <= (int)offered.size()) app_.addAfterCurrent(offered[(size_t)picked - 1]);
+                    repaint();
+                });
+            });
+            pill(g, edit, "EDIT", false, look::text);
+            call(edit, [this] { if (onWorkshop) onWorkshop(); });
             write(g, juce::String((int)setlist.songs.size()) + look::u(" SONGS · ") + clock(total), {18.0f, y + 14.0f, 204.0f, 12.0f}, look::mono(8.0f), look::dim);
             y += 34.0f;
             // Keep the open song in view when the list is longer than the room.
@@ -568,9 +600,7 @@ private:
                 if (current) { g.setColour(look::text); g.fillRoundedRectangle(row, 3.0f); }
                 if (song.colour >= 0 && song.colour < 8)
                 {
-                    static const juce::Colour lineColours[8] = {juce::Colour(0xffe5412d), juce::Colour(0xffc2553a), juce::Colour(0xffd9a441), juce::Colour(0xff7e9b5a),
-                                                                juce::Colour(0xff4e9c94), juce::Colour(0xff5b86b5), juce::Colour(0xff8f6fb5), juce::Colour(0xffede3cf)};
-                    g.setColour(lineColours[song.colour]);
+                    g.setColour(look::lineColour(song.colour));
                     g.fillRect(row.getX(), row.getY() + 2.0f, 2.0f, row.getHeight() - 4.0f);
                 }
                 const juce::Colour ink = current ? look::bg : song.project.missing ? look::rec : song.played ? look::dim : look::text;
@@ -582,8 +612,30 @@ private:
                                         + (song.played && !current ? "  PLAYED" : "");
                 write(g, detail, {row.getX() + 30.0f, y + 20.0f, 160.0f, 12.0f}, look::mono(8.0f), current ? look::bg.withAlpha(0.7f) : look::dim);
                 call(row, [this, i] { app_.openSong(i); });
+                // Reordering stays possible while playing; removing is done in the workshop.
+                zones_.back().menu = [this, i]
+                {
+                    juce::PopupMenu menu;
+                    menu.addItem(1, "Move up", i > 0);
+                    menu.addItem(2, "Move down", i + 1 < (int)app_.setlist.songs.size());
+                    showMenu(menu, [this, i](int picked)
+                    {
+                        if (picked == 1) app_.moveSong(i, -1); else if (picked == 2) app_.moveSong(i, +1);
+                        repaint();
+                    });
+                };
                 y += 42.0f;
             }
+        }
+
+        if (setlist.songs.empty())
+        {
+            y += 12.0f;
+            write(g, "SETLIST", {18.0f, y, 140.0f, 12.0f}, look::mono(8.5f), look::dim);
+            const juce::Rectangle<float> edit(186.0f, y - 2.0f, 34.0f, 15.0f);
+            pill(g, edit, "EDIT", false, look::text);
+            call(edit, [this] { if (onWorkshop) onWorkshop(); });
+            write(g, "Build a set, or open a .dubset", {18.0f, y + 16.0f, 204.0f, 12.0f}, look::mono(8.0f), look::dim);
         }
 
         // Status

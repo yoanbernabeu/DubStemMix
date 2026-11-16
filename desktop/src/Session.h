@@ -304,9 +304,46 @@ private:
     juce::var root_;   // the document as read: what this app does not know stays in it
 };
 
-// A setlist (.dubset): an ordered list of projects, with a colour and a tag per line (PRD § 13).
+// What a project says about itself, read without opening it: for the library and the setlist's lines.
+struct SongInfo
+{
+    juce::File file;
+    juce::String title;
+    double bpm = 0.0, seconds = 0.0;
+
+    static SongInfo read(const juce::File& file)
+    {
+        SongInfo info;
+        info.file = file;
+        info.title = file.getFileNameWithoutExtension();
+        const juce::var project = juce::JSON::parse(file.loadFileAsString());
+        if (project["title"].toString().isNotEmpty()) info.title = project["title"].toString();
+        info.bpm = project["bpm"].isVoid() ? 0.0 : (double)project["bpm"];
+        info.seconds = project["duration"].isVoid() ? 0.0 : (double)project["duration"];
+        return info;
+    }
+
+    // The stems placed on the project's strips: what a preview plays.
+    static std::vector<std::string> stems(const juce::File& file)
+    {
+        std::vector<std::string> files;
+        const juce::var project = juce::JSON::parse(file.loadFileAsString());
+        if (const juce::Array<juce::var>* list = project["stems"].getArray())
+            for (const juce::var& entry : *list)
+            {
+                const FileRef ref = FileRef::read(entry["file"], file);
+                if (!ref.missing && (int)entry["strip"] >= 0 && (int)entry["strip"] < kStems) files.push_back(ref.file.getFullPathName().toStdString());
+            }
+        return files;
+    }
+};
+
+// A setlist (.dubset): an ordered list of projects, with a colour and a tag per line (PRD § 13). The colour
+// and the tag belong to the line, not to the song: the same song can open one set and close another.
 struct Setlist
 {
+    static constexpr int kColours = 8;
+
     struct Song
     {
         FileRef project;
@@ -321,33 +358,110 @@ struct Setlist
     juce::String name;
     std::vector<Song> songs;
 
+    static Song line(const juce::File& project)
+    {
+        Song song;
+        song.project = FileRef::of(project);
+        song.project.missing = !project.existsAsFile();
+        if (!song.project.missing)
+        {
+            const SongInfo info = SongInfo::read(project);
+            song.title = info.title; song.bpm = info.bpm; song.seconds = info.seconds;
+        }
+        else song.title = project.getFileNameWithoutExtension();
+        return song;
+    }
+
     static bool load(const juce::File& file, Setlist& out, juce::String& error)
     {
         const juce::var root = juce::JSON::parse(file.loadFileAsString());
         if (!root.isObject()) { error = "not a DubStemMix setlist"; return false; }
         out = Setlist();
         out.document = file;
+        out.root_ = root;
         out.name = root["name"].toString();
         if (out.name.isEmpty()) out.name = file.getFileNameWithoutExtension();
         if (const juce::Array<juce::var>* projects = root["projects"].getArray())
             for (const juce::var& entry : *projects)
             {
-                Song song;
-                song.project = FileRef::read(entry, file);
+                const FileRef ref = FileRef::read(entry, file);
+                Song song = line(ref.file);
+                song.project = ref;
                 song.colour = entry["color"].isVoid() ? -1 : (int)entry["color"];
                 song.tag = entry["tag"].toString();
-                song.title = song.project.file.getFileNameWithoutExtension();
-                if (!song.project.missing)
-                {
-                    const juce::var project = juce::JSON::parse(song.project.file.loadFileAsString());
-                    if (project["title"].toString().isNotEmpty()) song.title = project["title"].toString();
-                    song.bpm = project["bpm"].isVoid() ? 0.0 : (double)project["bpm"];
-                    song.seconds = project["duration"].isVoid() ? 0.0 : (double)project["duration"];
-                }
                 out.songs.push_back(std::move(song));
             }
         return true;
     }
+
+    // Written at every change (PRD § 13). What this app does not know in the document stays in it.
+    bool save()
+    {
+        if (document == juce::File()) return false;
+        if (root_.getDynamicObject() == nullptr) root_ = juce::var(new juce::DynamicObject());
+        juce::DynamicObject* o = root_.getDynamicObject();
+        o->setProperty("version", 1);
+        o->setProperty("name", name);
+        juce::Array<juce::var> projects;
+        for (const Song& song : songs)
+        {
+            juce::var entry = song.project.write(document);
+            if (song.colour >= 0) entry.getDynamicObject()->setProperty("color", song.colour);
+            if (song.tag.isNotEmpty()) entry.getDynamicObject()->setProperty("tag", song.tag);
+            projects.add(entry);
+        }
+        o->setProperty("projects", projects);
+        document.getParentDirectory().createDirectory();
+        return document.replaceWithText(juce::JSON::toString(root_));
+    }
+
+    int indexOf(const juce::File& project) const
+    {
+        for (int i = 0; i < (int)songs.size(); ++i) if (songs[(size_t)i].project.file == project) return i;
+        return -1;
+    }
+
+    // No song twice in a setlist: returns where it already is, or -1 when it was added at `at`.
+    int insert(const juce::File& project, int at)
+    {
+        const int already = indexOf(project);
+        if (already >= 0) return already;
+        songs.insert(songs.begin() + juce::jlimit(0, (int)songs.size(), at), line(project));
+        return -1;
+    }
+
+    void move(int from, int to)
+    {
+        if (from < 0 || from >= (int)songs.size()) return;
+        to = juce::jlimit(0, (int)songs.size() - 1, to);
+        if (to == from) return;
+        Song song = std::move(songs[(size_t)from]);
+        songs.erase(songs.begin() + from);
+        songs.insert(songs.begin() + to, std::move(song));
+    }
+
+    void remove(int index)
+    {
+        if (index >= 0 && index < (int)songs.size()) songs.erase(songs.begin() + index);
+    }
+
+    double totalSeconds() const
+    {
+        double total = 0.0;
+        for (const Song& song : songs) total += song.seconds;
+        return total;
+    }
+
+    // Tags already used in this setlist, offered when typing a new one.
+    juce::StringArray tags() const
+    {
+        juce::StringArray all;
+        for (const Song& song : songs) if (song.tag.isNotEmpty()) all.addIfNotAlreadyThere(song.tag);
+        return all;
+    }
+
+private:
+    juce::var root_;
 };
 
 } // namespace dsm

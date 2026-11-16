@@ -640,6 +640,15 @@ Jalons (ordre de travail, ajustable) :
 
 **Test d'écran (16/11/2026, demandé par Yoan : « t'as pas moyen de t'auto-tester en lançant l'app ? »)** : `--screentest` construit la vraie console et la joue comme un utilisateur, sans fenêtre : fichiers déposés, stems portés à la souris, menus du clic droit, boutons du transport, clic dans la forme d'onde, faders et potards glissés, MUTE, THROW tenu, KEEP, SOLO, pages, cartes des bus, tempo, doubles-clics pour renommer, limiteur, setlist (46 contrôles, plus des captures). Il tourne aussi dans la pipeline Linux. Il ne peut ni ouvrir les fenêtres du système (choix d'un fichier), ni juger le son. Premier défaut trouvé et corrigé : un MUTE cliqué à l'écran coupait la tranche sans allumer son voyant ni la LED de la console.
 
+**L4 codé le 16/11/2026** : l'atelier de setlist (§ 13), écran à part ouvert par EDIT dans la barre latérale.
+- **Mes setlists** (dossier `Setlists` de `~/Music/DubStemMix`) : nouvelle, dupliquer, renommer, supprimer (avec confirmation ; les morceaux restent).
+- **Bibliothèque** : tous les `.dubstem` du dossier DubStemMix, plus ceux glissés depuis le gestionnaire de fichiers (mémorisés), recherche par titre, BPM et durée par ligne.
+- **La setlist** : glisser depuis la bibliothèque à l'endroit voulu, glisser pour réordonner, pas de doublon (la ligne existante clignote), couleur (pastille ou clic droit, palette de 8) et tag par ligne, retirer avec ⌫ ou au clic droit, morceau introuvable en rouge avec Locate…, renommer par double-clic. **Chaque changement est écrit tout de suite** (« SAVED · 18:42 »), bouton SAVE, **LOAD IN THE CONSOLE**.
+- **Pré-écoute** du mix brut (sans effets) par la marque ▶ d'une ligne, forme d'onde cliquable, un seul morceau à la fois, sur la carte son de la console.
+- **Barre latérale de la console** : clic droit pour monter / descendre un morceau, « + » pour ajouter un morceau de la bibliothèque juste après celui ouvert (sans doublon). Entrer dans l'atelier pendant la lecture demande confirmation puis arrête le morceau.
+- Écarts avec le Mac, à confirmer par Yoan : le « + » ouvre une liste sans champ de recherche ; « Edit setlists » s'appelle EDIT ; pas de menu Fichier « Setlists… » (l'app n'a pas de barre de menus).
+- Vérifié : test d'écran (71 contrôles, dont 25 pour l'atelier et la barre latérale) et auto-test sur le Mac. Non vérifié : le son de la pré-écoute (le test n'a pas de carte son). En attente de l'essai de Yoan.
+
 ### 17.4 Points ouverts
 
 - **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 

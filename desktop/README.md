@@ -10,7 +10,8 @@ Milestones L1 (the JUCE base), L3 (the console's look) and L2 (the app's own eng
 
 - **Projects as on the Mac**: `.dubstem` files open and save both ways (what this app does not handle yet, such as Audio Unit slots, is kept untouched). Drop stems (WAV, AIFF, FLAC, MP3, OGG; M4A on macOS; any sample rate) or a folder: on a strip they are placed there, elsewhere they go to **Stems to place**. Drag a stem onto a strip, or right-click it (place, move, back to the stems to place, remove). Several stems on a strip are summed. `OPEN…`, `SAVE`, `NEW`; once a session has a place, changes save on their own.
 - **Each song has its settings** (effects, models, bus sends, KEEP, inserts, tempo, loop), loaded with it. A song is loaded stopped at its start; the effects' tails ring on.
-- **Setlists** (`.dubset`): the list in the sidebar, touch a song or N / P to load it; colours, tags, total time, songs heard 30 s marked as played.
+- **Setlists** (`.dubset`): the list in the sidebar, touch a song or N / P to load it; colours, tags, total time, songs heard 30 s marked as played. Right-click a song to move it up or down; `+` adds a song of the library right after the one open, without cutting the music.
+- **The setlist workshop** (`EDIT` in the sidebar), a screen of its own to build sets: my setlists (new, duplicate, rename, delete), the library (every project of `~/Music/DubStemMix`, plus projects dropped in, with a search), and the setlist (drag songs in, drag to reorder, a colour and a tag per line, no song twice, Backspace or right-click to remove, a missing song in red with Locate…). Every change is written at once. The play mark of a song previews its raw mix, with a waveform to jump in. `LOAD IN THE CONSOLE` gives the setlist to the console.
 - **Transport**: play / pause, back to the start, loop (to the sample), the song's waveform (click or drag to move, the last 30 s in ochre), position and time left.
 - **Tempo**: worked out from the stems when they are placed (never when one is already known; `AUTO` asks again), then drag the value (Shift for fine steps), TAP (or T), ÷2, ×2, SYNC for the delay.
 - **Names**: double-click the song's title or a strip's name to change it. **Missing stems** are said in the sidebar; `LOCATE…` looks for them by name in a folder. `OPEN…` lists the 10 last projects and setlists.
@@ -23,7 +24,7 @@ Milestones L1 (the JUCE base), L3 (the console's look) and L2 (the app's own eng
 
 The engine (`src/DubEngine.cpp`) is a fork of the MPC plugin's, with the Mac's way of handling songs; the effects are `Sources/DubDSP`, shared with the Mac app and the MPC plugin.
 
-Not there yet: the setlist workshop, recording, third-party plugins, stem separation.
+Not there yet: recording, third-party plugins, stem separation.
 
 ## Build and run
 
@@ -44,6 +45,6 @@ The first build downloads JUCE and Akai's MPC Plugin SDK headers (the engine is 
 ## Tested, not tested
 
 - `--selftest` makes test songs, then checks the stems (placing, several per strip, another sample rate), the console's gestures with the levels of the MPC plugin's own test, moving in the song, the loop and its seamless loop point, the end, saving and reopening a project, names, the recent files, tempo detection, a Mac-only setting surviving a save, a missing stem and locating it. It runs in CI on Linux.
-- `--screentest` builds the real console and plays it like a user, with no window: files dropped, stems carried, right-click menus, the play, back and loop buttons, a click in the waveform, faders and knobs dragged, MUTE, THROW held, KEEP, SOLO, the pages, the bus cards, the tempo controls, double-clicks to rename, the limiter, a setlist. It checks the result of each gesture and saves pictures. It runs in CI on Linux too. It cannot reach the system's file dialogs, nor judge the sound.
+- `--screentest` builds the real console and plays it like a user, with no window: files dropped, stems carried, right-click menus, the play, back and loop buttons, a click in the waveform, faders and knobs dragged, MUTE, THROW held, KEEP, SOLO, the pages, the bus cards, the tempo controls, double-clicks to rename, the limiter, a setlist, then the whole setlist workshop and the sidebar's live setlist gestures. It checks the result of each gesture and saves pictures. It runs in CI on Linux too. It cannot reach the system's file dialogs, nor judge the sound.
 - Not tried on Linux yet: the MIDImix and its LEDs, and sound on a real PC.
 - Windows: not built yet.
