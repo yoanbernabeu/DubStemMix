@@ -593,6 +593,32 @@ Hors maquette : identité visuelle, projets et setlists, atelier, séparation, e
 
 **Limite connue** : le son dans une machine virtuelle n'est pas représentatif (latence, craquements). « Ça tient un set sous Linux » ne pourra être affirmé qu'après un essai sur un vrai PC.
 
+### 17.5 Le vrai portage (décisions du 16/11/2026)
+
+Décidé en interview le 16 novembre 2026, après la maquette. Yoan a demandé de coder directement, jalon par jalon, chacun essayé sur son Mac avant le suivant ; ce chapitre se remplit au fil de l'eau.
+
+- **Une seule PR** pour tout le portage (#19), fusionnée à la fin.
+- **Morceaux : des projets, comme sur le Mac.** On glisse des stems, on les pose sur les tranches, on enregistre en `.dubstem` ; setlists `.dubset`. Les mêmes fichiers s'ouvrent sur Mac et sur Linux.
+- **Enchaînement : comme sur le Mac.** Chaque morceau a ses réglages ; le suivant est chargé à l'arrêt et lancé par l'utilisateur, les queues d'effets du précédent continuent.
+- **Première version = tout** : console complète, enregistrement du master et sessions, séparation de stems, atelier de setlist, plugins tiers (formats Linux à la place des Audio Units).
+- **Outils : JUCE, sous licence AGPL** (le plus simple à maintenir : cartes son, MIDI, fichiers audio, fenêtres et plugins tiers déjà faits et éprouvés, alors que personne ne peut essayer sur un vrai PC Linux). **Seul le dossier `desktop/` passe en AGPL** ; l'app Mac, le plugin MPC et les effets (`Sources/DubDSP`) restent en MIT.
+- **Conséquence** : pour suivre l'app Mac (plusieurs stems par tranche, réglages par morceau, plugins dans le trajet du son), l'app Linux aura son propre moteur, parti de celui de la MPC puis étendu. Le plugin MPC n'est pas modifié.
+
+Jalons (ordre de travail, ajustable) :
+
+| Jalon | Contenu |
+|---|---|
+| **L1 — Socle JUCE** | La maquette refaite avec JUCE : carte son, MIDImix et LEDs, fenêtre simple, auto-test, pipeline Linux |
+| **L2 — Projets** | Moteur propre à l'app ; ouvrir un `.dubstem` du Mac, stems de tout format, plusieurs par tranche, réserve, enregistrer |
+| **L3 — Console** | Miroir de la console au look du Mac (§ 5.11), toutes les pages, transport, forme d'onde, tempo |
+| **L4 — Setlist** | Setlist de jeu, atelier de setlist, fichiers récents |
+| **L5 — Enregistrement** | REC, sessions, export MP3 |
+| **L6 — Plugins tiers** | Slots de bus et d'insert, macros |
+| **L7 — Séparation** | Un morceau → 4 stems, mode préparation |
+| **L8 — Publication** | Paquet d'installation Linux, docs, puis Windows |
+
+**L1 codé le 16/11/2026** : la maquette est refaite avec JUCE dans `desktop/` (carte son et buffer par le panneau « Sound card… », MIDImix et LEDs, même fenêtre simple, même auto-test). Une carte son qui ne tourne pas à 44,1 kHz est gérée (le son du moteur est converti). Vérifié : compilation et auto-test sur le Mac et sous Linux (conteneur, sans écran), fenêtre sous Linux par capture. En attente de l'essai de Yoan sur le Mac.
+
 ### 17.4 Points ouverts
 
 - **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 
@@ -600,6 +626,5 @@ Hors maquette : identité visuelle, projets et setlists, atelier, séparation, e
 - **Fenêtre vérifiée sous Linux le 16/11/2026**, sans machine virtuelle (Ubuntu en conteneur, écran virtuel, capture) : elle s'ouvre et affiche le morceau, les 8 tranches nommées, les faders et le master. Sans carte son ni MIDI dans le conteneur, elle l'annonce (« No sound », « MIDI unavailable ») et continue de tourner.
 - **Essai en machine virtuelle (UTM) laissé de côté** (décision de Yoan, 16/11/2026). Restent donc non vérifiés sous Linux : la MIDImix et ses LEDs, et le son. À faire sur un vrai PC Linux (celui de Yoan ou d'un volontaire) avant de dire que l'app tient un set.
 
-- Outils définitifs et licence (MIT ou AGPL), après la maquette.
 - Un vrai PC Linux, ou un volontaire, pour l'essai du son.
 - Quelles fonctionnalités de l'app Mac suivent, et dans quel ordre : colonne Linux / Windows de `FEATURES.md`, à remplir au cadrage du vrai portage.

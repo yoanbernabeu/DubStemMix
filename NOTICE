@@ -18,3 +18,9 @@ Stem separation model (downloaded on request, never bundled)
   DubStemMix does not redistribute these weights: this repository, its releases and the app bundle
   contain no .onnx file. The app downloads them from Hugging Face only after the user agrees, and
   makes no claim to relicense them.
+
+Desktop app (desktop/)
+----------------------
+The desktop app for Linux and Windows (desktop/) is built with JUCE (https://juce.com), used under the
+GNU Affero General Public License version 3. That folder, and the programs built from it, are distributed
+under the AGPLv3 (desktop/LICENSE). The rest of this repository stays under the MIT license (LICENSE).
