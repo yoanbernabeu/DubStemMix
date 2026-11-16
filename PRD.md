@@ -658,6 +658,8 @@ Jalons (ordre de travail, ajustable) :
 - Ajout en passant : une session jamais nommée prend le nom commun de ses stems au lieu de « Untitled ».
 - Vérifié : auto-test (format du WAV, durée, tracklist, limiteur, dates lisibles par le Mac, export MP3) et test d'écran (bouton REC, écran des sessions, export, confirmation avant la corbeille). Non vérifié : une session du Mac relue ici et inversement (formats identiques sur le papier, pas essayé sur de vrais fichiers) ; le son du MP3 à l'oreille. En attente de l'essai de Yoan.
 
+**L5 essayé par Yoan le 16/11/2026** : une session d'1 min 15 enregistrée sur son Mac (WAV, fiche avec la setlist, la carte son et deux morceaux horodatés) ; il a demandé la suite sans rien signaler.
+
 ### 17.4 Points ouverts
 
 - **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 
