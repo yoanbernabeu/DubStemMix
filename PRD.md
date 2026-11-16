@@ -596,7 +596,9 @@ Hors maquette : identité visuelle, projets et setlists, atelier, séparation, e
 ### 17.4 Points ouverts
 
 - **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 
-- **Essai sur le Mac validé par Yoan le 16/11/2026** (« tout est ok ») : lecture et morceau suivant au clavier, faders et MUTE de la MIDImix, LEDs allumées, latence, compteurs de décrochages à 0. Restent les essais sous Linux (§ 17.3) : machine virtuelle, puis un vrai PC pour le son.
+- **Essai sur le Mac validé par Yoan le 16/11/2026** (« tout est ok ») : lecture et morceau suivant au clavier, faders et MUTE de la MIDImix, LEDs allumées, latence, compteurs de décrochages à 0. Restent les essais sous Linux (§ 17.3).
+- **Fenêtre vérifiée sous Linux le 16/11/2026**, sans machine virtuelle (Ubuntu en conteneur, écran virtuel, capture) : elle s'ouvre et affiche le morceau, les 8 tranches nommées, les faders et le master. Sans carte son ni MIDI dans le conteneur, elle l'annonce (« No sound », « MIDI unavailable ») et continue de tourner.
+- **Essai en machine virtuelle (UTM) laissé de côté** (décision de Yoan, 16/11/2026). Restent donc non vérifiés sous Linux : la MIDImix et ses LEDs, et le son. À faire sur un vrai PC Linux (celui de Yoan ou d'un volontaire) avant de dire que l'app tient un set.
 
 - Outils définitifs et licence (MIT ou AGPL), après la maquette.
 - Un vrai PC Linux, ou un volontaire, pour l'essai du son.
