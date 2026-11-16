@@ -617,7 +617,7 @@ Jalons (ordre de travail, ajustable) :
 | **L7 — Séparation** | Un morceau → 4 stems, mode préparation |
 | **L8 — Publication** | Paquet d'installation Linux, docs, puis Windows |
 
-**L1 codé le 16/11/2026** : la maquette est refaite avec JUCE dans `desktop/` (carte son et buffer par le panneau « Sound card… », MIDImix et LEDs, même fenêtre simple, même auto-test). Une carte son qui ne tourne pas à 44,1 kHz est gérée (le son du moteur est converti). Vérifié : compilation et auto-test sur le Mac et sous Linux (conteneur, sans écran), fenêtre sous Linux par capture. En attente de l'essai de Yoan sur le Mac.
+**L1 codé le 16/11/2026** : la maquette est refaite avec JUCE dans `desktop/` (carte son et buffer par le panneau « Sound card… », MIDImix et LEDs, même fenêtre simple, même auto-test). Une carte son qui ne tourne pas à 44,1 kHz est gérée (le son du moteur est converti). Vérifié : compilation et auto-test sur le Mac et sous Linux (conteneur, sans écran), fenêtre sous Linux par capture. **L1 validé par Yoan sur le Mac le 16/11/2026** (« tout est ok »). À sa demande, **le design passe avant le moteur** : L3 (console au look du Mac, branchée sur le moteur actuel et les morceaux d'un export MPC) se fait avant L2 ; ce qui dépend des projets (réserve, dépôt de stems, forme d'onde) viendra avec L2.
 
 ### 17.4 Points ouverts
 
