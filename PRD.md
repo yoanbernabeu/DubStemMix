@@ -595,7 +595,8 @@ Hors maquette : identité visuelle, projets et setlists, atelier, séparation, e
 
 ### 17.4 Points ouverts
 
-- **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. En attente des essais de Yoan (§ 17.3).
+- **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 
+- **Essai sur le Mac validé par Yoan le 16/11/2026** (« tout est ok ») : lecture et morceau suivant au clavier, faders et MUTE de la MIDImix, LEDs allumées, latence, compteurs de décrochages à 0. Restent les essais sous Linux (§ 17.3) : machine virtuelle, puis un vrai PC pour le son.
 
 - Outils définitifs et licence (MIT ou AGPL), après la maquette.
 - Un vrai PC Linux, ou un volontaire, pour l'essai du son.
