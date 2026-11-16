@@ -651,6 +651,13 @@ Jalons (ordre de travail, ajustable) :
 
 **L4 validé par Yoan le 16/11/2026** (« tout est OK »), écarts avec le Mac compris (« + » sans recherche, bouton EDIT, pas de menu « Setlists… »).
 
+**L5 codé le 16/11/2026** : l'enregistrement (§ 5.9), avec les mêmes dossiers et fichiers que le Mac.
+- **REC** en haut à droite (Ctrl/Cmd + R) : master stéréo après limiteur, WAV 32 bits flottant à la fréquence du moteur, écrit hors du fil audio ; chrono dans le bouton ; à l'arrêt, « recorded · SHOW » dans la barre latérale ouvre le dossier.
+- **Un dossier par session** dans le dossier d'enregistrement (`~/Music/DubStemMix` par défaut, réglable par FOLDER…) : `session.wav`, `session.txt`, `session.json`. La fiche liste les morceaux joués avec leur heure ; celui qui joue au moment du REC est à 00:00 ; le limiteur basculé pendant la session est noté.
+- **Écran « Recorded Sessions »** (pastille dans la barre latérale, Maj + Ctrl/Cmd + R) : sessions de la plus récente à la plus ancienne, fiche de la session choisie, EXPORT MP3 (320 kb/s, −14 LUFS, pics à −1,5 dB au plus, en tâche de fond avec progression, encodeur LAME du dépôt), SHOW IN FILES, MOVE TO TRASH (avec confirmation).
+- Ajout en passant : une session jamais nommée prend le nom commun de ses stems au lieu de « Untitled ».
+- Vérifié : auto-test (format du WAV, durée, tracklist, limiteur, dates lisibles par le Mac, export MP3) et test d'écran (bouton REC, écran des sessions, export, confirmation avant la corbeille). Non vérifié : une session du Mac relue ici et inversement (formats identiques sur le papier, pas essayé sur de vrais fichiers) ; le son du MP3 à l'oreille. En attente de l'essai de Yoan.
+
 ### 17.4 Points ouverts
 
 - **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 

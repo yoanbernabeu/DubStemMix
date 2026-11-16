@@ -15,6 +15,7 @@ Milestones L1 (the JUCE base), L3 (the console's look) and L2 (the app's own eng
 - **Transport**: play / pause, back to the start, loop (to the sample), the song's waveform (click or drag to move, the last 30 s in ochre), position and time left.
 - **Tempo**: worked out from the stems when they are placed (never when one is already known; `AUTO` asks again), then drag the value (Shift for fine steps), TAP (or T), ÷2, ×2, SYNC for the delay.
 - **Names**: double-click the song's title or a strip's name to change it. **Missing stems** are said in the sidebar; `LOCATE…` looks for them by name in a folder. `OPEN…` lists the 10 last projects and setlists.
+- **Recording**: `REC` (or Ctrl/Cmd + R) records the master, after the limiter, as a 32-bit float WAV in a new session folder of the recordings folder (`~/Music/DubStemMix` unless another is chosen), with `session.txt` (date, duration, setlist, sound card, limiter, and the songs played with their time: paste it as YouTube chapters) and `session.json`. `RECORDED SESSIONS` in the sidebar (Shift + Ctrl/Cmd + R) lists them: the sheet of the one chosen, `EXPORT MP3` (320 kb/s, brought to -14 LUFS, peaks at -1.5 dB at most), `SHOW IN FILES`, `MOVE TO TRASH`. Same folders and files as the Mac app.
 - **Master**: output meter, the limiter's switch (click `LIMITER ON`), what it takes off (`GR`, and the most since the last click), or by how much the output clips when it is off. **PRE** bar beside each strip's meter (the stems before the fader and MUTE). `POST` / `PRE` on each bus card: sends taken after or before the fader. Limiter and pre / post are kept for this computer, not in the project.
 - **The console's screen, as on the Mac** (palette, Archivo and JetBrains Mono, knobs, faders, meters): strips 1-6 (stems, or the siren and the Syndrum), the effect strips 7-8, the master column, the three bus cards with their cables. The four pages (MIX, FX, MASTER, INSERTS).
 - **Everything is playable with the mouse**: knobs (drag up and down), faders, MUTE, THROW (held), KEEP, SOLO (the SOLO button, then MUTE), the pages, DROP / REWIND / HOLD / CRASH, the insert of each strip, the reverb and bus 3 models, the throw target, where each bus is sent, the siren's wave and the Syndrum's roll.
@@ -24,7 +25,7 @@ Milestones L1 (the JUCE base), L3 (the console's look) and L2 (the app's own eng
 
 The engine (`src/DubEngine.cpp`) is a fork of the MPC plugin's, with the Mac's way of handling songs; the effects are `Sources/DubDSP`, shared with the Mac app and the MPC plugin.
 
-Not there yet: recording, third-party plugins, stem separation.
+Not there yet: third-party plugins, stem separation.
 
 ## Build and run
 
@@ -44,7 +45,7 @@ The first build downloads JUCE and Akai's MPC Plugin SDK headers (the engine is 
 
 ## Tested, not tested
 
-- `--selftest` makes test songs, then checks the stems (placing, several per strip, another sample rate), the console's gestures with the levels of the MPC plugin's own test, moving in the song, the loop and its seamless loop point, the end, saving and reopening a project, names, the recent files, tempo detection, a Mac-only setting surviving a save, a missing stem and locating it. It runs in CI on Linux.
-- `--screentest` builds the real console and plays it like a user, with no window: files dropped, stems carried, right-click menus, the play, back and loop buttons, a click in the waveform, faders and knobs dragged, MUTE, THROW held, KEEP, SOLO, the pages, the bus cards, the tempo controls, double-clicks to rename, the limiter, a setlist, then the whole setlist workshop and the sidebar's live setlist gestures. It checks the result of each gesture and saves pictures. It runs in CI on Linux too. It cannot reach the system's file dialogs, nor judge the sound.
+- `--selftest` makes test songs, then checks the stems (placing, several per strip, another sample rate), the console's gestures with the levels of the MPC plugin's own test, moving in the song, the loop and its seamless loop point, the end, saving and reopening a project, names, the recent files, tempo detection, a Mac-only setting surviving a save, a missing stem and locating it, a recording (the WAV, its sheet and tracklist) and its MP3 export. It runs in CI on Linux.
+- `--screentest` builds the real console and plays it like a user, with no window: files dropped, stems carried, right-click menus, the play, back and loop buttons, a click in the waveform, faders and knobs dragged, MUTE, THROW held, KEEP, SOLO, the pages, the bus cards, the tempo controls, double-clicks to rename, the limiter, a setlist, then the whole setlist workshop, the sidebar's live setlist gestures, REC and the recorded sessions screen. It checks the result of each gesture and saves pictures. It runs in CI on Linux too. It cannot reach the system's file dialogs, nor judge the sound.
 - Not tried on Linux yet: the MIDImix and its LEDs, and sound on a real PC.
 - Windows: not built yet.

@@ -79,7 +79,19 @@ public:
     {
         if (title.isNotEmpty()) return title;
         if (document != juce::File()) return document.getFileNameWithoutExtension();
-        return "Untitled";
+        // Not named yet: what the placed stems' file names have in common ("Artist - Title (Bass)" -> "Artist - Title").
+        juce::StringArray names;
+        for (const auto& strip : strips) for (const FileRef& f : strip) names.add(f.file.getFileNameWithoutExtension());
+        if (names.isEmpty()) return "Untitled";
+        juce::String common = names[0];
+        for (const juce::String& name : names)
+        {
+            int same = 0;
+            while (same < common.length() && same < name.length() && common[same] == name[same]) ++same;
+            common = common.substring(0, same);
+        }
+        if (names.size() > 1) common = common.trimCharactersAtEnd(" -_([.");
+        return common.isNotEmpty() ? common : juce::String("Untitled");
     }
 
     // The strip's name: the one given, else what differs between the stems' file names (PRD § 5.1).

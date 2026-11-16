@@ -38,6 +38,14 @@ juce_add_binary_data(DubStemMixAssets SOURCES
 # goes through the plugin's dsp_*.cpp wrappers, C compiled as C++: clang takes it, GCC does not.)
 file(GLOB DUB_DSP "${REPO}/Sources/DubDSP/*.c")
 
+# The MP3 encoder of session exports (PRD § 5.9): libmp3lame 3.100, unmodified, LGPL (Sources/LAME/COPYING),
+# the same sources the Mac app builds.
+file(GLOB LAME_SOURCES "${REPO}/Sources/LAME/*.c")
+add_library(dubstemmix-lame STATIC ${LAME_SOURCES})
+target_include_directories(dubstemmix-lame PRIVATE "${REPO}/Sources/LAME" PUBLIC "${REPO}/Sources/LAME/include")
+target_compile_definitions(dubstemmix-lame PRIVATE STDC_HEADERS HAVE_STDINT_H HAVE_ERRNO_H HAVE_FCNTL_H HAVE_LIMITS_H ieee754_float32_t=float)
+target_compile_options(dubstemmix-lame PRIVATE -w)   # third-party code, left as is
+
 target_sources(dubstemmix-desktop PRIVATE
   src/Main.cpp
   src/Sources.cpp
@@ -56,6 +64,7 @@ target_compile_definitions(dubstemmix-desktop PRIVATE
 
 target_link_libraries(dubstemmix-desktop PRIVATE
   DubStemMixAssets
+  dubstemmix-lame
   juce::juce_audio_utils
   juce::juce_audio_devices
   juce::juce_audio_formats

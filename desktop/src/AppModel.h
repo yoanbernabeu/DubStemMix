@@ -51,6 +51,14 @@ public:
     }
     void clearRecent() { file_->setValue("recent", ""); }
 
+    // Where sessions are recorded: the DubStemMix folder unless another was chosen (PRD § 5.12).
+    juce::File recordingFolder(const juce::File& fallback) const
+    {
+        const juce::String chosen = file_->getValue("recordingFolder");
+        return juce::File::isAbsolutePath(chosen) ? juce::File(chosen) : fallback;
+    }
+    void setRecordingFolder(const juce::File& folder) { file_->setValue("recordingFolder", folder.getFullPathName()); }
+
     // Projects dropped into the library from elsewhere: remembered from one launch to the next (PRD § 13).
     juce::Array<juce::File> libraryExtras() const
     {
@@ -225,12 +233,104 @@ public:
         return f.hasFileExtension("wav;aif;aiff;flac;mp3;ogg;m4a");
     }
 
+    // ---- Recording (PRD § 5.9): the master, one folder per session, a sheet with the songs played ----
+
+    juce::File lastRecording;                   // the folder of the session just recorded
+    std::atomic<double> exportProgress{-1.0};   // 0..1 while an MP3 is being made, else -1
+    juce::File exporting;                       // the session being exported
+
+    juce::File recordingsFolder() const { return settings.recordingFolder(home); }
+    bool isRecording() const { return Recorder::get().isRecording(); }
+    double recordingSeconds() const { return Recorder::get().seconds(); }
+
+    void toggleRecording(const juce::String& soundCard)
+    {
+        if (isRecording()) { finishRecording(); return; }
+        const juce::Time start = juce::Time::getCurrentTime();
+        const juce::File folder = RecordingSession::makeFolder(recordingsFolder(), start);
+        if (folder == juce::File() || !Recorder::get().start(folder.getChildFile(RecordingSession::kAudio), kRate))
+        {
+            message = "cannot start recording in " + recordingsFolder().getFullPathName();
+            return;
+        }
+        recording_ = RecordingSession();
+        recording_.started = start;
+        recording_.setlist = setlist.songs.empty() ? juce::String() : setlist.name;
+        recording_.device = soundCard;
+        recording_.sampleRate = kRate;
+        recording_.limiterOn = transport().limiterOn.load();
+        // The song already playing opens the tracklist at 00:00.
+        if (Engine::get().isPlaying() && !session.isEmpty())
+        {
+            recording_.tracks.push_back({0.0, session.displayTitle()});
+            loggedLoad_ = songLoads_;
+        }
+        else loggedLoad_ = -1;
+        limiterNoted_ = false;
+        recordingFolder_ = folder;
+        recording_.save(folder);
+        message = {};
+    }
+
+    void finishRecording()
+    {
+        if (!isRecording()) return;
+        const double seconds = recordingSeconds();
+        Recorder::get().stop();
+        recording_.ended = juce::Time::getCurrentTime();
+        recording_.finished = true;
+        recording_.duration = seconds;
+        recording_.save(recordingFolder_);
+        lastRecording = recordingFolder_;
+    }
+
+    // Called many times a second: a song loaded since the last entry enters the tracklist when it starts
+    // playing; the limiter switched during the session is noted.
+    void followRecording()
+    {
+        if (!isRecording()) return;
+        bool changed = false;
+        if (Engine::get().isPlaying() && loggedLoad_ != songLoads_ && !session.isEmpty())
+        {
+            loggedLoad_ = songLoads_;
+            recording_.tracks.push_back({recordingSeconds(), session.displayTitle()});
+            changed = true;
+        }
+        if (!limiterNoted_ && transport().limiterOn.load() != recording_.limiterOn)
+        {
+            recording_.limiterToggled = true;
+            limiterNoted_ = true;
+            changed = true;
+        }
+        if (changed) { recording_.duration = recordingSeconds(); recording_.save(recordingFolder_); }
+    }
+
+    // MP3 of a recorded session, in the background; its file is written beside the WAV.
+    void exportMp3(const SessionEntry& entry)
+    {
+        if (exportProgress.load() >= 0.0) return;
+        exporting = entry.folder;
+        exportProgress.store(0.0);
+        const juce::File wav = entry.audio(), target = entry.mp3();
+        const juce::String title = "DubStemMix " + entry.folder.getFileName();
+        pool_.addJob([this, wav, target, title]
+        {
+            const mp3::Result result = mp3::exportSession(wav, target, title, [this](double p) { exportProgress.store(p); },
+                                                          [this] { return cancelExport_.load(); });
+            exportResult_ = result.ok ? juce::String("MP3 written: ") + juce::String(result.gain, 1) + " dB applied (" + juce::String(result.loudness, 1) + " LUFS before)"
+                                      : "MP3 export: " + result.error;
+            exportDone_.store(true);
+            exportProgress.store(-1.0);
+        });
+    }
+
     // ---- Sessions ----
 
     void newSession()
     {
         Engine& engine = Engine::get();
         session = Session::fresh();
+        ++songLoads_;
         ++tempoJob_;
         detecting_.store(false);
         setlistIndex = -1;
@@ -256,6 +356,7 @@ public:
         Session loaded;
         if (!Session::load(file, loaded, error)) { message = file.getFileName() + ": " + error; return false; }
         session = std::move(loaded);
+        ++songLoads_;
         ++tempoJob_;
         detecting_.store(false);
         Engine& engine = Engine::get();
@@ -482,10 +583,16 @@ public:
         }
         const double found = detected_.exchange(-1.0);
         if (found > 0) setBpm(found);
+        if (exportDone_.exchange(false)) message = exportResult_;
         autosave();
     }
 
-    ~AppModel() { pool_.removeAllJobs(true, 8000); }
+    ~AppModel()
+    {
+        cancelExport_.store(true);
+        finishRecording();
+        pool_.removeAllJobs(true, 8000);
+    }
 
     // What the waveform is drawn from: every stem placed on a strip.
     std::vector<std::string> placedFiles() const
@@ -517,6 +624,12 @@ private:
         t.load(session.files());
     }
 
+    RecordingSession recording_;
+    juce::File recordingFolder_;
+    int songLoads_ = 0, loggedLoad_ = -1;
+    bool limiterNoted_ = false;
+    std::atomic<bool> cancelExport_{false}, exportDone_{false};
+    juce::String exportResult_;
     juce::ThreadPool pool_{1};
     std::atomic<int> tempoJob_{0};
     std::atomic<double> detected_{-1.0};

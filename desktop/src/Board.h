@@ -49,7 +49,8 @@ inline juce::Font mono(float size) { return juce::Font(juce::FontOptions(face(2)
 
 class Board : public juce::Component, public juce::FileDragAndDropTarget
 {
-    friend class Workshop;   // the setlist workshop draws with the same bricks
+    friend class Workshop;   // the setlist workshop and the recorded sessions draw with the same bricks
+    friend class Sessions;
 
 public:
     static constexpr int kWidth = 1440, kHeight = 900;
@@ -64,7 +65,7 @@ public:
     };
     Status status;
     // What needs a dialog is done by the board's owner.
-    std::function<void()> onSoundCard, onOpen, onSave, onNew, onAddStems, onLocate, onWorkshop;
+    std::function<void()> onSoundCard, onOpen, onSave, onNew, onAddStems, onLocate, onWorkshop, onRecord, onSessions;
     std::function<void(const juce::File&)> onOpenFile;
     // Shows a menu and gives back the item picked (0: none). Replaced by the screen test, which picks by itself.
     std::function<void(juce::PopupMenu&, std::function<void(int)>)> showMenu = [](juce::PopupMenu& menu, std::function<void(int)> picked)
@@ -590,7 +591,7 @@ private:
             write(g, juce::String((int)setlist.songs.size()) + look::u(" SONGS · ") + clock(total), {18.0f, y + 14.0f, 204.0f, 12.0f}, look::mono(8.0f), look::dim);
             y += 34.0f;
             // Keep the open song in view when the list is longer than the room.
-            const int room = juce::jmax(1, (int)((800.0f - y) / 42.0f));
+            const int room = juce::jmax(1, (int)((766.0f - y) / 42.0f));
             const int first = juce::jlimit(0, juce::jmax(0, (int)setlist.songs.size() - room), app_.setlistIndex - room / 2);
             for (int i = first; i < (int)setlist.songs.size() && i < first + room; ++i)
             {
@@ -636,6 +637,16 @@ private:
             pill(g, edit, "EDIT", false, look::text);
             call(edit, [this] { if (onWorkshop) onWorkshop(); });
             write(g, "Build a set, or open a .dubset", {18.0f, y + 16.0f, 204.0f, 12.0f}, look::mono(8.0f), look::dim);
+        }
+
+        // Recorded sessions: the list, and the one just made.
+        const juce::Rectangle<float> sessions(18.0f, 778.0f, 110.0f, 15.0f);
+        pill(g, sessions, "RECORDED SESSIONS", false, look::text);
+        call(sessions, [this] { if (onSessions) onSessions(); });
+        if (app_.lastRecording != juce::File() && !app_.isRecording())
+        {
+            write(g, look::u("recorded · SHOW"), {134.0f, 778.0f, 92.0f, 15.0f}, look::mono(8.0f), look::rec);
+            call({134.0f, 776.0f, 92.0f, 19.0f}, [this] { app_.lastRecording.revealToUser(); });
         }
 
         // Status
@@ -736,7 +747,17 @@ private:
         pill(g, sync, "SYNC", engine.on(engine.delaySync), look::delay);
         zone(Zone::Toggle, sync, engine.delaySync);
 
-        const juce::Rectangle<float> open(1168.0f, 22.0f, 88.0f, 40.0f), save(1264.0f, 22.0f, 76.0f, 40.0f), fresh(1348.0f, 22.0f, 74.0f, 40.0f);
+        const juce::Rectangle<float> open(1080.0f, 22.0f, 80.0f, 40.0f), save(1168.0f, 22.0f, 68.0f, 40.0f), fresh(1244.0f, 22.0f, 62.0f, 40.0f);
+        // REC: the master, into a new session folder (PRD § 5.9). Red is kept for recording.
+        const juce::Rectangle<float> rec(1316.0f, 22.0f, 106.0f, 40.0f);
+        const bool recording = app_.isRecording();
+        if (recording) { g.setColour(look::rec); g.fillRoundedRectangle(rec, 4.0f); }
+        else { g.setColour(look::surface); g.fillRoundedRectangle(rec, 4.0f); g.setColour(look::rec); g.drawRoundedRectangle(rec.reduced(0.5f), 4.0f, 1.0f); }
+        g.setColour(recording ? look::bg : look::rec);
+        g.fillEllipse(rec.getX() + 14.0f, rec.getCentreY() - 4.0f, 8.0f, 8.0f);
+        write(g, recording ? clock(app_.recordingSeconds()) : juce::String("REC"), rec.withTrimmedLeft(26.0f).withTrimmedRight(8.0f),
+              recording ? look::mono(11.0f) : look::label(11.5f), recording ? look::bg : look::rec, juce::Justification::centred);
+        call(rec, [this] { if (onRecord) onRecord(); });
         card(g, open, look::surface, look::border, 4.0f);
         write(g, look::u("OPEN…"), open, look::label(11.5f), look::text, juce::Justification::centred);
         call(open, [this]

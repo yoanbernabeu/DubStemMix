@@ -13,6 +13,7 @@
 #include "mpc_vst2_abi.h"
 #include "FX.h"
 #include "StripSource.h"
+#include "Recorder.h"
 
 #include <array>
 #include <atomic>
@@ -126,6 +127,7 @@ struct Engine
             done += n;
         }
         if (frames > 0) lastLevel.store(left[frames - 1], std::memory_order_relaxed);
+        Recorder::get().write(left, right, frames);   // the master, after the limiter
     }
 
     // ---- What the screen reads and sets (window's thread) ----

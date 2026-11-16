@@ -13,6 +13,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "Workshop.h"
+#include "Sessions.h"
 
 #include <cstdio>
 #include <thread>
@@ -53,7 +54,7 @@ void wait(double seconds) { std::this_thread::sleep_for(std::chrono::duration<do
 class MainComponent : public juce::Component, private juce::Timer
 {
 public:
-    explicit MainComponent(dsm::AppModel& app) : app_(app), board_(app), workshop_(app)
+    explicit MainComponent(dsm::AppModel& app) : app_(app), board_(app), workshop_(app), sessions_(app)
     {
         juce::AudioDeviceManager::AudioDeviceSetup setup;
         setup.sampleRate = dsm::kRate;
@@ -85,6 +86,23 @@ public:
                                   [this, line](const juce::FileChooser& c) { if (c.getResult().isDirectory()) workshop_.locate(line, c.getResult()); });
         };
         addChildComponent(workshop_);
+
+        board_.onRecord = [this] { record(); };
+        board_.onSessions = [this] { showSessions(true); };
+        sessions_.onBack = [this] { showSessions(false); };
+        sessions_.onConfirm = workshop_.onConfirm;
+        sessions_.onFolder = [this]
+        {
+            chooser_ = std::make_unique<juce::FileChooser>("Folder where sessions are recorded", app_.recordingsFolder());
+            chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                                  [this](const juce::FileChooser& c)
+                                  {
+                                      if (!c.getResult().isDirectory()) return;
+                                      app_.settings.setRecordingFolder(c.getResult());
+                                      sessions_.open();
+                                  });
+        };
+        addChildComponent(sessions_);
         setWantsKeyboardFocus(true);
         setSize(dsm::Board::kWidth, dsm::Board::kHeight);
         startTimerHz(30);
@@ -109,6 +127,7 @@ public:
                                                                                          ((float)getHeight() - (float)dsm::Board::kHeight * scale) * 0.5f);
         board_.setTransform(fit);
         workshop_.setTransform(fit);
+        sessions_.setTransform(fit);
     }
 
     bool keyPressed(const juce::KeyPress& key) override
@@ -119,11 +138,15 @@ public:
         const juce::juce_wchar c = juce::CharacterFunctions::toLowerCase((juce::juce_wchar)key.getKeyCode());
         if (key.getModifiers().isCommandDown())
         {
+            // Ctrl/Cmd + R records; with Shift, the recorded sessions.
+            if (c == 'r') { if (key.getModifiers().isShiftDown()) showSessions(!sessions_.isVisible()); else record(); return true; }
+            if (sessions_.isVisible()) return false;
             if (c == 'o') { openDialog(); return true; }
             if (c == 's') { save(key.getModifiers().isShiftDown()); return true; }
             if (c == 'n') { newSession(); return true; }
             return false;
         }
+        if (sessions_.isVisible()) return false;
         if (key == juce::KeyPress::spaceKey) { engine.togglePlay(); return true; }
         if (key == juce::KeyPress::escapeKey) { engine.panic(); return true; }
         if (c == 'n') { app_.step(+1); return true; }
@@ -137,7 +160,7 @@ public:
     // DROP and HOLD last as long as their key is down.
     bool keyStateChanged(bool) override
     {
-        if (workshop_.isVisible()) return false;
+        if (workshop_.isVisible() || sessions_.isVisible()) return false;
         held(dropDown_, 'D', dsm::kDropNote);
         held(holdDown_, 'H', dsm::muteNote(6));
         return false;
@@ -155,6 +178,7 @@ private:
     void timerCallback() override
     {
         if (++ticks_ % 30 == 1) { console_.poll(); app_.tick(); }
+        app_.followRecording();
         console_.lightLeds();
 
         dsm::Board::Status& status = board_.status;
@@ -171,7 +195,25 @@ private:
             status.soundError = {};
         }
         else status.soundError = soundError_.isEmpty() ? juce::String("no sound card") : soundError_;
-        if (workshop_.isVisible()) workshop_.repaint(); else board_.repaint();
+        if (workshop_.isVisible()) workshop_.repaint(); else if (sessions_.isVisible()) sessions_.repaint(); else board_.repaint();
+    }
+
+    // ---- Recording (PRD § 5.9) ----
+
+    void record()
+    {
+        juce::AudioIODevice* device = devices_.getCurrentAudioDevice();
+        app_.toggleRecording(device != nullptr ? device->getName() : juce::String());
+    }
+
+    // The recorded sessions take the console's place; the music and a recording under way go on.
+    void showSessions(bool show)
+    {
+        if (workshop_.isVisible()) return;
+        if (show) sessions_.open();
+        sessions_.setVisible(show);
+        board_.setVisible(!show);
+        grabKeyboardFocus();
     }
 
     // ---- The setlist workshop takes the console's place (PRD § 13) ----
@@ -296,6 +338,7 @@ private:
     dsm::Console console_;
     dsm::Board board_;
     dsm::Workshop workshop_;
+    dsm::Sessions sessions_;
     std::unique_ptr<juce::FileChooser> chooser_;
     int ticks_ = 0;
     bool dropDown_ = false, holdDown_ = false;
@@ -385,6 +428,7 @@ int runSelfTest()
         if (!ok) failures++;
         std::printf("%s  %-58s got %.4f want %.4f\n", ok ? "PASS" : "FAIL", what, (double)got, (double)want);
     };
+    auto yes = [&expect](const char* what, bool ok) { expect(what, ok ? 1.0f : 0.0f, 1.0f); };
     {
         SilentPlayer player;
         auto level = [&engine] { return engine.lastLevel.load(); };
@@ -553,6 +597,60 @@ int runSelfTest()
         app.save();
         const juce::var kept = juce::JSON::parse(project.loadFileAsString());
         expect("...and stays written in the project", (float)kept["stems"].size(), 3.0f);
+        // Recording (PRD § 5.9): the master as a float WAV in a session folder, with the songs played.
+        app.home = root.getChildFile("home");
+        app.newSession();
+        app.addFiles({clicks}, 0);
+        wait(0.6);
+        engine.togglePlay();
+        wait(0.4);
+        app.toggleRecording("Test card");
+        yes("REC starts a recording", app.isRecording());
+        wait(1.2);
+        app.followRecording();
+        app.settings.setLimiterOn(false);
+        app.followRecording();
+        app.settings.setLimiterOn(true);
+        app.open(project);
+        app.followRecording();
+        engine.togglePlay();
+        wait(0.8);
+        app.followRecording();
+        const double recorded = app.recordingSeconds();
+        app.toggleRecording("Test card");
+        yes("REC again stops it", !app.isRecording());
+        const std::vector<dsm::SessionEntry> sessions = dsm::listSessions(app.recordingsFolder());
+        expect("the session is in the recordings folder", (float)sessions.size(), 1.0f);
+        if (sessions.size() == 1)
+        {
+            const dsm::SessionEntry& entry = sessions[0];
+            juce::WavAudioFormat wavFormat;
+            std::unique_ptr<juce::AudioFormatReader> reader(wavFormat.createReaderFor(entry.audio().createInputStream().release(), true));
+            yes("session.wav is a 32-bit float stereo file at the engine's rate", reader != nullptr && reader->usesFloatingPointData && reader->bitsPerSample == 32
+                                                                                   && reader->numChannels == 2 && reader->sampleRate == 44100.0);
+            expect("...as long as what was recorded", reader != nullptr ? (float)((double)reader->lengthInSamples / 44100.0) : 0.0f, (float)recorded, 0.3f);
+            expect("the sheet holds that duration", (float)entry.session.duration, (float)recorded, 0.05f);
+            yes("the song playing at REC opens the tracklist at 00:00", entry.session.tracks.size() == 2 && entry.session.tracks[0].time == 0.0
+                                                                          && entry.session.tracks[0].title == "Clicks");
+            yes("a song started later enters it with its time", entry.session.tracks.size() == 2 && entry.session.tracks[1].time > 1.0
+                                                                  && entry.session.tracks[1].title == "Zion Gate Dub");
+            yes("the limiter switched during the session is noted", entry.session.limiterOn && entry.session.limiterToggled);
+            const juce::String sheet = entry.folder.getChildFile("session.txt").loadFileAsString();
+            yes("session.txt reads as a tracklist", sheet.contains("Tracklist\n00:00 Clicks\n00:0") && sheet.contains("Audio: Test card, 44.1 kHz, 32-bit float WAV")
+                                                      && sheet.contains("Limiter: on (switched during the session)"));
+            const juce::String started = juce::JSON::parse(entry.folder.getChildFile("session.json").loadFileAsString())["started"].toString();
+            yes("session.json dates are written as the Mac reads them", started.length() == 20 && started.endsWithChar('Z') && started[10] == 'T');
+
+            app.exportMp3(entry);
+            for (int i = 0; i < 80 && app.exportProgress.load() >= 0.0; ++i) wait(0.25);
+            app.tick();
+            yes("Export MP3 writes session.mp3 beside the WAV", entry.hasMp3() && entry.mp3().getSize() > 4000);
+            yes("...and says what gain it applied", app.message.startsWith("MP3 written"));
+        }
+        expect("the gain aims at -14 LUFS when the peaks allow", (float)dsm::mp3::gainFor(-20.0, -6.0), 4.5f);
+        expect("...and stops 1.5 dB under the peaks otherwise", (float)dsm::mp3::gainFor(-30.0, -3.0), 1.5f);
+        app.open(project);
+
         // The stem turns up in another folder: LOCATE finds it by its name.
         const juce::File moved = writeStem(root.getChildFile("moved"), "Song (Bass).wav", 0.20f, 8.0);
         expect("LOCATE finds the stem in the folder given", (float)app.locate(root.getChildFile("moved")), 1.0f);
@@ -786,9 +884,9 @@ int runScreenTest(const juce::File& pictures)
         yes("LIMITER ON clicked: off", !t.limiterOn.load());
         user.click(masterX, 839.0f);
         yes("...and on again", t.limiterOn.load());
-        user.click(1302.0f, 42.0f);
-        user.click(1385.0f, 42.0f);
-        user.click(1212.0f, 42.0f);
+        user.click(1202.0f, 42.0f);
+        user.click(1275.0f, 42.0f);
+        user.click(1120.0f, 42.0f);
         yes("SAVE, NEW and OPEN ask their dialogs", saved == 1 && fresh == 1 && opened == 1);
 
         // ---- A setlist: dropped on the window, a song picked in the sidebar ----
@@ -810,14 +908,44 @@ int runScreenTest(const juce::File& pictures)
         expect("a click on the second song loads it", (float)app.setlistIndex, 1.0f);
         yes("...stopped, with its title", !engine.isPlaying() && app.session.displayTitle() == "Second Tune");
         pickedItem = 0;
-        user.click(1212.0f, 42.0f);
+        user.click(1120.0f, 42.0f);
         yes("OPEN now lists the recent files", menuItems.contains("Night") && menuItems.contains("(setlist)") && menuItems.contains("Clear Menu"));
         user.picture(pictures.getChildFile("screen-setlist.png"));
         t.preFader[fx::Reverb].store(false);
         t.preFader[fx::Delay].store(false);
 
-        // ---- The setlist workshop (PRD § 13) ----
+        // ---- Recording and the recorded sessions (PRD § 5.9) ----
         app.home = root.getChildFile("home");
+        int recordAsked = 0;
+        board.onRecord = [&recordAsked, &app] { ++recordAsked; app.toggleRecording("Screen card"); };
+        engine.togglePlay();
+        user.click(1369.0f, 42.0f);
+        yes("the REC button starts a recording", recordAsked == 1 && app.isRecording());
+        wait(1.0);
+        user.picture(pictures.getChildFile("screen-recording.png"));
+        user.click(1369.0f, 42.0f);
+        yes("...and stops it", !app.isRecording() && app.lastRecording.getChildFile("session.wav").existsAsFile());
+        engine.togglePlay();
+        {
+            dsm::Sessions sessions(app);
+            ScreenUser listener(sessions);
+            juce::String asked;
+            sessions.onConfirm = [&asked](const juce::String& q, std::function<void()>) { asked = q; };   // the test never trashes anything
+            sessions.open();
+            expect("the recorded sessions screen lists the session", (float)sessions.count(), 1.0f);
+            yes("...and shows it", sessions.chosen() != nullptr && sessions.chosen()->folder == app.lastRecording);
+            listener.click(635.0f, 810.0f);
+            for (int i = 0; i < 80 && app.exportProgress.load() >= 0.0; ++i) wait(0.25);
+            app.tick();
+            listener.look();
+            yes("EXPORT MP3 writes the session's MP3, or says why it cannot", app.lastRecording.getChildFile("session.mp3").existsAsFile()
+                                                                               || app.message.contains("silent"));
+            listener.click(1015.0f, 810.0f);
+            yes("MOVE TO TRASH asks first", asked.contains("to the trash"));
+            listener.picture(pictures.getChildFile("screen-sessions.png"));
+        }
+
+        // ---- The setlist workshop (PRD § 13) ----
         const juce::File songs = app.home.getChildFile("Songs");
         songs.createDirectory();
         const char* titles[4] = {"Alpha Steppa", "Bass Culture", "Chant Down", "Dread Time"};
