@@ -2,6 +2,7 @@
 
 > Version 1.2 · 22 septembre 2026 · issu de l'interview de cadrage du 21 septembre 2026 et de l'interview « effets dub » du 22 septembre 2026
 > Statut : validé — jalons M0 à M4 livrés, § 3 du TODO livré ; v2 (§ 11, jalons M6 à M8) livrée et validée ; séparation de stems (§ 12, jalon M9) cadrée le 22 septembre 2026. Ce document reste la référence produit et se tient à jour à chaque jalon
+> Où chaque fonctionnalité existe (Mac, MPC, Linux / Windows) : `FEATURES.md`, tenu à jour avec ce document
 
 ## 1. Vision
 

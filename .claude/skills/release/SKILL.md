@@ -26,6 +26,8 @@ Stop and tell the user if any of these fails:
 - `swift test` passes;
 - the CI run of the current HEAD is green: `gh run list --branch main --workflow CI --limit 1`.
 
+Then read `FEATURES.md` (where each feature exists: Mac, MPC, Linux / Windows) and note every row still marked `⏳` (decided, not coded on that app) or `❔` (gap never decided). They do not block the release: they are shown to the user at step 5.
+
 ### 2. Choose the number
 
 - Last version: `git describe --tags --abbrev=0`.
@@ -66,6 +68,7 @@ Show the user, in short:
 
 - the number (`0.9.0 → 0.10.0`);
 - the files changed (`git diff --stat`) and anything odd found in step 3;
+- the `⏳` and `❔` rows of `FEATURES.md` found at step 1, one line each ("decided, not yet on the MPC: …"), or "FEATURES.md: nothing pending";
 - the full release notes.
 
 Wait for an explicit yes. Changes to the notes or the number → apply, show again.
