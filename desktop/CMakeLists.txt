@@ -27,6 +27,12 @@ juce_add_gui_app(dubstemmix-desktop
   COMPANY_NAME "YoanDev"
   BUNDLE_ID "com.yoanbernabeu.DubStemMix.desktop")
 
+# Fonts of the Mac app's look (PRD § 5.11), as fixed instances of the variable fonts in Sources/DubStemMix/Resources.
+juce_add_binary_data(DubStemMixAssets SOURCES
+  assets/Archivo-Label.ttf
+  assets/Archivo-Text.ttf
+  assets/JetBrainsMono-Medium.ttf)
+
 # The effect kernels shared with the Mac app and the MPC plugin, built here as the C they are. (The MPC build
 # goes through the plugin's dsp_*.cpp wrappers, C compiled as C++: clang takes it, GCC does not.)
 file(GLOB DUB_DSP "${REPO}/Sources/DubDSP/*.c")
@@ -46,6 +52,7 @@ target_compile_definitions(dubstemmix-desktop PRIVATE
   JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:dubstemmix-desktop,JUCE_VERSION>")
 
 target_link_libraries(dubstemmix-desktop PRIVATE
+  DubStemMixAssets
   juce::juce_audio_utils
   juce::juce_audio_devices
   juce::juce_gui_basics

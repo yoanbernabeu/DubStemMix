@@ -4,17 +4,17 @@ The third DubStemMix app, next to the Mac app and the MPC plugin. Product framin
 
 Built with [JUCE](https://juce.com). **This folder is distributed under the AGPLv3** (`desktop/LICENSE`); the rest of the repository (Mac app, MPC plugin, effects) stays under MIT.
 
-## Where it stands: milestone L1, the JUCE base
+## Where it stands: the console in the Mac's look, on the MPC plugin's engine
 
-For now the engine is the MPC plugin's (`mpc/DubStemMix/src`, compiled in unchanged, with the effects of `Sources/DubDSP`); JUCE gives it a sound card, the MIDImix and a plain window.
+Milestones L1 (the JUCE base) and L3 (the console's look) of PRD § 17.5. For now the engine is the MPC plugin's (`mpc/DubStemMix/src`, compiled in unchanged, with the effects of `Sources/DubDSP`), and the songs come from an **Export to MPC** folder (File ▸ Export Setlist to MPC… in the Mac app, to a folder), or from the repository's test songs (`mpc/DubStemMix/Content/Songs`) when started from the repository with no argument.
 
-- Plays the songs of an **Export to MPC** folder (File ▸ Export Setlist to MPC… in the Mac app, to a folder), or the repository's test songs (`mpc/DubStemMix/Content/Songs`) when started from the repository with no argument.
-- **MIDImix**, factory mapping, exactly as on the MPC: pages, effects and gestures come with the engine. Plugged or unplugged while running. Its LEDs are lit (MUTE, REC ARM, BANK).
-- **Keyboard**: Space = play / pause, N = next song.
-- **Window**: 8 strips (name, fader, meter, MUTE and REC ARM lamps) and the master, the song and time left, the sound card's buffer and rate, the MIDImix's state, the load, late buffers and disk dropouts. `Sound card...` picks the card and the buffer size.
-- The engine runs at 44.1 kHz; a sound card at another rate is resampled to.
+- **The console's screen, as on the Mac** (palette, Archivo and JetBrains Mono, knobs, faders, meters): strips 1-6 (stems, or the siren and the Syndrum), the effect strips 7-8, the master column, the three bus cards, the setlist, the status. The four pages (MIX, FX, MASTER, INSERTS).
+- **Everything is playable with the mouse**: knobs (drag up and down), faders, MUTE, THROW (held), KEEP, SOLO (the SOLO button, then MUTE), the pages, DROP / REWIND / HOLD / CRASH, the insert of each strip, the reverb and bus 3 models, delay sync, the throw target, where each bus is sent, the siren's wave and the Syndrum's roll. Touch a song in the setlist to play it next.
+- **MIDImix**, factory mapping, exactly as on the MPC. Plugged or unplugged while running. Its LEDs are lit (MUTE, REC ARM, BANK).
+- **Keyboard**: Space play / pause, N next song, D drop (held), H hold (held), C crash, R rewind, Esc panic.
+- `SOUND CARD…` picks the card and the buffer size. The engine runs at 44.1 kHz; a sound card at another rate is resampled to.
 
-Next milestones (PRD § 17.5): projects as on the Mac, the console in the Mac's look, setlists, recording, third-party plugins, stem separation.
+Not there yet (they need the app's own engine, milestone L2): projects and stems dropped on strips, the waveform (a progress bar stands in), the song's tempo, the master meter and limiter indicator, the cables between bus cards. Then setlists, recording, third-party plugins, stem separation.
 
 ## Build and run
 
@@ -23,6 +23,7 @@ desktop/build.sh                                        # -> desktop/build/dubst
 desktop/build/dubstemmix-desktop                        # the repository's test songs
 desktop/build/dubstemmix-desktop "/path/to/an export"   # an Export to MPC folder, or a card
 desktop/build/dubstemmix-desktop --selftest             # no display, no sound card: checks the levels
+desktop/build/dubstemmix-desktop --snapshot out.png fx  # draws a page (mix, fx, master, inserts) to a picture
 ```
 
 - **macOS**: Xcode command line tools and CMake (`brew install cmake`).
