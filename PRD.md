@@ -649,6 +649,8 @@ Jalons (ordre de travail, ajustable) :
 - Écarts avec le Mac, à confirmer par Yoan : le « + » ouvre une liste sans champ de recherche ; « Edit setlists » s'appelle EDIT ; pas de menu Fichier « Setlists… » (l'app n'a pas de barre de menus).
 - Vérifié : test d'écran (71 contrôles, dont 25 pour l'atelier et la barre latérale) et auto-test sur le Mac. Non vérifié : le son de la pré-écoute (le test n'a pas de carte son). En attente de l'essai de Yoan.
 
+**L4 validé par Yoan le 16/11/2026** (« tout est OK »), écarts avec le Mac compris (« + » sans recherche, bouton EDIT, pas de menu « Setlists… »).
+
 ### 17.4 Points ouverts
 
 - **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 
