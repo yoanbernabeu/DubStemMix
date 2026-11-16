@@ -17,3 +17,15 @@ jobs:
         run: swift build
       - name: Tests
         run: swift test 2>&1 | tail -40
+
+  # The desktop mock-up (PRD § 17.2) on an ordinary Linux PC: it must build and play its test songs.
+  desktop-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tools and headers
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq build-essential cmake git libasound2-dev xorg-dev libgl1-mesa-dev
+      - name: Build
+        run: desktop/build.sh
+      - name: Self-test (no window, no sound card)
+        run: desktop/build/dubstemmix-desktop --selftest
