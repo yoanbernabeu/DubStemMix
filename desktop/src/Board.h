@@ -55,8 +55,10 @@ public:
     };
     Status status;
     // What needs a dialog is done by the board's owner.
-    std::function<void()> onSoundCard, onOpen, onSave, onNew, onAddStems;
+    std::function<void()> onSoundCard, onOpen, onSave, onNew, onAddStems, onLocate;
     std::function<void(const juce::File&)> onOpenFile;
+    // Asks for a line of text (a name), then gives it back.
+    std::function<void(const juce::String& what, const juce::String& current, std::function<void(const juce::String&)>)> onAskText;
 
     explicit Board(AppModel& app) : app_(app)
     {
@@ -127,6 +129,13 @@ public:
         repaint();
     }
 
+    // A double-click renames: the song's title, a strip's name.
+    void mouseDoubleClick(const juce::MouseEvent& e) override
+    {
+        for (auto it = zones_.rbegin(); it != zones_.rend(); ++it)
+            if (it->onDouble && it->area.contains(e.position)) { const auto action = it->onDouble; action(); return; }
+    }
+
     void mouseDrag(const juce::MouseEvent& e) override
     {
         if (active_ == nullptr) return;
@@ -167,6 +176,7 @@ private:
         std::function<void()> call;
         std::function<void(const juce::MouseEvent&, bool)> onDrag;   // Drag: on the press (true) and each move
         std::function<void()> menu;                                  // on a right-click
+        std::function<void()> onDouble;                              // on a double-click
         int fromStrip = -1, index = -1;                              // Carry: a stem, from a strip or the stems to place (-1)
         juce::String name;
     };
@@ -190,6 +200,21 @@ private:
             engine.set(z.param, (e.position.x - z.area.getX()) / z.area.getWidth());
         else if (z.kind == Zone::Drag && z.onDrag)
             z.onDrag(e, false);
+    }
+
+    void doubleZone(juce::Rectangle<float> area, std::function<void()> action)
+    {
+        Zone z;
+        z.area = area; z.kind = Zone::Call; z.onDouble = std::move(action);
+        zones_.push_back(std::move(z));
+    }
+
+    // A level shown like the meters: -48 dB at the bottom, 0 dB at the top, falling back slowly.
+    static float shownLevel(float& shown, float peak)
+    {
+        const float db = peak > 1e-6f ? 20.0f * std::log10(peak) : -100.0f;
+        shown = std::fmax(juce::jlimit(0.0f, 1.0f, (db + 48.0f) / 48.0f), shown - 0.03f);
+        return shown;
     }
 
     void dragZone(juce::Rectangle<float> area, std::function<void(const juce::MouseEvent&, bool)> onDrag)
@@ -469,7 +494,12 @@ private:
         const juce::String where = app_.hasDocument() ? session.document.getFileName() + look::u(" · ") + (app_.isSaved() ? "saved" : "saving")
                                                       : juce::String("not saved yet");
         write(g, where, {18.0f, 94.0f, 204.0f, 12.0f}, look::mono(8.5f), look::dim);
-        if (app_.message.isNotEmpty()) write(g, app_.message, {18.0f, 108.0f, 204.0f, 12.0f}, look::mono(8.5f), look::rec);
+        if (app_.message.isNotEmpty())
+        {
+            const bool missing = app_.session.missingCount() > 0;
+            write(g, app_.message + (missing ? look::u(" · LOCATE…") : juce::String()), {18.0f, 108.0f, 204.0f, 12.0f}, look::mono(8.5f), look::rec);
+            if (missing) call({18.0f, 104.0f, 204.0f, 18.0f}, [this] { if (onLocate) onLocate(); });
+        }
 
         // Stems to place: the user puts them on the strips (PRD § 5.1).
         float y = 132.0f;
@@ -618,6 +648,10 @@ private:
 
         const double position = engine.seconds(), duration = engine.duration();
         write(g, app_.session.displayTitle().toUpperCase(), {417.0f, 20.0f, 440.0f, 24.0f}, look::label(17.0f), look::text);
+        doubleZone({417.0f, 20.0f, 440.0f, 24.0f}, [this]
+        {
+            if (onAskText) onAskText("Song title", app_.session.displayTitle(), [this](const juce::String& title) { app_.rename(title); });
+        });
         write(g, clock(position, true) + " / " + clock(duration) + look::u(" · -") + clock(duration - position),
               {417.0f, 44.0f, 440.0f, 16.0f}, look::mono(11.0f), look::dim);
 
@@ -635,6 +669,9 @@ private:
                                      sync(1030.0f, 43.0f, 38.0f, 17.0f);
         pill(g, tap, "TAP", false, look::text);
         call(tap, [this] { app_.tap(); });
+        const juce::Rectangle<float> automatic(1000.0f, 22.0f, 40.0f, 17.0f);
+        pill(g, automatic, app_.isDetectingTempo() ? "..." : "AUTO", app_.isDetectingTempo(), look::text);
+        call(automatic, [this] { app_.detectTempo(true); });
         pill(g, half, look::u("÷2"), false, look::text);
         call(half, [this] { if (app_.session.bpm > 0) app_.setBpm(app_.session.bpm / 2.0); });
         pill(g, twice, look::u("×2"), false, look::text);
@@ -645,7 +682,25 @@ private:
         const juce::Rectangle<float> open(1168.0f, 22.0f, 88.0f, 40.0f), save(1264.0f, 22.0f, 76.0f, 40.0f), fresh(1348.0f, 22.0f, 74.0f, 40.0f);
         card(g, open, look::surface, look::border, 4.0f);
         write(g, look::u("OPEN…"), open, look::label(11.5f), look::text, juce::Justification::centred);
-        call(open, [this] { if (onOpen) onOpen(); });
+        call(open, [this]
+        {
+            // The recent projects and setlists first, when there are some (PRD § 5.8).
+            const juce::Array<juce::File> recent = app_.settings.recent();
+            if (recent.isEmpty()) { if (onOpen) onOpen(); return; }
+            juce::PopupMenu menu;
+            menu.addItem(1, look::u("Open…"));
+            menu.addSeparator();
+            for (int i = 0; i < recent.size(); ++i)
+                menu.addItem(10 + i, recent[i].getFileNameWithoutExtension() + (recent[i].hasFileExtension("dubset") ? "  (setlist)" : ""));
+            menu.addSeparator();
+            menu.addItem(2, "Clear Menu");
+            menu.showMenuAsync(juce::PopupMenu::Options(), [this, recent](int picked)
+            {
+                if (picked == 1) { if (onOpen) onOpen(); }
+                else if (picked == 2) app_.settings.clearRecent();
+                else if (picked >= 10 && picked - 10 < recent.size() && onOpenFile) onOpenFile(recent[picked - 10]);
+            });
+        });
         card(g, save, look::surface, look::border, 4.0f);
         write(g, "SAVE", save, look::label(11.5f), look::text, juce::Justification::centred);
         call(save, [this] { if (onSave) onSave(); });
@@ -720,6 +775,13 @@ private:
             pill(g, to, "TO " + sendCaption(b).fromFirstOccurrenceOf(">", false, false), engine.choice(engine.busTo[b], 3) != 0, colour);
             zone(Zone::Cycle, to, engine.busTo[b], 3);
             x += 72.0f;
+            // Sends taken after the fader (POST) or before it and MUTE (PRE): a setting of this computer (PRD § 5.12).
+            const bool pre = transport().preFader[b].load();
+            const juce::Rectangle<float> mode(r.getX() + 28.0f + 124.0f, r.getY() + 34.0f, 0.0f, 16.0f);
+            const juce::Rectangle<float> prePost = b == fx::Delay ? juce::Rectangle<float>(r.getX() + 262.0f, r.getY() + 34.0f, 40.0f, 16.0f)
+                                                                  : mode.withWidth(40.0f);
+            pill(g, prePost, pre ? "PRE" : "POST", pre, colour);
+            call(prePost, [this, b, pre] { app_.settings.setPreFader(b, !pre); });
             if (b == fx::Delay)
             {
                 const juce::Rectangle<float> sync(x, r.getY() + 11.0f, 40.0f, 16.0f);
@@ -909,6 +971,22 @@ private:
         fader(g, track, engine.value(faderParam));
         zone(Zone::Fader, track.expanded(6.0f, 0.0f), faderParam);
         meter(g, {cx + 18.0f, r.getY() + 444.0f, 8.0f, 132.0f}, engine.value(engine.meter[s]));
+        if (!isEffect)
+        {
+            // PRE: what the strip's stems give before the fader and MUTE, so one knows when to open it (PRD § 5.10).
+            const float level = shownLevel(preShown_[s], transport().prePeak[s].exchange(0.0f));
+            const juce::Rectangle<float> bar(cx + 30.0f, r.getY() + 444.0f, 3.0f, 132.0f);
+            g.setColour(look::border.withAlpha(0.7f));
+            g.fillRect(bar);
+            g.setColour(look::dim);
+            g.fillRect(bar.withTop(bar.getBottom() - bar.getHeight() * level));
+            if (!isInstrument && !app_.session.strips[s].empty())
+                doubleZone({r.getX() + 4.0f, r.getY() + 318.0f, r.getWidth() - 8.0f, 20.0f}, [this, s]
+                {
+                    if (onAskText) onAskText("Name of strip " + juce::String(s + 1), app_.session.stripName(s),
+                                             [this, s](const juce::String& name) { app_.renameStrip(s, name); });
+                });
+        }
 
         // Foot
         const float footY = r.getY() + 588.0f;
@@ -988,10 +1066,38 @@ private:
         button(g, solo, "SOLO", soloMode_, look::reverb);
         call(solo, [this] { soloMode_ = !soloMode_; });
 
-        const juce::Rectangle<float> track(r.getCentreX() - 20.0f, r.getY() + 444.0f, 40.0f, 132.0f);
+        const juce::Rectangle<float> track(r.getCentreX() - 32.0f, r.getY() + 444.0f, 40.0f, 132.0f);
         fader(g, track, engine.value(engine.master));
         zone(Zone::Fader, track.expanded(6.0f, 0.0f), engine.master);
-        write(g, engine.text(engine.master), {r.getX(), r.getY() + 588.0f, r.getWidth(), 12.0f}, look::mono(8.5f), look::dim, juce::Justification::centred);
+        Transport& t = transport();
+        const float peak = t.masterPeak.exchange(0.0f);
+        meter(g, {r.getCentreX() + 18.0f, r.getY() + 444.0f, 8.0f, 132.0f}, shownLevel(masterShown_, peak));
+
+        // The safety limiter: its switch (kept for this computer), then what it takes off right now and at most
+        // since the last click; switched off, by how much the output clips (PRD § 5.4).
+        const bool limiting = t.limiterOn.load();
+        const juce::Rectangle<float> limiter(r.getX() + 8.0f, r.getY() + 584.0f, r.getWidth() - 16.0f, 14.0f);
+        write(g, limiting ? "LIMITER ON" : "LIMITER OFF", limiter, look::mono(8.5f), limiting ? look::dim : look::rec, juce::Justification::centred);
+        call(limiter, [this, limiting] { app_.settings.setLimiterOn(!limiting); });
+        const double now = juce::Time::getMillisecondCounterHiRes() * 0.001;
+        if (now - limiterReadAt_ > 1.5)
+        {
+            limiterReadAt_ = now;
+            heldReduction_ = limiting ? t.reduction.load() : 0.0f;
+            t.clearReduction.store(true);
+            heldClip_ = clipPeak_ > 1.0f ? 20.0f * std::log10(clipPeak_) : 0.0f;
+            clipPeak_ = 0.0f;
+            deepest_ = std::fmax(deepest_, limiting ? heldReduction_ : heldClip_);
+        }
+        clipPeak_ = std::fmax(clipPeak_, peak);
+        const float shown = limiting ? heldReduction_ : heldClip_;
+        const juce::Colour colour = shown <= 0.05f ? look::dim : (limiting && shown < 3.0f) ? look::delay : look::rec;
+        const juce::Rectangle<float> indicator(r.getX() + 8.0f, r.getY() + 600.0f, r.getWidth() - 16.0f, 26.0f);
+        write(g, (limiting ? "GR " : "CLIP ") + (shown <= 0.05f ? juce::String("-") : (limiting ? "-" : "+") + juce::String(shown, 1)),
+              indicator.withHeight(12.0f), look::mono(8.5f), colour, juce::Justification::centred);
+        write(g, "max " + (deepest_ <= 0.05f ? juce::String("-") : (limiting ? "-" : "+") + juce::String(deepest_, 1)),
+              indicator.withTrimmedTop(13.0f), look::mono(8.5f), look::dim, juce::Justification::centred);
+        call(indicator, [this] { deepest_ = 0.0f; });
     }
 
     std::vector<Zone> zones_;
@@ -999,6 +1105,9 @@ private:
     bool soloMode_ = false;
     AppModel& app_;
     Waveforms waveforms_;
+    float preShown_[kStems] = {}, masterShown_ = 0.0f;
+    float heldReduction_ = 0.0f, heldClip_ = 0.0f, clipPeak_ = 0.0f, deepest_ = 0.0f;
+    double limiterReadAt_ = 0.0;
     double bpmAtPress_ = 120.0;
     bool carrying_ = false;
     juce::Point<float> carryAt_;

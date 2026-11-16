@@ -65,6 +65,11 @@ public:
         board_.onNew = [this] { newSession(); };
         board_.onAddStems = [this] { addStemsDialog(); };
         board_.onOpenFile = [this](const juce::File& f) { openFile(f); };
+        board_.onLocate = [this] { locateDialog(); };
+        board_.onAskText = [this](const juce::String& what, const juce::String& current, std::function<void(const juce::String&)> done)
+        {
+            askText(what, current, std::move(done));
+        };
         addAndMakeVisible(board_);
         setWantsKeyboardFocus(true);
         setSize(dsm::Board::kWidth, dsm::Board::kHeight);
@@ -201,6 +206,26 @@ private:
                               [this](const juce::FileChooser& c) { app_.addFiles(c.getResults(), -1); });
     }
 
+    // Missing stems are looked for, by file name, in a folder the user picks (PRD § 5.8).
+    void locateDialog()
+    {
+        chooser_ = std::make_unique<juce::FileChooser>("Folder holding the missing stems", songsFolder());
+        chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                              [this](const juce::FileChooser& c) { if (c.getResult().isDirectory()) app_.locate(c.getResult()); });
+    }
+
+    void askText(const juce::String& what, const juce::String& current, std::function<void(const juce::String&)> done)
+    {
+        auto* box = new juce::AlertWindow(what, {}, juce::MessageBoxIconType::NoIcon, this);
+        box->addTextEditor("text", current);
+        box->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
+        box->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+        box->enterModalState(true, juce::ModalCallbackFunction::create([box, done = std::move(done)](int ok)
+        {
+            if (ok == 1) done(box->getTextEditorContents("text"));
+        }), true);
+    }
+
     void showSoundSettings()
     {
         auto* selector = new juce::AudioDeviceSelectorComponent(devices_, 0, 0, 2, 2, false, false, true, false);
@@ -265,6 +290,29 @@ juce::File writeStem(const juce::File& folder, const char* name, float level, do
     return file;
 }
 
+// A click on every beat: what the tempo detection is checked with.
+juce::File writeClicks(const juce::File& folder, const char* name, double bpm, double seconds)
+{
+    const juce::File file = folder.getChildFile(name);
+    file.deleteFile();
+    juce::FileOutputStream out(file);
+    const int rate = 44100;
+    const uint32_t frames = (uint32_t)(seconds * rate), data = frames * 4;
+    out.write("RIFF", 4); out.writeInt((int)(36 + data)); out.write("WAVEfmt ", 8);
+    out.writeInt(16); out.writeShort(1); out.writeShort(2); out.writeInt(rate); out.writeInt(rate * 4);
+    out.writeShort(4); out.writeShort(16);
+    out.write("data", 4); out.writeInt((int)data);
+    const double beat = 60.0 / bpm * rate;
+    for (uint32_t i = 0; i < frames; ++i)
+    {
+        const double since = std::fmod((double)i, beat);
+        const short sample = since < 400.0 ? (short)(20000.0 * std::sin(since * 0.3) * (1.0 - since / 400.0)) : (short)0;
+        out.writeShort(sample);
+        out.writeShort(sample);
+    }
+    return file;
+}
+
 int runSelfTest()
 {
     const juce::File root = juce::File::getSpecialLocation(juce::File::tempDirectory)
@@ -276,7 +324,7 @@ int runSelfTest()
 
     Engine& engine = Engine::get();
     engine.open();
-    dsm::AppModel app;
+    dsm::AppModel app(true);
     dsm::Transport& t = dsm::transport();
 
     int failures = 0;
@@ -348,7 +396,17 @@ int runSelfTest()
         wait(1.3);
         expect("loop on: past the end, the song is back at its start", (float)engine.seconds(), 0.8f, 0.7f);
         expect("...and plays", level(), 0.55f * unity);
+        // The loop point itself: no gap, the level never drops.
+        engine.seekSeconds(19.3);
+        wait(0.3);
+        float lowest = 1.0f;
+        for (int i = 0; i < 60; ++i) { wait(0.015); lowest = std::fmin(lowest, level()); }
+        // Before it only strip 1 sounds (the short stem has ended), after it both: never less than strip 1.
+        expect("the loop point is seamless (lowest level across it)", lowest, 0.35f * unity);
+        expect("the output meter moves", t.masterPeak.load() > 0.01f ? 1.0f : 0.0f, 1.0f);
+        expect("the pre-fader level of strip 1 is read", t.prePeak[0].load() > 0.1f ? 1.0f : 0.0f, 1.0f);
         t.loop.store(false);
+        wait(0.4);
         engine.seekSeconds(19.5);
         wait(1.2);
         expect("loop off: the song stops at its end", engine.isPlaying() ? 1.0f : 0.0f, 0.0f);
@@ -395,6 +453,33 @@ int runSelfTest()
         wait(0.5);
         expect("Space: pause, silence", level(), 0.0f);
 
+        // Names given by hand, written in the project.
+        app.rename("Zion Gate Dub");
+        app.renameStrip(0, "riddim");
+        app.save();
+        app.open(project);
+        expect("a renamed song keeps its title", app.session.displayTitle() == "Zion Gate Dub" ? 1.0f : 0.0f, 1.0f);
+        expect("a renamed strip keeps its name (RIDDIM)", app.session.stripName(0) == "RIDDIM" ? 1.0f : 0.0f, 1.0f);
+        expect("the project is in the recent files, first", app.settings.recent().size() > 0 && app.settings.recent()[0] == project ? 1.0f : 0.0f, 1.0f);
+
+        // Tempo: worked out from the stems when they are placed and no tempo is known; AUTO asks again.
+        const juce::File clicks = writeClicks(root, "Clicks.wav", 90.0, 40.0);
+        app.newSession();
+        app.addFiles({clicks}, 0);
+        for (int i = 0; i < 40 && app.isDetectingTempo(); ++i) wait(0.25);
+        app.tick();
+        expect("tempo found when a stem is placed (clicks at 90 BPM)", (float)app.session.bpm, 90.0f, 0.2f);
+        app.setBpm(60.0);
+        app.detectTempo(false);
+        wait(0.3);
+        app.tick();
+        expect("a known tempo is left alone", (float)app.session.bpm, 60.0f);
+        app.detectTempo(true);
+        for (int i = 0; i < 40 && app.isDetectingTempo(); ++i) wait(0.25);
+        app.tick();
+        expect("AUTO works it out again", (float)app.session.bpm, 90.0f, 0.2f);
+        app.open(project);
+
         // What the Mac wrote and this app does not handle must survive a save here.
         juce::var asMac = juce::JSON::parse(project.loadFileAsString());
         auto* slot = new juce::DynamicObject();
@@ -417,6 +502,11 @@ int runSelfTest()
         app.save();
         const juce::var kept = juce::JSON::parse(project.loadFileAsString());
         expect("...and stays written in the project", (float)kept["stems"].size(), 3.0f);
+        // The stem turns up in another folder: LOCATE finds it by its name.
+        const juce::File moved = writeStem(root.getChildFile("moved"), "Song (Bass).wav", 0.20f, 8.0);
+        expect("LOCATE finds the stem in the folder given", (float)app.locate(root.getChildFile("moved")), 1.0f);
+        expect("...nothing is missing any more", (float)app.session.missingCount(), 0.0f);
+        expect("...and the project points to it", app.session.strips[1][0].file == moved ? 1.0f : 0.0f, 1.0f);
     }
     std::printf("disk dropouts: %s\n", engine.text(engine.underruns).toRawUTF8());
     root.deleteRecursively();

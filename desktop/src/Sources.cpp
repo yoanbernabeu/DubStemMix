@@ -34,6 +34,12 @@ struct StemFile
     std::unique_ptr<juce::ResamplingAudioSource> resampled;
     long long frames = 0;   // length at 44.1 kHz
 
+    void rewind()
+    {
+        source->setNextReadPosition(0);
+        resampled->flushBuffers();
+    }
+
     bool open(const std::string& path, long long startFrame)
     {
         juce::AudioFormatReader* reader = formats().createReaderFor(juce::File(juce::String::fromUTF8(path.c_str())));
@@ -55,10 +61,19 @@ public:
     std::vector<std::unique_ptr<StemFile>> files;
     long long frames = 0, position = 0;
 
+    void setLoopLength(long long length) override { loopLength_ = length; }
+
     size_t read(float* out, size_t wanted) override
     {
-        const long long left = frames - position;
-        if (left <= 0) return 0;
+        const long long end = loopLength_ > 0 ? loopLength_ : frames;
+        if (position >= end)
+        {
+            if (loopLength_ <= 0) return 0;
+            // The loop point: every stem of the strip goes back to its top, to the sample.
+            position = 0;
+            for (const std::unique_ptr<StemFile>& file : files) file->rewind();
+        }
+        const long long left = end - position;
         const int n = (int)std::min<long long>((long long)wanted, left);
         if (sum_.getNumSamples() < n) { sum_.setSize(2, n, false, false, true); one_.setSize(2, n, false, false, true); }
         sum_.clear(0, n);
@@ -80,6 +95,7 @@ public:
 
 private:
     juce::AudioBuffer<float> sum_, one_;
+    long long loopLength_ = 0;
 };
 
 } // namespace
@@ -96,7 +112,7 @@ std::unique_ptr<StripSource> openStrip(const std::vector<std::string>& files, lo
         strip->files.push_back(std::move(file));
     }
     if (strip->files.empty()) return nullptr;
-    strip->position = std::min(startFrame, strip->frames);
+    strip->position = startFrame;   // may be past this strip's own end: it then waits for the loop point, or ends
     frames = strip->frames;
     return strip;
 }

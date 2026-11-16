@@ -631,6 +631,13 @@ Jalons (ordre de travail, ajustable) :
 - Pas encore : détection du tempo, renommer un morceau ou une tranche, « Locate missing stems », fichiers récents, vu-mètre et indicateur du limiteur master, envois pré-fader, boucle calée à l'échantillon (quelques millisecondes de silence au point de boucle pour l'instant).
 - Vérifié : auto-test (37 contrôles) sur Mac et Linux ; un vrai projet du Mac ouvert en capture, fichier non modifié. En attente de l'essai de Yoan.
 
+**L2 validé par Yoan le 16/11/2026** (« tout est ok »), puis **complété** à sa demande :
+- **Tempo détecté** quand on pose des stems (jamais si un tempo est connu), bouton AUTO ; même méthode et mêmes réglages que le Mac (`TempoDetector.swift`), plage 58–125 BPM.
+- **Renommer** le morceau ou une tranche par double-clic. **Stems introuvables** : « LOCATE… » dans la barre latérale, recherche par nom dans un dossier choisi. **Fichiers récents** : OPEN… propose les 10 derniers projets et setlists, Clear Menu ; un morceau ouvert depuis la setlist n'y entre pas.
+- **Master** : vu-mètre de sortie, LIMITER ON / OFF au clic, indicateur GR (tenu 1,5 s) et max (remis à zéro au clic), CLIP quand le limiteur est coupé. **Barre PRE** à côté du vu-mètre de chaque tranche. **POST / PRE par bus** sur les cartes. Limiteur et pré / post sont mémorisés pour cet ordinateur, pas dans le projet.
+- **Boucle calée à l'échantillon** : plus de silence au point de boucle.
+- Vérifié : auto-test (51 contrôles) sur le Mac ; capture d'un vrai projet. Non couvert par l'auto-test : le son des envois pré-fader (à juger à l'oreille). En attente de l'essai de Yoan.
+
 ### 17.4 Points ouverts
 
 - **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 

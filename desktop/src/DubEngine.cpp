@@ -761,8 +761,11 @@ private:
                 const double position = instrument(s) ? get(fxParam(fx::kInstrumentSends[s - kFirstInstrumentStrip][b]))
                                                       : get(send(s, b));
                 const bool thrown = throwing_[s] && (b == fx::Delay ? throwTarget != 1 : b == fx::Reverb && throwTarget != 0);
-                post_[s][b].target = g * (float)(position * position);
-                pre_[s][b].target = thrown ? kHeadroom : 0.0f;
+                // A pre-fader bus takes the send before the fader and MUTE (as the throw does, at full send).
+                const bool preFader = dsm::transport().preFader[b].load(std::memory_order_relaxed);
+                const float sendGain = (float)(position * position);
+                post_[s][b].target = preFader ? 0.0f : g * sendGain;
+                pre_[s][b].target = std::fmax(thrown ? kHeadroom : 0.0f, preFader ? kHeadroom * sendGain : 0.0f);
             }
         }
         const int returns[3] = {fx::DelayReturn, fx::ReverbReturn, fx::PhaserReturn};
@@ -877,6 +880,8 @@ private:
                 stripPeak = std::fmax(stripPeak, std::fmax(std::fabs(l), std::fabs(r)));
             }
             peak[s] = stripPeak * stripGain_[s] / kHeadroom;   // after the fader, full scale = 1
+            std::atomic<float>& pre = dsm::transport().prePeak[s];
+            if (stripPeak > pre.load(std::memory_order_relaxed)) pre.store(stripPeak, std::memory_order_relaxed);
         }
 
         // Bus-to-bus sends, one chunk late, then the effects (100 % wet) and their returns.
@@ -919,12 +924,21 @@ private:
         dub_effect_process(masterFx_, outL, outR, outL, outR, n);
         dub_effect_process(brake_, outL, outR, outL, outR, n);
         for (int i = 0; i < n; ++i) { outL[i] *= kMakeup; outR[i] *= kMakeup; }
+        dsm::Transport& t = dsm::transport();
+        dub_effect_set(limiter_, DUB_LIMITER_BYPASS, t.limiterOn.load(std::memory_order_relaxed) ? 0.0f : 1.0f);
+        if (t.clearReduction.exchange(false, std::memory_order_relaxed)) dub_effect_set(limiter_, DUB_LIMITER_REDUCTION, 0.0f);
         dub_effect_process(limiter_, outL, outR, outL, outR, n);
+        t.reduction.store(dub_effect_get(limiter_, DUB_LIMITER_REDUCTION), std::memory_order_relaxed);
+        float outPeak = 0.0f;
+        for (int i = 0; i < n; ++i) outPeak = std::fmax(outPeak, std::fmax(std::fabs(outL[i]), std::fabs(outR[i])));
+        if (outPeak > t.masterPeak.load(std::memory_order_relaxed)) t.masterPeak.store(outPeak, std::memory_order_relaxed);
 
         for (int s = 0; s < kSurfaceStrips; ++s) meterPeak_[s] = std::fmax(meterPeak_[s], peak[s]);
         if (running)
         {
             framesPlayed_ += n;
+            const long long length = decks_[active_].frames.load(std::memory_order_relaxed);
+            if (looping_ && length > 0 && framesPlayed_ >= length) framesPlayed_ -= length;
             if (!songs_.empty() && framesPlayed_ >= (long long)(kPlayedSeconds * sampleRate_)) played_[(size_t)current_] = true;
         }
     }
@@ -1013,6 +1027,13 @@ private:
         }
         const long long jump = t.seekTo.exchange(-1, std::memory_order_acq_rel);
         if (jump >= 0 && !switching_) seekTo(jump);
+        // Loop on or off: what the disk has read ahead no longer holds, the song reopens where it is.
+        const bool loop = t.loop.load(std::memory_order_relaxed);
+        if (loop != looping_)
+        {
+            looping_ = loop;
+            if (!switching_ && jump < 0 && decks_[active_].frames.load(std::memory_order_relaxed) > 0) seekTo(ended_ ? 0 : framesPlayed_);
+        }
 
         playing_ = t.playing.load(std::memory_order_relaxed) && !ended_;
         const double bpm = t.bpm.load(std::memory_order_relaxed);
@@ -1034,11 +1055,10 @@ private:
         ended_ = false;
     }
 
-    // The song has played to its end: back to the top when looping, else it stops there.
+    // The song has played to its end (a looping song never does: its strips wrap by themselves, to the sample).
     void songEnded()
     {
-        if (dsm::transport().loop.load(std::memory_order_relaxed)) seekTo(0);
-        else ended_ = true;
+        ended_ = true;
     }
 
     bool ready(int d) const
@@ -1177,8 +1197,15 @@ private:
                         ring.finished.store(false, std::memory_order_relaxed);
                         long long frames = 0;
                         sources[d][s] = index >= 0 ? dsm::openStrip(deck.files.strips[s], start, frames) : nullptr;
-                        const bool ok = sources[d][s] != nullptr;
                         longest = std::max(longest, frames);
+                    }
+                    // Looping strips wrap at the song's length, the longest stem's, so they stay together.
+                    const bool loop = dsm::transport().loop.load(std::memory_order_relaxed);
+                    for (int s = 0; s < kStemStrips; ++s)
+                    {
+                        StemRing& ring = deck.rings[s];
+                        const bool ok = sources[d][s] != nullptr;
+                        if (ok) sources[d][s]->setLoopLength(loop ? longest : 0);
                         ring.present.store(ok, std::memory_order_relaxed);
                         while (ok && fill(ring, *sources[d][s], chunk)) {}
                     }
@@ -1255,6 +1282,7 @@ private:
     double sampleRate_ = 44100.0;
     bool playing_ = false, ended_ = false, lastPpqValid_ = false, nextCued_ = false;
     bool switching_ = false;   // a song given by the app is opening on the other deck
+    bool looping_ = false;     // the loop as the disk thread last opened the song with
     int seenLoadGen_ = 0;
     double lastPpq_ = 0.0, lastBlockBeats_ = 0.0;
     int current_ = 0;
