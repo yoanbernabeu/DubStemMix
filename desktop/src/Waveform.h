@@ -1,15 +1,13 @@
 // Waveform.h - the overall waveform of each song, for the transport (PRD § 5.6).
 //
-// The engine does not give one: the screen reads the song's stems itself, on a background thread, and keeps
-// the result. Songs are listed with the engine's own code (Stems.h), so they come in the same order.
+// The screen reads the song's stems itself, on a background thread, and keeps the result for as long as the
+// same stems are placed.
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #pragma once
 
 #include <juce_audio_formats/juce_audio_formats.h>
-
-#include "Stems.h"
 
 #include <map>
 #include <memory>
@@ -32,39 +30,24 @@ public:
     Waveforms() : pool_(1) {}
     ~Waveforms() { pool_.removeAllJobs(true, 4000); }
 
-    // The plugin's folder (the one holding Content/Songs).
-    void setFolder(const juce::String& folder)
+    // The waveform of these stems when it is ready; else nullptr, and its computation starts.
+    std::shared_ptr<const Waveform> get(const std::vector<std::string>& files)
     {
-        songs_.clear();
-        const std::string root = (folder + "/Content/Songs").toStdString();
-        for (const std::string& dir : stems::listDir(root, true))
-        {
-            const stems::Song song = stems::readSong(root + "/" + dir, dir);
-            std::vector<std::string> files;
-            for (const std::string& f : song.stems) if (!f.empty()) files.push_back(f);
-            if (!files.empty()) songs_.push_back(std::move(files));
-        }
-    }
-
-    int songCount() const { return (int)songs_.size(); }
-
-    // The song's waveform when it is ready; else nullptr, and its computation starts.
-    std::shared_ptr<const Waveform> get(int song)
-    {
-        if (song < 0 || song >= songCount()) return nullptr;
+        if (files.empty()) return nullptr;
+        std::string key;
+        for (const std::string& f : files) key += f + "\n";
         {
             const std::lock_guard<std::mutex> lock(mutex_);
-            const auto it = ready_.find(song);
+            const auto it = ready_.find(key);
             if (it != ready_.end()) return it->second;
-            if (asked_[song]) return nullptr;
-            asked_[song] = true;
+            if (asked_[key]) return nullptr;
+            asked_[key] = true;
         }
-        const std::vector<std::string> files = songs_[(size_t)song];
-        pool_.addJob([this, song, files]
+        pool_.addJob([this, key, files]
         {
             auto result = std::make_shared<Waveform>(compute(files));
             const std::lock_guard<std::mutex> lock(mutex_);
-            ready_[song] = std::move(result);
+            ready_[key] = std::move(result);
         });
         return nullptr;
     }
@@ -74,11 +57,12 @@ private:
     {
         Waveform wave;
         wave.peaks.assign((size_t)kBars, 0.0f);
-        juce::WavAudioFormat wav;
+        juce::AudioFormatManager formats;
+        formats.registerBasicFormats();
         std::vector<std::unique_ptr<juce::AudioFormatReader>> readers;
         for (const std::string& f : files)
         {
-            std::unique_ptr<juce::AudioFormatReader> reader(wav.createReaderFor(new juce::FileInputStream(juce::File(juce::String::fromUTF8(f.c_str()))), true));
+            std::unique_ptr<juce::AudioFormatReader> reader(formats.createReaderFor(juce::File(juce::String::fromUTF8(f.c_str()))));
             if (reader == nullptr || reader->sampleRate <= 0) continue;
             wave.seconds = juce::jmax(wave.seconds, (double)reader->lengthInSamples / reader->sampleRate);
             readers.push_back(std::move(reader));
@@ -101,10 +85,9 @@ private:
         return wave;
     }
 
-    std::vector<std::vector<std::string>> songs_;
     std::mutex mutex_;
-    std::map<int, std::shared_ptr<const Waveform>> ready_;
-    std::map<int, bool> asked_;
+    std::map<std::string, std::shared_ptr<const Waveform>> ready_;
+    std::map<std::string, bool> asked_;
     juce::ThreadPool pool_;
 };
 

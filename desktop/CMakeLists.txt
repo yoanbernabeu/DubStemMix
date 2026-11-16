@@ -1,6 +1,7 @@
 # DubStemMix for Linux (then Windows), PRD § 17. A JUCE app; this folder is distributed under the AGPLv3
 # (see LICENSE), the rest of the repository under MIT.
-# Run desktop/build.sh rather than cmake directly: it fetches Akai's SDK headers the engine is written against.
+# Run desktop/build.sh rather than cmake directly: it fetches Akai's SDK headers the engine is written against
+# (the engine, src/DubEngine.cpp, is a fork of the MPC plugin and still uses its framework and its FX.h / Stems.h).
 cmake_minimum_required(VERSION 3.22)
 project(DubStemMixDesktop VERSION 0.0.1 LANGUAGES C CXX)
 
@@ -39,7 +40,8 @@ file(GLOB DUB_DSP "${REPO}/Sources/DubDSP/*.c")
 
 target_sources(dubstemmix-desktop PRIVATE
   src/Main.cpp
-  "${PLUGIN}/DubStemMix.cpp"
+  src/Sources.cpp
+  src/DubEngine.cpp
   ${DUB_DSP})
 
 target_include_directories(dubstemmix-desktop PRIVATE "${SDK}" "${PLUGIN}" "${REPO}/Sources/DubDSP/include")
@@ -47,6 +49,7 @@ target_include_directories(dubstemmix-desktop PRIVATE "${SDK}" "${PLUGIN}" "${RE
 target_compile_definitions(dubstemmix-desktop PRIVATE
   JUCE_WEB_BROWSER=0
   JUCE_USE_CURL=0
+  JUCE_USE_MP3AUDIOFORMAT=1
   JUCE_DISPLAY_SPLASH_SCREEN=0
   JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:dubstemmix-desktop,JUCE_PRODUCT_NAME>"
   JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:dubstemmix-desktop,JUCE_VERSION>")

@@ -2,14 +2,15 @@
 // MIDImix, playable with the mouse. Sidebar (setlist, status), transport, the three bus cards, strips 1-6
 // (stems, or the siren / Syndrum), the effect strips 7-8 and the master column with the pages and gestures.
 //
-// Drawn at a fixed 1440 x 900 and scaled to the window by its parent. Everything on it is read from, and
-// written to, the engine's parameters: the board keeps no mix state of its own.
+// Drawn at a fixed 1440 x 900 and scaled to the window by its parent. The mix is read from, and written to,
+// the engine's parameters; the song (stems, names, tempo, setlist) is the app model's. The board keeps
+// nothing of its own.
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #pragma once
 
-#include "Engine.h"
+#include "AppModel.h"
 #include "Waveform.h"
 #include "BinaryData.h"
 
@@ -39,7 +40,7 @@ inline juce::Font name(float size) { return juce::Font(juce::FontOptions(face(1)
 inline juce::Font mono(float size) { return juce::Font(juce::FontOptions(face(2)).withHeight(size * 1.3f)); }
 } // namespace look
 
-class Board : public juce::Component
+class Board : public juce::Component, public juce::FileDragAndDropTarget
 {
 public:
     static constexpr int kWidth = 1440, kHeight = 900;
@@ -53,13 +54,27 @@ public:
         int lateBuffers = 0;
     };
     Status status;
-    std::function<void()> onSoundCard;
+    // What needs a dialog is done by the board's owner.
+    std::function<void()> onSoundCard, onOpen, onSave, onNew, onAddStems;
+    std::function<void(const juce::File&)> onOpenFile;
 
-    Board()
+    explicit Board(AppModel& app) : app_(app)
     {
         setSize(kWidth, kHeight);
         setOpaque(true);
-        if (const char* folder = std::getenv("MPC_PLUGIN_FOLDER")) waveforms_.setFolder(juce::String::fromUTF8(folder));
+    }
+
+    // Files dragged from the file manager: a project or a setlist opens; stems go on the strip under the
+    // pointer, or in the stems to place (PRD § 5.1).
+    bool isInterestedInFileDrag(const juce::StringArray&) override { return true; }
+    void filesDropped(const juce::StringArray& paths, int x, int y) override
+    {
+        juce::Array<juce::File> files;
+        for (const juce::String& path : paths) files.add(juce::File(path));
+        for (const juce::File& f : files)
+            if (f.hasFileExtension("dubstem;dubset")) { if (onOpenFile) onOpenFile(f); return; }
+        app_.addFiles(files, stripAt({(float)x, (float)y}));
+        repaint();
     }
 
     // SOLO held (the console's SOLO button, or the SOLO button of the master column): MUTE then solos.
@@ -75,6 +90,12 @@ public:
         drawRowLabels(g);
         for (int s = 0; s < kStrips; ++s) drawStrip(g, s);
         drawMaster(g);
+        if (carrying_)
+        {
+            const juce::Rectangle<float> tag(carryAt_.x + 10.0f, carryAt_.y - 10.0f, 150.0f, 22.0f);
+            card(g, tag, look::text, look::text, 3.0f);
+            write(g, carryName_, tag.reduced(6.0f, 0.0f), look::mono(9.0f), look::bg);
+        }
     }
 
     void mouseDown(const juce::MouseEvent& e) override
@@ -85,8 +106,16 @@ public:
         if (active_ == nullptr) return;
         Engine& engine = Engine::get();
         Zone& z = *active_;
+        if (e.mods.isPopupMenu())
+        {
+            if (z.menu) z.menu();
+            active_.reset();
+            return;
+        }
         switch (z.kind)
         {
+            case Zone::Drag: if (z.onDrag) z.onDrag(e, true); break;
+            case Zone::Carry: break;   // starts with the first move
             case Zone::Knob: z.startValue = engine.value(z.param); break;
             case Zone::Fader: case Zone::Slider: drag(e); break;
             case Zone::Toggle: engine.set(z.param, engine.on(z.param) ? 0.0f : 1.0f); break;
@@ -98,24 +127,56 @@ public:
         repaint();
     }
 
-    void mouseDrag(const juce::MouseEvent& e) override { if (active_ != nullptr) drag(e); }
+    void mouseDrag(const juce::MouseEvent& e) override
+    {
+        if (active_ == nullptr) return;
+        if (active_->kind == Zone::Carry)
+        {
+            carrying_ = true;
+            carryAt_ = e.position;
+            carryName_ = active_->name;
+            repaint();
+            return;
+        }
+        drag(e);
+    }
 
-    void mouseUp(const juce::MouseEvent&) override
+    void mouseUp(const juce::MouseEvent& e) override
     {
         if (active_ != nullptr && active_->kind == Zone::Hold) Engine::get().lift(active_->note);
+        if (active_ != nullptr && active_->kind == Zone::Carry && carrying_)
+        {
+            // A stem let go on a strip is placed there; let go on the sidebar, it goes back to the stems to place.
+            const int strip = stripAt(e.position);
+            if (strip >= 0) app_.move(active_->fromStrip, active_->index, strip);
+            else if (e.position.x < 232.0f) app_.move(active_->fromStrip, active_->index, -1);
+        }
+        carrying_ = false;
         active_.reset();
+        repaint();
     }
 
 private:
     struct Zone
     {
-        enum Kind { Knob, Fader, Slider, Toggle, Cycle, Hold, Tap, Call };
+        enum Kind { Knob, Fader, Slider, Toggle, Cycle, Hold, Tap, Call, Drag, Carry };
         juce::Rectangle<float> area;
         Kind kind = Call;
         int param = -1, count = 0, note = -1;
         float startValue = 0.0f;
         std::function<void()> call;
+        std::function<void(const juce::MouseEvent&, bool)> onDrag;   // Drag: on the press (true) and each move
+        std::function<void()> menu;                                  // on a right-click
+        int fromStrip = -1, index = -1;                              // Carry: a stem, from a strip or the stems to place (-1)
+        juce::String name;
     };
+
+    // The stem strip under a point, or -1.
+    static int stripAt(juce::Point<float> p)
+    {
+        for (int s = 0; s < kStems; ++s) if (stripBounds(s).contains(p)) return s;
+        return -1;
+    }
 
     void drag(const juce::MouseEvent& e)
     {
@@ -127,6 +188,39 @@ private:
             engine.set(z.param, (z.area.getBottom() - 13.0f - e.position.y) / (z.area.getHeight() - 26.0f));
         else if (z.kind == Zone::Slider)
             engine.set(z.param, (e.position.x - z.area.getX()) / z.area.getWidth());
+        else if (z.kind == Zone::Drag && z.onDrag)
+            z.onDrag(e, false);
+    }
+
+    void dragZone(juce::Rectangle<float> area, std::function<void(const juce::MouseEvent&, bool)> onDrag)
+    {
+        Zone z;
+        z.area = area; z.kind = Zone::Drag; z.onDrag = std::move(onDrag);
+        zones_.push_back(std::move(z));
+    }
+
+    // A stem that can be carried to a strip, with its right-click menu.
+    void stemZone(juce::Rectangle<float> area, int fromStrip, int index, const juce::String& name)
+    {
+        Zone z;
+        z.area = area; z.kind = Zone::Carry; z.fromStrip = fromStrip; z.index = index; z.name = name;
+        z.menu = [this, fromStrip, index]
+        {
+            juce::PopupMenu menu;
+            for (int s = 0; s < kStems; ++s)
+                if (s != fromStrip) menu.addItem(1 + s, (fromStrip < 0 ? "Place on strip " : "Move to strip ") + juce::String(s + 1));
+            if (fromStrip >= 0) menu.addItem(100, "Back to the stems to place");
+            menu.addSeparator();
+            menu.addItem(101, "Remove");
+            menu.showMenuAsync(juce::PopupMenu::Options(), [this, fromStrip, index](int picked)
+            {
+                if (picked >= 1 && picked <= kStems) app_.move(fromStrip, index, picked - 1);
+                else if (picked == 100) app_.move(fromStrip, index, -1);
+                else if (picked == 101) app_.remove(fromStrip, index);
+                repaint();
+            });
+        };
+        zones_.push_back(std::move(z));
     }
 
     void zone(Zone::Kind kind, juce::Rectangle<float> area, int param, int count = 0, int note = -1)
@@ -341,7 +435,16 @@ private:
         }
     }
 
-    // ---- Sidebar: logo, session, setlist, status ----
+    // ---- Sidebar: logo, session, stems to place, setlist, status ----
+
+    static juce::String clock(double seconds, bool tenths = false)
+    {
+        seconds = juce::jmax(0.0, seconds);
+        const int whole = (int)seconds;
+        juce::String s = juce::String(whole / 60) + ":" + juce::String(whole % 60).paddedLeft('0', 2);
+        if (tenths) s << "." << (int)((seconds - whole) * 10.0);
+        return s;
+    }
 
     void drawSidebar(juce::Graphics& g)
     {
@@ -359,41 +462,93 @@ private:
             x += w;
         }
 
-        write(g, "NOW PLAYING", {18.0f, 62.0f, 200.0f, 12.0f}, look::mono(8.5f), look::dim);
-        const juce::String title = engine.text(engine.nowPlaying);
-        write(g, title.isEmpty() ? juce::String("NO SONG") : title.toUpperCase(), {18.0f, 74.0f, 204.0f, 18.0f}, look::label(12.5f), look::text);
+        // Session
+        const Session& session = app_.session;
+        write(g, "SESSION", {18.0f, 62.0f, 200.0f, 12.0f}, look::mono(8.5f), look::dim);
+        write(g, session.displayTitle().toUpperCase(), {18.0f, 74.0f, 204.0f, 18.0f}, look::label(12.5f), look::text);
+        const juce::String where = app_.hasDocument() ? session.document.getFileName() + look::u(" · ") + (app_.isSaved() ? "saved" : "saving")
+                                                      : juce::String("not saved yet");
+        write(g, where, {18.0f, 94.0f, 204.0f, 12.0f}, look::mono(8.5f), look::dim);
+        if (app_.message.isNotEmpty()) write(g, app_.message, {18.0f, 108.0f, 204.0f, 12.0f}, look::mono(8.5f), look::rec);
 
-        // Setlist: touch a song to play it next.
-        write(g, "SETLIST", {18.0f, 124.0f, 100.0f, 12.0f}, look::mono(8.5f), look::dim);
-        const juce::String pages = engine.text(engine.listPage);
-        if (pages.fromLastOccurrenceOf("/", false, false).trim().getIntValue() > 1)
+        // Stems to place: the user puts them on the strips (PRD § 5.1).
+        float y = 132.0f;
+        write(g, "STEMS TO PLACE", {18.0f, y, 200.0f, 12.0f}, look::mono(8.5f), look::dim);
+        y += 16.0f;
+        if (session.pool.empty())
         {
-            write(g, pages, {120.0f, 124.0f, 50.0f, 12.0f}, look::mono(8.5f), look::dim, juce::Justification::centredRight);
-            pill(g, {176.0f, 122.0f, 18.0f, 16.0f}, "<", false, look::text);
-            pill(g, {198.0f, 122.0f, 18.0f, 16.0f}, ">", false, look::text);
-            call({176.0f, 122.0f, 18.0f, 16.0f}, [] { Engine::get().set(Engine::get().listPrev, 1.0f); });
-            call({198.0f, 122.0f, 18.0f, 16.0f}, [] { Engine::get().set(Engine::get().listNext, 1.0f); });
+            const juce::Rectangle<float> drop(18.0f, y, 196.0f, 46.0f);
+            const float dashes[2] = {3.0f, 3.0f};
+            juce::Path outline, dashed;
+            outline.addRoundedRectangle(drop, 4.0f);
+            juce::PathStrokeType(1.0f).createDashedStroke(dashed, outline, dashes, 2);
+            g.setColour(look::border.brighter(0.2f));
+            g.fillPath(dashed);
+            write(g, "Drop stems here", {26.0f, y + 6.0f, 180.0f, 16.0f}, look::name(10.5f), look::text);
+            write(g, "or on a strip, or click to pick", {26.0f, y + 24.0f, 180.0f, 12.0f}, look::mono(8.0f), look::dim);
+            call(drop, [this] { if (onAddStems) onAddStems(); });
+            y += 54.0f;
         }
-        float y = 146.0f;
-        for (int i = 0; i < kSongSlots && y < 780.0f; ++i)
+        else
         {
-            // Empty, Song, Played, Playing, Next, Played + next, Playing + next.
-            const int slotState = engine.choice(engine.slot[i], 7);
-            if (slotState == 0) continue;
-            const bool current = slotState == 3 || slotState == 6, next = slotState >= 4, played = slotState == 2 || slotState == 5;
-            const juce::Rectangle<float> row(18.0f, y, 196.0f, 38.0f);
-            const juce::String line = engine.text(engine.title[i]);
-            if (current) { g.setColour(look::text); g.fillRoundedRectangle(row, 3.0f); }
-            if (next && !current) { g.setColour(look::delay); g.fillRect(row.getX(), row.getY() + 2.0f, 2.0f, row.getHeight() - 4.0f); }
-            write(g, line.substring(0, 2), {row.getX() + 8.0f, y, 22.0f, 38.0f}, look::mono(9.0f), current ? look::bg.withAlpha(0.6f) : look::dim);
-            write(g, line.substring(2).trim(), {row.getX() + 30.0f, y + 3.0f, 160.0f, 18.0f}, look::name(11.5f),
-                  current ? look::bg : played ? look::dim : look::text);
-            const juce::String note = current ? (next ? look::u("PLAYING · AGAIN NEXT") : "PLAYING") : next ? "NEXT" : played ? "PLAYED" : "";
-            write(g, note, {row.getX() + 30.0f, y + 20.0f, 160.0f, 12.0f}, look::mono(8.0f),
-                  current ? look::bg.withAlpha(0.7f) : next ? look::delay : look::dim);
-            const int cue = engine.cue[i];
-            call(row, [cue] { Engine::get().set(cue, 1.0f); });
-            y += 42.0f;
+            write(g, look::u("Drag onto a strip — or right-click"), {18.0f, y, 204.0f, 12.0f}, look::mono(8.0f), look::dim);
+            y += 16.0f;
+            const int shown = juce::jmin((int)session.pool.size(), 5);
+            for (int i = 0; i < shown; ++i)
+            {
+                const FileRef& ref = session.pool[(size_t)i];
+                const juce::Rectangle<float> row(18.0f, y, 196.0f, 36.0f);
+                card(g, row, look::surface, look::border, 3.0f);
+                write(g, ref.file.getFileNameWithoutExtension().toUpperCase(), {26.0f, y + 3.0f, 180.0f, 16.0f}, look::label(9.5f),
+                      ref.missing ? look::rec : look::text);
+                write(g, ref.missing ? juce::String("not found") : ref.file.getFileName(), {26.0f, y + 20.0f, 180.0f, 12.0f}, look::mono(8.0f), look::dim);
+                stemZone(row, -1, i, ref.file.getFileName());
+                y += 40.0f;
+            }
+            if ((int)session.pool.size() > shown)
+            {
+                write(g, "+ " + juce::String((int)session.pool.size() - shown) + " more", {18.0f, y, 200.0f, 12.0f}, look::mono(8.0f), look::dim);
+                y += 16.0f;
+            }
+        }
+
+        // Setlist: touch a song to load it, stopped at its start (PRD § 5.8).
+        const Setlist& setlist = app_.setlist;
+        if (!setlist.songs.empty())
+        {
+            y += 12.0f;
+            double total = 0.0;
+            for (const Setlist::Song& song : setlist.songs) total += song.seconds;
+            write(g, look::u("SETLIST · ") + setlist.name.toUpperCase(), {18.0f, y, 204.0f, 12.0f}, look::mono(8.5f), look::dim);
+            write(g, juce::String((int)setlist.songs.size()) + look::u(" SONGS · ") + clock(total), {18.0f, y + 14.0f, 204.0f, 12.0f}, look::mono(8.0f), look::dim);
+            y += 34.0f;
+            // Keep the open song in view when the list is longer than the room.
+            const int room = juce::jmax(1, (int)((800.0f - y) / 42.0f));
+            const int first = juce::jlimit(0, juce::jmax(0, (int)setlist.songs.size() - room), app_.setlistIndex - room / 2);
+            for (int i = first; i < (int)setlist.songs.size() && i < first + room; ++i)
+            {
+                const Setlist::Song& song = setlist.songs[(size_t)i];
+                const bool current = i == app_.setlistIndex;
+                const juce::Rectangle<float> row(18.0f, y, 196.0f, 38.0f);
+                if (current) { g.setColour(look::text); g.fillRoundedRectangle(row, 3.0f); }
+                if (song.colour >= 0 && song.colour < 8)
+                {
+                    static const juce::Colour lineColours[8] = {juce::Colour(0xffe5412d), juce::Colour(0xffc2553a), juce::Colour(0xffd9a441), juce::Colour(0xff7e9b5a),
+                                                                juce::Colour(0xff4e9c94), juce::Colour(0xff5b86b5), juce::Colour(0xff8f6fb5), juce::Colour(0xffede3cf)};
+                    g.setColour(lineColours[song.colour]);
+                    g.fillRect(row.getX(), row.getY() + 2.0f, 2.0f, row.getHeight() - 4.0f);
+                }
+                const juce::Colour ink = current ? look::bg : song.project.missing ? look::rec : song.played ? look::dim : look::text;
+                write(g, juce::String(i + 1).paddedLeft('0', 2), {row.getX() + 8.0f, y, 22.0f, 38.0f}, look::mono(9.0f), current ? look::bg.withAlpha(0.6f) : look::dim);
+                write(g, song.title, {row.getX() + 30.0f, y + 3.0f, 160.0f, 18.0f}, look::name(11.5f), ink);
+                juce::String detail = song.project.missing ? juce::String("not found")
+                                      : (song.tag.isNotEmpty() ? song.tag.toUpperCase() + "  " : juce::String())
+                                        + (song.bpm > 0 ? juce::String((int)std::lround(song.bpm)) + look::u(" BPM · ") : juce::String()) + clock(song.seconds)
+                                        + (song.played && !current ? "  PLAYED" : "");
+                write(g, detail, {row.getX() + 30.0f, y + 20.0f, 160.0f, 12.0f}, look::mono(8.0f), current ? look::bg.withAlpha(0.7f) : look::dim);
+                call(row, [this, i] { app_.openSong(i); });
+                y += 42.0f;
+            }
         }
 
         // Status
@@ -407,7 +562,8 @@ private:
         dot(g, 18.0f, y + 3.0f, sound ? look::reverb : look::rec);
         write(g, "AUDIO", {32.0f, y, 60.0f, 12.0f}, look::mono(8.5f), look::text);
         write(g, sound ? status.card : status.soundError, {68.0f, y, 160.0f, 12.0f}, look::mono(8.5f), look::dim);
-        write(g, sound ? status.cardDetail : juce::String(), {68.0f, y + 14.0f, 160.0f, 12.0f}, look::mono(8.5f), look::dim);
+        write(g, sound ? status.cardDetail : juce::String("click to choose a sound card"), {68.0f, y + 14.0f, 160.0f, 12.0f}, look::mono(8.5f), look::dim);
+        call({18.0f, y - 4.0f, 210.0f, 34.0f}, [this] { if (onSoundCard) onSoundCard(); });
         y += 34.0f;
         const juce::String dropouts = juce::String(status.lateBuffers + engine.text(engine.underruns).getIntValue());
         dot(g, 18.0f, y + 3.0f, dropouts == "0" ? look::reverb : look::delay);
@@ -415,14 +571,14 @@ private:
         write(g, juce::String((int)std::lround(status.load)) + look::u("% · ") + dropouts + " dropouts", {58.0f, y, 170.0f, 12.0f}, look::mono(8.5f), look::dim);
     }
 
-    // ---- Top: transport, song, time left, sound card ----
+    // ---- Top: transport, song, time, tempo, session buttons, waveform ----
 
     void drawTransport(juce::Graphics& g)
     {
         Engine& engine = Engine::get();
-        const bool playing = engine.playing.load();
+        const bool playing = engine.isPlaying();
 
-        const juce::Rectangle<float> play(250.0f, 22.0f, 46.0f, 40.0f), restart(302.0f, 22.0f, 46.0f, 40.0f);
+        const juce::Rectangle<float> play(250.0f, 22.0f, 46.0f, 40.0f), restart(302.0f, 22.0f, 46.0f, 40.0f), loop(354.0f, 22.0f, 46.0f, 40.0f);
         g.setColour(look::text);
         g.fillRoundedRectangle(play, 4.0f);
         g.setColour(look::bg);
@@ -449,46 +605,86 @@ private:
         g.fillPath(back);
         call(restart, [] { Engine::get().restartSong(); });
 
-        const juce::String title = engine.text(engine.nowPlaying);
-        write(g, title.isEmpty() ? juce::String("NO SONG") : title.toUpperCase(), {366.0f, 20.0f, 700.0f, 24.0f}, look::label(17.0f), look::text);
-        const juce::String left = engine.text(engine.timeLeft);
-        write(g, engine.text(engine.state).toUpperCase() + look::u(" · ") + left + look::u(" · NEXT ") + engine.text(engine.next),
-              {366.0f, 44.0f, 760.0f, 16.0f}, look::mono(11.0f), look::dim);
+        // Loop of the whole song
+        const bool looping = app_.session.loop;
+        if (looping) { g.setColour(look::text); g.fillRoundedRectangle(loop, 4.0f); } else card(g, loop, look::surface, look::border, 4.0f);
+        g.setColour(looping ? look::bg : look::dim);
+        g.drawRoundedRectangle(loop.getCentreX() - 10.0f, loop.getCentreY() - 6.0f, 20.0f, 12.0f, 5.0f, 2.2f);
+        juce::Path arrow;
+        arrow.addTriangle(loop.getCentreX() + 1.0f, loop.getCentreY() - 10.0f, loop.getCentreX() + 1.0f, loop.getCentreY() - 2.0f,
+                          loop.getCentreX() + 7.0f, loop.getCentreY() - 6.0f);
+        g.fillPath(arrow);
+        call(loop, [this] { app_.toggleLoop(); });
 
-        const juce::Rectangle<float> sound(1262.0f, 22.0f, 160.0f, 40.0f);
-        card(g, sound, look::surface, look::border, 4.0f);
-        write(g, look::u("SOUND CARD…"), sound, look::label(11.5f), look::text, juce::Justification::centred);
-        call(sound, [this] { if (onSoundCard) onSoundCard(); });
+        const double position = engine.seconds(), duration = engine.duration();
+        write(g, app_.session.displayTitle().toUpperCase(), {417.0f, 20.0f, 440.0f, 24.0f}, look::label(17.0f), look::text);
+        write(g, clock(position, true) + " / " + clock(duration) + look::u(" · -") + clock(duration - position),
+              {417.0f, 44.0f, 440.0f, 16.0f}, look::mono(11.0f), look::dim);
 
-        // Waveform of the whole song, with the playhead; the last 30 s turn ochre (PRD § 5.6).
+        // Tempo (PRD § 5.7): drag the value (Shift: steps of 0.1), tap, halve, double; SYNC ties the delay to it.
+        const double bpm = app_.session.bpm;
+        const juce::Rectangle<float> value(868.0f, 20.0f, 84.0f, 30.0f);
+        write(g, bpm > 0 ? juce::String(bpm, 1) : juce::String("--.-"), value, look::mono(17.0f), look::text, juce::Justification::centredRight);
+        write(g, "BPM", {868.0f, 50.0f, 84.0f, 10.0f}, look::mono(7.5f), look::dim, juce::Justification::centredRight);
+        dragZone(value, [this](const juce::MouseEvent& e, bool pressed)
+        {
+            if (pressed) bpmAtPress_ = app_.session.bpm > 0 ? app_.session.bpm : 120.0;
+            else app_.setBpm(bpmAtPress_ - (double)e.getDistanceFromDragStartY() * (e.mods.isShiftDown() ? 0.02 : 0.25));
+        });
+        const juce::Rectangle<float> tap(962.0f, 22.0f, 34.0f, 17.0f), half(962.0f, 43.0f, 30.0f, 17.0f), twice(996.0f, 43.0f, 30.0f, 17.0f),
+                                     sync(1030.0f, 43.0f, 38.0f, 17.0f);
+        pill(g, tap, "TAP", false, look::text);
+        call(tap, [this] { app_.tap(); });
+        pill(g, half, look::u("÷2"), false, look::text);
+        call(half, [this] { if (app_.session.bpm > 0) app_.setBpm(app_.session.bpm / 2.0); });
+        pill(g, twice, look::u("×2"), false, look::text);
+        call(twice, [this] { if (app_.session.bpm > 0) app_.setBpm(app_.session.bpm * 2.0); });
+        pill(g, sync, "SYNC", engine.on(engine.delaySync), look::delay);
+        zone(Zone::Toggle, sync, engine.delaySync);
+
+        const juce::Rectangle<float> open(1168.0f, 22.0f, 88.0f, 40.0f), save(1264.0f, 22.0f, 76.0f, 40.0f), fresh(1348.0f, 22.0f, 74.0f, 40.0f);
+        card(g, open, look::surface, look::border, 4.0f);
+        write(g, look::u("OPEN…"), open, look::label(11.5f), look::text, juce::Justification::centred);
+        call(open, [this] { if (onOpen) onOpen(); });
+        card(g, save, look::surface, look::border, 4.0f);
+        write(g, "SAVE", save, look::label(11.5f), look::text, juce::Justification::centred);
+        call(save, [this] { if (onSave) onSave(); });
+        card(g, fresh, look::surface, look::border, 4.0f);
+        write(g, "NEW", fresh, look::label(11.5f), look::text, juce::Justification::centred);
+        call(fresh, [this] { if (onNew) onNew(); });
+
+        // Waveform of the whole song, with the playhead; click or drag to move; the last 30 s turn ochre (PRD § 5.6).
         const juce::Rectangle<float> bar(250.0f, 78.0f, 1172.0f, 78.0f);
         card(g, bar, look::surface, look::border);
-        const int songs = waveforms_.songCount();
-        const std::shared_ptr<const Waveform> wave = waveforms_.get(engine.choice(engine.nowPlaying, juce::jmax(2, songs)));
-        if (wave == nullptr || wave->seconds <= 0.0)
+        const std::vector<std::string> files = app_.placedFiles();
+        if (files.empty())
         {
-            if (songs > 0) write(g, "READING THE WAVEFORM", bar, look::mono(9.0f), look::dim, juce::Justification::centred);
+            write(g, "DROP STEMS ON THE STRIPS, OR OPEN A PROJECT", bar, look::mono(9.5f), look::dim, juce::Justification::centred);
             return;
         }
-        // The engine only gives the time left, in whole seconds: the playhead glides between two ticks.
-        const int secondsLeft = left.fromFirstOccurrenceOf("-", false, false).upToFirstOccurrenceOf(":", false, false).getIntValue() * 60
-                                + left.fromLastOccurrenceOf(":", false, false).getIntValue();
-        const double now = juce::Time::getMillisecondCounterHiRes() * 0.001;
-        if (secondsLeft != lastSecondsLeft_) { lastSecondsLeft_ = secondsLeft; lastTick_ = now; }
-        const bool running = playing && engine.choice(engine.state, 4) == 1;
-        const double position = juce::jlimit(0.0, wave->seconds, wave->seconds - secondsLeft + (running ? juce::jmin(0.98, now - lastTick_) : 0.0));
-        const float done = (float)(position / wave->seconds);
         const juce::Rectangle<float> area = bar.reduced(2.0f, 6.0f);
-        const float pitch = area.getWidth() / (float)Waveforms::kBars;
-        const double lastThirty = wave->seconds - 30.0;
-        for (int i = 0; i < Waveforms::kBars; ++i)
+        dragZone(bar, [area](const juce::MouseEvent& e, bool)
         {
-            const float at = ((float)i + 0.5f) / (float)Waveforms::kBars;
-            const float h = juce::jmax(1.5f, wave->peaks[(size_t)i] * area.getHeight() * 0.92f);
-            const bool ending = at * wave->seconds >= lastThirty;
-            const juce::Colour colour = ending ? look::delay : look::text;
-            g.setColour(at <= done ? colour : colour.withAlpha(ending ? 0.45f : 0.28f));
-            g.fillRect(area.getX() + (float)i * pitch, area.getCentreY() - h * 0.5f, juce::jmax(1.0f, pitch - 1.0f), h);
+            Engine& en = Engine::get();
+            en.seekSeconds(juce::jlimit(0.0, 1.0, (double)((e.position.x - area.getX()) / area.getWidth())) * en.duration());
+        });
+        const std::shared_ptr<const Waveform> wave = waveforms_.get(files);
+        const double length = duration > 0 ? duration : wave != nullptr ? wave->seconds : 0.0;
+        const float done = length > 0 ? (float)juce::jlimit(0.0, 1.0, position / length) : 0.0f;
+        if (wave == nullptr || wave->seconds <= 0.0)
+            write(g, "READING THE WAVEFORM", bar, look::mono(9.0f), look::dim, juce::Justification::centred);
+        else
+        {
+            const float pitch = area.getWidth() / (float)Waveforms::kBars;
+            for (int i = 0; i < Waveforms::kBars; ++i)
+            {
+                const float at = ((float)i + 0.5f) / (float)Waveforms::kBars;
+                const float h = juce::jmax(1.5f, wave->peaks[(size_t)i] * area.getHeight() * 0.92f);
+                const bool ending = at * wave->seconds >= wave->seconds - 30.0;
+                const juce::Colour colour = ending ? look::delay : look::text;
+                g.setColour(at <= done ? colour : colour.withAlpha(ending ? 0.45f : 0.28f));
+                g.fillRect(area.getX() + (float)i * pitch, area.getCentreY() - h * 0.5f, juce::jmax(1.0f, pitch - 1.0f), h);
+            }
         }
         g.setColour(look::delay);
         g.fillRect(area.getX() + area.getWidth() * done - 1.0f, bar.getY() + 1.0f, 2.0f, bar.getHeight() - 2.0f);
@@ -649,9 +845,13 @@ private:
         }
 
         // Name
-        const juce::String name = s == 6 ? "DELAY" : s == 7 ? "SPACE" : engine.text(engine.name[s]);
+        const juce::String name = s == 6 ? "DELAY" : s == 7 ? "SPACE" : isInstrument ? juce::String(s == 4 ? "SIREN" : "SYNDRUM")
+                                  : app_.session.strips[s].empty() ? juce::String("-") : app_.session.stripName(s);
         const juce::Colour nameColour = s == 6 ? look::delay : s == 7 ? look::reverb : isInstrument ? look::rec : look::text;
-        write(g, name, {r.getX() + 4.0f, r.getY() + 318.0f, r.getWidth() - 8.0f, 20.0f}, look::label(13.0f), nameColour, juce::Justification::centred);
+        // A long name gets smaller rather than cut.
+        float nameSize = 13.0f;
+        while (nameSize > 8.5f && juce::GlyphArrangement::getStringWidth(look::label(nameSize), name) > r.getWidth() - 10.0f) nameSize -= 0.5f;
+        write(g, name, {r.getX() + 4.0f, r.getY() + 318.0f, r.getWidth() - 8.0f, 20.0f}, look::label(nameSize), nameColour, juce::Justification::centred);
 
         // Buttons: the console's MUTE and REC ARM, under the names they have on this strip.
         const juce::Rectangle<float> first(r.getX() + 10.0f, r.getY() + 342.0f, r.getWidth() - 20.0f, 30.0f);
@@ -733,8 +933,22 @@ private:
                 zone(Zone::Slider, bar.expanded(0.0f, 5.0f), p);
             }
         }
-        else
-            write(g, engine.text(faderParam), {r.getX(), footY, r.getWidth(), 12.0f}, look::mono(8.5f), look::dim, juce::Justification::centred);
+        if (!isEffect)
+        {
+            // The stems placed on the strip: carry one elsewhere, or right-click it.
+            const std::vector<FileRef>& placed = app_.session.strips[s];
+            const float top = isInstrument ? footY + 30.0f : footY;
+            if (placed.empty() && isInstrument)
+                write(g, "or drop a stem", {r.getX(), top, r.getWidth(), 12.0f}, look::mono(8.0f), look::dim, juce::Justification::centred);
+            for (int i = 0; i < (int)placed.size() && i < 3; ++i)
+            {
+                const juce::Rectangle<float> line(r.getX() + 4.0f, top + (float)i * 13.0f, r.getWidth() - 8.0f, 12.0f);
+                const bool more = i == 2 && placed.size() > 3;
+                write(g, more ? "+ " + juce::String((int)placed.size() - 2) + " more" : placed[(size_t)i].file.getFileName(), line, look::mono(8.0f),
+                      placed[(size_t)i].missing ? look::rec : look::dim, juce::Justification::centred);
+                if (!more) stemZone(line, s, i, placed[(size_t)i].file.getFileName());
+            }
+        }
     }
 
     // ---- Master column: pages, gestures, master fader ----
@@ -783,9 +997,12 @@ private:
     std::vector<Zone> zones_;
     std::unique_ptr<Zone> active_;
     bool soloMode_ = false;
+    AppModel& app_;
     Waveforms waveforms_;
-    int lastSecondsLeft_ = -1;
-    double lastTick_ = 0.0;
+    double bpmAtPress_ = 120.0;
+    bool carrying_ = false;
+    juce::Point<float> carryAt_;
+    juce::String carryName_;
 };
 
 } // namespace dsm

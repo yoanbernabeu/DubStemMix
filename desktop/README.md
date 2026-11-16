@@ -4,26 +4,32 @@ The third DubStemMix app, next to the Mac app and the MPC plugin. Product framin
 
 Built with [JUCE](https://juce.com). **This folder is distributed under the AGPLv3** (`desktop/LICENSE`); the rest of the repository (Mac app, MPC plugin, effects) stays under MIT.
 
-## Where it stands: the console in the Mac's look, on the MPC plugin's engine
+## Where it stands
 
-Milestones L1 (the JUCE base) and L3 (the console's look) of PRD § 17.5. For now the engine is the MPC plugin's (`mpc/DubStemMix/src`, compiled in unchanged, with the effects of `Sources/DubDSP`), and the songs come from an **Export to MPC** folder (File ▸ Export Setlist to MPC… in the Mac app, to a folder), or from the repository's test songs (`mpc/DubStemMix/Content/Songs`) when started from the repository with no argument.
+Milestones L1 (the JUCE base), L3 (the console's look) and L2 (the app's own engine, projects) of PRD § 17.5.
 
-- **The console's screen, as on the Mac** (palette, Archivo and JetBrains Mono, knobs, faders, meters): strips 1-6 (stems, or the siren and the Syndrum), the effect strips 7-8, the master column, the three bus cards, the setlist, the status. The four pages (MIX, FX, MASTER, INSERTS).
-- **Everything is playable with the mouse**: knobs (drag up and down), faders, MUTE, THROW (held), KEEP, SOLO (the SOLO button, then MUTE), the pages, DROP / REWIND / HOLD / CRASH, the insert of each strip, the reverb and bus 3 models, delay sync, the throw target, where each bus is sent, the siren's wave and the Syndrum's roll. Touch a song in the setlist to play it next.
-- **MIDImix**, factory mapping, exactly as on the MPC. Plugged or unplugged while running. Its LEDs are lit (MUTE, REC ARM, BANK).
-- **Keyboard**: Space play / pause, N next song, D drop (held), H hold (held), C crash, R rewind, Esc panic.
-- **The song's waveform** with its playhead (the last 30 s in ochre), and **cables between the bus cards** for bus-to-bus sends (dashed while the send knob is at zero).
-- `SOUND CARD…` picks the card and the buffer size. The engine runs at 44.1 kHz; a sound card at another rate is resampled to.
+- **Projects as on the Mac**: `.dubstem` files open and save both ways (what this app does not handle yet, such as Audio Unit slots, is kept untouched). Drop stems (WAV, AIFF, FLAC, MP3, OGG; M4A on macOS; any sample rate) or a folder: on a strip they are placed there, elsewhere they go to **Stems to place**. Drag a stem onto a strip, or right-click it (place, move, back to the stems to place, remove). Several stems on a strip are summed. `OPEN…`, `SAVE`, `NEW`; once a session has a place, changes save on their own.
+- **Each song has its settings** (effects, models, bus sends, KEEP, inserts, tempo, loop), loaded with it. A song is loaded stopped at its start; the effects' tails ring on.
+- **Setlists** (`.dubset`): the list in the sidebar, touch a song or N / P to load it; colours, tags, total time, songs heard 30 s marked as played.
+- **Transport**: play / pause, back to the start, loop, the song's waveform (click or drag to move, the last 30 s in ochre), position and time left.
+- **Tempo**: drag the value (Shift for fine steps), TAP (or T), ÷2, ×2, SYNC for the delay.
+- **The console's screen, as on the Mac** (palette, Archivo and JetBrains Mono, knobs, faders, meters): strips 1-6 (stems, or the siren and the Syndrum), the effect strips 7-8, the master column, the three bus cards with their cables. The four pages (MIX, FX, MASTER, INSERTS).
+- **Everything is playable with the mouse**: knobs (drag up and down), faders, MUTE, THROW (held), KEEP, SOLO (the SOLO button, then MUTE), the pages, DROP / REWIND / HOLD / CRASH, the insert of each strip, the reverb and bus 3 models, the throw target, where each bus is sent, the siren's wave and the Syndrum's roll.
+- **MIDImix**, factory mapping. Plugged or unplugged while running. Its LEDs are lit (MUTE, REC ARM, BANK).
+- **Keyboard**: Space play / pause, N / P next / previous song, T tap, D drop (held), H hold (held), C crash, R rewind, Esc panic; Ctrl/Cmd + O, S, Shift + S, N.
+- Click the AUDIO line of the sidebar to pick the sound card and the buffer size. The engine runs at 44.1 kHz; a sound card at another rate is resampled to.
 
-Not there yet (they need the app's own engine, milestone L2): projects and stems dropped on strips, moving in the song by clicking the waveform, the song's tempo, the master meter and limiter indicator. Then setlists, recording, third-party plugins, stem separation.
+The engine (`src/DubEngine.cpp`) is a fork of the MPC plugin's, with the Mac's way of handling songs; the effects are `Sources/DubDSP`, shared with the Mac app and the MPC plugin.
+
+Not there yet: tempo detection, renaming a song or a strip, locating missing stems, recent files, the master meter and limiter indicator, pre-fader sends, a sample-exact loop (a few milliseconds of silence at the loop point for now). Then the setlist workshop, recording, third-party plugins, stem separation.
 
 ## Build and run
 
 ```sh
 desktop/build.sh                                        # -> desktop/build/dubstemmix-desktop
-desktop/build/dubstemmix-desktop                        # the repository's test songs
-desktop/build/dubstemmix-desktop "/path/to/an export"   # an Export to MPC folder, or a card
-desktop/build/dubstemmix-desktop --selftest             # no display, no sound card: checks the levels
+desktop/build/dubstemmix-desktop                        # an empty session
+desktop/build/dubstemmix-desktop song.dubstem           # a project, or a setlist (.dubset)
+desktop/build/dubstemmix-desktop --selftest             # no display, no sound card: makes test songs and checks
 desktop/build/dubstemmix-desktop --snapshot out.png fx  # draws a page (mix, fx, master, inserts) to a picture
 ```
 
@@ -34,6 +40,6 @@ The first build downloads JUCE and Akai's MPC Plugin SDK headers (the engine is 
 
 ## Tested, not tested
 
-- `--selftest` plays the same gestures, and expects the same levels, as the MPC plugin's own test (`mpc/tests/transport_test.cpp`). It runs in CI on Linux.
+- `--selftest` makes test songs, then checks the stems (placing, several per strip, another sample rate), the console's gestures with the levels of the MPC plugin's own test, moving in the song, the loop, the end, saving and reopening a project, a Mac-only setting surviving a save, a missing stem. It runs in CI on Linux.
 - Not tried on Linux yet: the MIDImix and its LEDs, and sound on a real PC.
 - Windows: not built yet.

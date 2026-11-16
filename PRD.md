@@ -623,6 +623,14 @@ Jalons (ordre de travail, ajustable) :
 
 **Retour de Yoan le 16/11/2026** : il veut la forme d'onde et les câbles sans attendre L2. Ajoutés : la forme d'onde du morceau avec sa tête de lecture (l'écran lit lui-même les stems ; 30 dernières secondes en ocre) et les câbles entre les cartes de bus (pointillés tant que le potard de renvoi est à zéro). Restent pour L2 : se déplacer en cliquant dans la forme d'onde (le moteur actuel ne sait pas sauter dans un morceau) et le signal qui circule dans les câbles.
 
+**L2 codé le 16/11/2026** (design validé par Yoan : « tout est ok ») : l'app a son propre moteur (`desktop/src/DubEngine.cpp`, copie du moteur MPC adaptée ; le plugin MPC n'est pas touché) et les projets du Mac.
+- **Projets `.dubstem`** : ouverts et enregistrés dans les deux sens ; ce que l'app ne gère pas encore (slots et inserts Audio Unit) est conservé tel quel à l'enregistrement. Stems de tout format lu par JUCE (WAV, AIFF, FLAC, MP3, OGG ; M4A sur macOS) et de toute fréquence, plusieurs par tranche, longueurs différentes. Réserve « Stems to place », glisser sur une tranche ou clic droit (placer, déplacer, renvoyer, retirer). OPEN… / SAVE / NEW, puis enregistrement automatique une fois le fichier choisi ; une session jamais enregistrée demande confirmation avant NEW.
+- **Réglages par morceau** chargés avec lui (effets, modèles, renvois, KEEP, inserts, tempo, boucle) ; morceau chargé à l'arrêt, au début, queues d'effets gardées. Changer les stems d'une tranche en lecture ne ramène pas au début.
+- **Setlists `.dubset`** dans la barre latérale (clic, N / P, couleurs, tags, durée totale, ✓ « déjà joué » après 30 s) : la partie « jeu » de L4 ; l'atelier reste à faire.
+- **Transport** : boucle, clic dans la forme d'onde pour se déplacer, position exacte. **Tempo** : glisser, TAP, ÷2, ×2, SYNC.
+- Pas encore : détection du tempo, renommer un morceau ou une tranche, « Locate missing stems », fichiers récents, vu-mètre et indicateur du limiteur master, envois pré-fader, boucle calée à l'échantillon (quelques millisecondes de silence au point de boucle pour l'instant).
+- Vérifié : auto-test (37 contrôles) sur Mac et Linux ; un vrai projet du Mac ouvert en capture, fichier non modifié. En attente de l'essai de Yoan.
+
 ### 17.4 Points ouverts
 
 - **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 

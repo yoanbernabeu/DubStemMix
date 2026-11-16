@@ -1,8 +1,8 @@
 // Engine.h - the sound side of DubStemMix for the desktop: the engine, the sound card, the MIDImix.
 //
-// For now the engine is the MPC plugin's (mpc/DubStemMix/src, compiled into this program unchanged), driven
-// the way the MPC drives it: a transport, MIDI in, audio out at 44.1 kHz, and its parameters, which are what
-// its screen shows and sets.
+// The engine (DubEngine.cpp) still presents itself as the MPC framework's plugin: MIDI in, audio out at
+// 44.1 kHz, and parameters found by name, which are what the screen shows and sets. Songs and the transport
+// go through dsm::transport() (StripSource.h).
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -12,6 +12,7 @@
 
 #include "mpc_vst2_abi.h"
 #include "FX.h"
+#include "StripSource.h"
 
 #include <array>
 #include <atomic>
@@ -20,7 +21,7 @@
 #include <map>
 #include <string>
 
-// The MPC plugin's entry point (mpc/DubStemMix/src/DubStemMix.cpp).
+// The engine's entry point (DubEngine.cpp).
 extern "C" AEffect* VSTPluginMain(audioMasterCallback host);
 
 namespace dsm {
@@ -28,15 +29,15 @@ namespace dsm {
 constexpr double kRate = 44100.0;   // the engine's only rate, like the MPC; other sound cards are resampled to
 constexpr int kChunk = 512;         // the engine is fed at most this many frames at a time
 constexpr int kStrips = 8;          // the console's strips
-constexpr int kStems = 6;           // strips 1 to 6 carry stems, 7 and 8 the effects (PRD § 14)
+constexpr int kStems = kStemStrips;  // strips 1 to 6 carry stems, 7 and 8 the effects (PRD § 14)
 constexpr int kSongSlots = 24;      // songs listed at a time
 
 // MIDImix factory mapping (Sources/DubStemMixCore/MidiMix.swift). LEDs are lit by a Note On on the button's note.
 constexpr int kBankLeftNote = 25, kBankRightNote = 26;
 inline int muteNote(int strip) { return 1 + 3 * strip; }
 inline int recArmNote(int strip) { return 3 + 3 * strip; }
-// The plugin's pad gestures, with its default "Pad 1 note" of 24 (the pads play a C major scale).
-constexpr int kDropNote = 38, kCrashNote = 40, kRewindNote = 41, kGoNote = 48, kRestartNote = 50;
+// The engine's gestures that are not on the console, as the notes it takes them from.
+constexpr int kDropNote = 38, kCrashNote = 40, kRewindNote = 41;
 
 enum Page { kMix, kFx, kMaster, kInserts };
 
@@ -67,8 +68,6 @@ struct MidiQueue
 struct Engine
 {
     AEffect* plugin = nullptr;
-    std::atomic<bool> playing{false};
-    double ppq = 0.0;                     // audio thread only: moves while playing, never goes back
     MidiQueue fromConsole, fromScreen;    // one producer each: the MIDI thread, the window's thread
     std::atomic<float> lastLevel{0.0f};   // last output sample (left), for the self-test
     VstTimeInfo timeInfo{};
@@ -108,8 +107,7 @@ struct Engine
             std::memset(&t, 0, sizeof t);
             t.sampleRate = kRate;
             t.tempo = 120.0;
-            t.ppqPos = e.ppq;
-            t.flags = kVstTempoValid | kVstPpqPosValid | (e.playing.load(std::memory_order_relaxed) ? kVstTransportPlaying : 0);
+            t.flags = kVstTempoValid;
             return (VstIntPtr)&t;
         }
         return 0;
@@ -125,7 +123,6 @@ struct Engine
             const int n = std::min(kChunk, frames - done);
             float* outs[2] = {left + done, right + done};
             plugin->processReplacing(plugin, nullptr, outs, n);
-            if (playing.load(std::memory_order_relaxed)) ppq += n / kRate * 2.0;   // 120 BPM
             done += n;
         }
         if (frames > 0) lastLevel.store(left[frames - 1], std::memory_order_relaxed);
@@ -151,9 +148,20 @@ struct Engine
     void lift(int note) { fromScreen.push(0x80, (uint8_t)note, 0); }
     void tap(int note) { press(note); lift(note); }
 
-    void togglePlay() { playing.store(!playing.load()); }
-    void nextSong() { tap(kGoNote); }
-    void restartSong() { tap(kRestartNote); }
+    // ---- Transport ----
+
+    bool isPlaying() const { return transport().playing.load() && !transport().ended.load(); }
+    void togglePlay()
+    {
+        Transport& t = transport();
+        if (isPlaying()) { t.playing.store(false); return; }
+        if (t.ended.load()) t.seekTo.store(0);   // played to its end: from the top again
+        t.playing.store(true);
+    }
+    void restartSong() { transport().seekTo.store(0); }
+    double seconds() const { return (double)transport().position.load() / kRate; }
+    double duration() const { return (double)transport().length.load() / kRate; }
+    void seekSeconds(double s) { transport().seekTo.store((long long)(juce::jmax(0.0, s) * kRate)); }
     void panic() { press(kBankLeftNote); press(kBankRightNote); lift(kBankLeftNote); lift(kBankRightNote); }
 
     int currentPage() const { return choice(page, 4); }
