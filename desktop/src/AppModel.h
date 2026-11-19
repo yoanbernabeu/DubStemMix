@@ -8,6 +8,7 @@
 #include "Session.h"
 #include "Tempo.h"
 #include "Plugins.h"
+#include "Split.h"
 
 #include <juce_data_structures/juce_data_structures.h>
 
@@ -19,14 +20,21 @@ class Settings
 {
 public:
     // `forTest`: a settings file of its own, thrown away at the end.
-    explicit Settings(bool forTest) : forTest_(forTest)
+    static juce::PropertiesFile::Options options(bool forTest)
     {
         juce::PropertiesFile::Options options;
         options.applicationName = forTest ? "DubStemMix-selftest" : "DubStemMix";
         options.filenameSuffix = ".settings";
         options.folderName = forTest ? "DubStemMix-selftest" : "DubStemMix";   // a test never sees the user's plugins or settings
         options.osxLibrarySubFolder = "Application Support";
-        file_ = std::make_unique<juce::PropertiesFile>(options);
+        return options;
+    }
+    // The settings folder, without opening the settings.
+    static juce::File folderFor(bool forTest) { return options(forTest).getDefaultFile().getParentDirectory(); }
+
+    explicit Settings(bool forTest) : forTest_(forTest)
+    {
+        file_ = std::make_unique<juce::PropertiesFile>(options(forTest));
         transport().limiterOn.store(file_->getBoolValue("limiterOn", true));
         for (int b = 0; b < 3; ++b) transport().preFader[b].store(file_->getBoolValue("preFader" + juce::String(b), false));
     }
@@ -81,6 +89,18 @@ public:
         file_->setValue("library", paths.joinIntoString("\n"));
     }
 
+    // Where separated stems are written: the DubStemMix folder's "Stems" unless another was chosen (PRD § 12.3).
+    juce::File stemsFolder(const juce::File& fallback) const
+    {
+        const juce::String chosen = file_->getValue("stemsFolder");
+        return juce::File::isAbsolutePath(chosen) ? juce::File(chosen) : fallback;
+    }
+    void setStemsFolder(const juce::File& folder) { file_->setValue("stemsFolder", folder.getFullPathName()); }
+
+    // Seconds of work per second of song, measured on the last song split on this computer (PRD § 12.6).
+    double splitSpeed() const { return file_->getDoubleValue("splitSpeed", 0.0); }
+    void setSplitSpeed(double speed) { file_->setValue("splitSpeed", speed); }
+
     ~Settings()
     {
         const juce::File file = file_->getFile();
@@ -99,8 +119,13 @@ public:
     Settings settings;
     Session session = Session::fresh();
 
-    explicit AppModel(bool forTest = false) : settings(forTest), plugins(settings.folder())
+    explicit AppModel(bool forTest = false)
+        : settings(forTest), plugins(settings.folder()),
+          models(settings.folder().getChildFile("Models").getChildFile(split::Catalog::htdemucs().name).getChildFile(split::Catalog::htdemucs().shortRevision()),
+                 split::Catalog::htdemucs())
     {
+        makeSeparator = [this] { return std::unique_ptr<split::Separator>(new split::OnnxSeparator(models)); };
+        engineReady = [this] { return models.isReady(); };
         home = juce::File::getSpecialLocation(juce::File::userMusicDirectory).getChildFile("DubStemMix");
         plugins.recallMacros = [this](const juce::String& plugin) { return settings.macros(plugin); };
         plugins.rememberMacros = [this](const juce::String& plugin, const juce::String& list) { settings.setMacros(plugin, list); };
@@ -352,6 +377,222 @@ public:
             exportDone_.store(true);
             exportProgress.store(-1.0);
         });
+    }
+
+    // ---- Stem separation (PRD § 12): a full song into drums, bass, instruments, vocals ----
+
+    split::ModelStore models;     // the model files: beside the settings, shared with the Mac app on a Mac
+    split::Queue prepQueue;       // the preparation mode's list (PRD § 12.6)
+    bool preparing = false;       // the preparation screen takes the console's place
+    // Replaced by the tests: a separator of their own, an engine that is always there.
+    std::function<std::unique_ptr<split::Separator>()> makeSeparator;
+    std::function<bool()> engineReady;
+    // Asks before going on (a dialog); without it the answer is yes.
+    std::function<void(const juce::String& title, const juce::String& question, const juce::String& yes, std::function<void()> then)> ask;
+
+    struct SplitStatus
+    {
+        enum Kind { Idle, Downloading, Splitting };
+        Kind kind = Idle;
+        bool cancelling = false;
+        juce::int64 received = 0, total = 0;   // Downloading
+        juce::String song;                     // Splitting
+        int stem = 0;
+        double fraction = 0.0, secondsLeft = -1.0;
+    };
+
+    SplitStatus splitStatus() const
+    {
+        SplitStatus s;
+        s.kind = kind_;
+        s.cancelling = busy_ && cancelSplit_.load();
+        s.received = received_.load();
+        s.total = models.catalog().totalBytes();
+        s.song = song_;
+        s.stem = stem_.load();
+        s.fraction = fraction_.load();
+        if (kind_ == SplitStatus::Splitting && s.fraction > 0.02)
+            s.secondsLeft = (juce::Time::getMillisecondCounterHiRes() - started_) * 0.001 * (1.0 - s.fraction) / s.fraction;
+        return s;
+    }
+
+    // A download or a split is under way.
+    bool splitBusy() const { return busy_; }
+
+    juce::File stemsFolder() const { return settings.stemsFolder(home.getChildFile("Stems")); }
+
+    // One song, from the sidebar: its four stems on strips 1 to 4 of a new session, the original in the stems
+    // to place. Checks and questions happen here; the work itself starts in startSplit.
+    void splitSong(const juce::File& file)
+    {
+        if (preparing) return;
+        if (splitBusy()) { message = "a separation is already running"; return; }
+        if (!file.existsAsFile() || !isAudio(file)) { message = "drop one audio file (WAV, MP3, AIFF, FLAC...)"; return; }
+        auto start = [this, file]
+        {
+            if (engineReady()) startSplit(file);
+            else consentToDownload([this, file] { pendingSong_ = file; startDownload(); });
+        };
+        auto unsaved = [this, start]
+        {
+            if (hasDocument() || session.isEmpty()) start();
+            else question("Split a song", "This session was never saved. Split the song and lose it?", "Split", start);
+        };
+        if (Engine::get().isPlaying())
+            question("Split while playing?", "Splitting a song takes several minutes of heavy work and may cause audio dropouts. "
+                                             "Stop playback first if you are performing.", "Split anyway", unsaved);
+        else unsaved();
+    }
+
+    // Never a silent download (PRD § 12.2): size, source and license status are on the screen.
+    void consentToDownload(std::function<void()> then)
+    {
+        const split::Catalog& c = models.catalog();
+        question("Download the separation engine?",
+                 "Splitting songs needs the " + c.name + " model: four files, " + juce::String(c.megabytes()) + " MB in total, downloaded once from "
+                 "Hugging Face (" + c.repository + ") into " + models.directory().getFullPathName() + ".\n\n" + c.licenseNotice(),
+                 "Download " + juce::String(c.megabytes()) + " MB", std::move(then));
+    }
+
+    void startDownload()
+    {
+        if (splitBusy()) return;
+        begin(SplitStatus::Downloading, {});
+        splitPool_.addJob([this]
+        {
+            Finished f;
+            f.kind = Finished::Download;
+            f.ok = models.download([this](juce::int64 received, juce::int64) { received_.store(received); },
+                                   [this] { return cancelSplit_.load(); }, f.error);
+            finish(std::move(f));
+        });
+    }
+
+    void deleteModels()
+    {
+        if (splitBusy()) return;
+        message = models.remove() ? juce::String() : "cannot delete " + models.directory().getFullPathName();
+    }
+
+    // Stops the download or the song being split; its half-made stems are removed.
+    void cancelSeparation()
+    {
+        pendingSong_ = juce::File();
+        if (busy_) cancelSplit_.store(true);
+    }
+
+    // ---- Preparation mode (PRD § 12.6): several songs, one after the other, each into a ready project ----
+
+    // From the sidebar (enters the mode) or from the preparation screen (adds to the list). Folders give their songs.
+    void prepareSongs(const juce::Array<juce::File>& given)
+    {
+        juce::Array<juce::File> files;
+        for (const juce::File& f : given)
+        {
+            if (f.isDirectory())
+            {
+                juce::Array<juce::File> inside = f.findChildFiles(juce::File::findFiles, false);
+                inside.sort();
+                for (const juce::File& child : inside) if (isAudio(child)) files.add(child);
+            }
+            else if (isAudio(f)) files.add(f);
+        }
+        auto add = [this, files]
+        {
+            for (const juce::File& f : files) prepQueue.add(f, split::audioSeconds(f));
+            startPreparing();
+        };
+        if (preparing) { add(); return; }
+        if (splitBusy()) { message = "a separation is already running"; return; }
+        auto enter = [this, add]
+        {
+            transport().playing.store(false);
+            autosave();
+            preparing = true;
+            message = {};
+            add();
+        };
+        if (Engine::get().isPlaying())
+            question("Stop playback and prepare songs?", "Playback stays off while songs are being prepared. Your session stays open: "
+                                                         "you find it again when you go back to the console.", "Stop and Prepare", enter);
+        else enter();
+    }
+
+    // Runs the list, after the engine's download if it is not there yet (never without the user's yes).
+    void startPreparing()
+    {
+        if (splitBusy() || prepQueue.count(split::Queue::Waiting) == 0) return;
+        if (engineReady()) runQueue();
+        else consentToDownload([this] { startDownload(); });   // the list runs once it is there
+    }
+
+    // Back to the console: only when nothing runs. Songs still waiting (engine not downloaded) are dropped.
+    bool leavePreparation()
+    {
+        if (splitBusy()) return false;
+        prepQueue.clear();
+        preparing = false;
+        message = {};
+        return true;
+    }
+
+    // Stops the song under way and empties the list; the songs already prepared stay.
+    void cancelPreparation()
+    {
+        cancelSeparation();
+        prepQueue.cancelAll();
+    }
+
+    // Seconds left for the whole list, or -1 while it cannot be told: the song under way from its own progress,
+    // the waiting ones at the speed measured on this computer (or, the first time, on the song under way).
+    double prepTimeLeft() const
+    {
+        const SplitStatus s = splitStatus();
+        double speed = settings.splitSpeed();
+        const split::Queue::Item* running = prepQueue.running();
+        if (speed <= 0 && s.secondsLeft >= 0 && running != nullptr && running->seconds > 0)
+            speed = (juce::Time::getMillisecondCounterHiRes() - started_) * 0.001 / s.fraction / running->seconds;
+        return prepQueue.timeLeft(speed, s.secondsLeft);
+    }
+
+    // Called many times a second: what a background job has finished is taken up here, on the app's own thread.
+    void followSplit()
+    {
+        if (!jobDone_.exchange(false)) return;
+        Finished f;
+        {
+            const juce::ScopedLock lock(finishedLock_);
+            f = std::move(finished_);
+        }
+        const bool cancelled = cancelSplit_.exchange(false);
+        busy_ = false;
+        kind_ = SplitStatus::Idle;
+        if (f.kind == Finished::Download)
+        {
+            const juce::File song = pendingSong_;
+            pendingSong_ = juce::File();
+            if (cancelled) return;
+            if (!f.ok) { message = "download failed: " + f.error; return; }
+            if (song != juce::File()) startSplit(song);
+            else if (preparing) runQueue();
+        }
+        else if (f.kind == Finished::Split)
+        {
+            if (cancelled || f.result.cancelled) return;
+            if (!f.result.ok) { message = "split failed: " + f.result.error; return; }
+            loadSeparated(f.result, f.source);
+        }
+        else
+        {
+            if (cancelled) return;   // cancelPreparation has already emptied the list
+            if (f.ok)
+            {
+                prepQueue.finish(f.id, f.project, f.projectReused);
+                if (!f.result.reused && f.songSeconds > 0) settings.setSplitSpeed(f.workSeconds / f.songSeconds);
+            }
+            else prepQueue.fail(f.id, f.error);
+            runQueue();
+        }
     }
 
     // ---- Sessions ----
@@ -624,6 +865,8 @@ public:
 
     ~AppModel()
     {
+        cancelSplit_.store(true);
+        splitPool_.removeAllJobs(true, 30000);
         cancelExport_.store(true);
         finishRecording();
         pool_.removeAllJobs(true, 8000);
@@ -658,6 +901,156 @@ private:
         else { resumeAt_ = -1; heard_ = 0; }
         t.load(session.files());
     }
+
+    // ---- Stem separation: the background jobs and what they hand back ----
+
+    struct Finished
+    {
+        enum Kind { Download, Split, Prepare };
+        Kind kind = Download;
+        bool ok = false, projectReused = false;
+        int id = 0;
+        juce::String error;
+        juce::File source, project;
+        split::Result result;
+        double songSeconds = 0.0, workSeconds = 0.0;
+    };
+
+    void question(const juce::String& title, const juce::String& text, const juce::String& yes, std::function<void()> then)
+    {
+        if (ask) ask(title, text, yes, std::move(then)); else then();
+    }
+
+    void begin(SplitStatus::Kind kind, const juce::String& song)
+    {
+        kind_ = kind;
+        song_ = song;
+        stem_.store(0);
+        fraction_.store(0.0);
+        received_.store(0);
+        started_ = juce::Time::getMillisecondCounterHiRes();
+        cancelSplit_.store(false);
+        busy_ = true;
+        message = {};
+    }
+
+    // From a background thread.
+    void finish(Finished f)
+    {
+        {
+            const juce::ScopedLock lock(finishedLock_);
+            finished_ = std::move(f);
+        }
+        jobDone_.store(true);
+    }
+
+    split::Result runSplit(const juce::File& source, const juce::File& root)
+    {
+        return split::run(source, root, models.catalog().id(), makeSeparator,
+                          [this](const split::Progress& p) { stem_.store(p.stem); fraction_.store(p.fraction()); },
+                          [this] { return cancelSplit_.load(); });
+    }
+
+    void startSplit(const juce::File& source)
+    {
+        begin(SplitStatus::Splitting, split::songTitle(source));
+        const juce::File root = stemsFolder();
+        splitPool_.addJob([this, source, root]
+        {
+            Finished f;
+            f.kind = Finished::Split;
+            f.source = source;
+            f.result = runSplit(source, root);
+            finish(std::move(f));
+        });
+    }
+
+    // A new session: the four stems in order on strips 1 to 4, the original in the stems to place for A/B listening.
+    void loadSeparated(const split::Result& result, const juce::File& source)
+    {
+        transport().playing.store(false);
+        autosave();   // the session open meanwhile, if it has a place, keeps its last changes
+        newSession();
+        session.title = split::songTitle(source);
+        for (int s = 0; s < split::StemCount; ++s)
+        {
+            session.strips[s].push_back(FileRef::of(result.stems[s]));
+            session.stripNames[s] = split::stemLabel(s);
+        }
+        session.pool.push_back(FileRef::of(source));
+        reload(false);
+        detectTempo(false);
+    }
+
+    // The next waiting song of the preparation list: its stems (or the ones already there), then its project
+    // beside them unless one is already there.
+    void runQueue()
+    {
+        const split::Queue::Item* next = prepQueue.startNext();
+        if (next == nullptr) return;
+        const split::Queue::Item item = *next;
+        begin(SplitStatus::Splitting, split::songTitle(item.source));
+        const juce::File root = stemsFolder();
+        splitPool_.addJob([this, item, root]
+        {
+            Finished f;
+            f.kind = Finished::Prepare;
+            f.id = item.id;
+            f.source = item.source;
+            f.songSeconds = item.seconds;
+            const double started = juce::Time::getMillisecondCounterHiRes();
+            f.result = runSplit(item.source, root);
+            f.workSeconds = (juce::Time::getMillisecondCounterHiRes() - started) * 0.001;
+            f.ok = f.result.ok;
+            f.error = f.result.error;
+            if (f.ok && !writePreparedProject(f.result, item.source, f.project, f.projectReused))
+            {
+                f.ok = false;
+                f.error = "cannot write the project";
+            }
+            finish(std::move(f));
+        });
+    }
+
+    // The song's project beside its stems, as a split would leave the session; one already there is left untouched.
+    static bool writePreparedProject(const split::Result& result, const juce::File& source, juce::File& document, bool& reused)
+    {
+        const juce::String title = split::songTitle(source);
+        juce::String name = title.isEmpty() ? juce::String("Untitled") : split::capitalised(title);
+       #if JUCE_WINDOWS
+        name = juce::File::createLegalFileName(name);
+       #else
+        name = name.replaceCharacter('/', '-');   // as the Mac app names it
+       #endif
+        document = result.folder.getChildFile(name + "." + Session::kExtension);
+        reused = document.existsAsFile();
+        if (reused) return true;
+        std::vector<std::pair<juce::File, juce::String>> stems;
+        std::vector<std::string> paths;
+        double seconds = 0.0;
+        for (int s = 0; s < split::StemCount; ++s)
+        {
+            stems.push_back({result.stems[s], split::stemLabel(s)});
+            paths.push_back(result.stems[s].getFullPathName().toStdString());
+            seconds = juce::jmax(seconds, split::audioSeconds(result.stems[s]));
+        }
+        const double bpm = tempo::detect(paths);
+        Session prepared = Session::separated(title, stems, source, seconds, bpm > 0 ? bpm : 0.0);
+        return prepared.save(document);
+    }
+
+    SplitStatus::Kind kind_ = SplitStatus::Idle;
+    bool busy_ = false;
+    juce::String song_;
+    double started_ = 0.0;
+    juce::File pendingSong_;
+    std::atomic<bool> cancelSplit_{false}, jobDone_{false};
+    std::atomic<int> stem_{0};
+    std::atomic<double> fraction_{0.0};
+    std::atomic<juce::int64> received_{0};
+    juce::CriticalSection finishedLock_;
+    Finished finished_;
+    juce::ThreadPool splitPool_{1};
 
     juce::StringArray missingPlugins_;
     RecordingSession recording_;

@@ -310,6 +310,28 @@ public:
         return s;
     }
 
+    // A song prepared from its separated stems (PRD § 12.6), as "Split a song" would leave the session: the stems
+    // in order on the first strips with their names, the original in the stems to place, effects and bus routing
+    // as at launch. Built without the engine: it is written from a background thread.
+    static Session separated(const juce::String& title, const std::vector<std::pair<juce::File, juce::String>>& stems,
+                             const juce::File& original, double seconds, double bpm)
+    {
+        Session s = fresh();
+        s.title = title;
+        s.bpm = bpm;
+        for (size_t i = 0; i < stems.size() && i < (size_t)kStems; ++i)
+        {
+            s.strips[i].push_back(FileRef::of(stems[i].first));
+            s.stripNames[i] = stems[i].second;
+        }
+        s.pool.push_back(FileRef::of(original));
+        auto* fxValues = new juce::DynamicObject();
+        for (int p = 0; p < fx::Count; ++p) fxValues->setProperty(juce::Identifier(fx::info(p).id), (double)fx::info(p).def);
+        s.object()->setProperty("fx", juce::var(fxValues));
+        if (seconds > 0) s.object()->setProperty("duration", seconds);
+        return s;
+    }
+
 private:
     static const char* busKey(int bus) { return bus == fx::Delay ? "delay" : bus == fx::Reverb ? "reverb" : "bus3"; }
 

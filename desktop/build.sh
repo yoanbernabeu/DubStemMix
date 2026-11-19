@@ -4,7 +4,7 @@
 # Linux needs a C++ compiler, cmake, git and JUCE's headers (Ubuntu):
 #   sudo apt install build-essential cmake git pkg-config libasound2-dev libfreetype-dev libfontconfig1-dev \
 #     libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
-#     libglu1-mesa-dev mesa-common-dev
+#     libglu1-mesa-dev mesa-common-dev libcurl4-openssl-dev
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SDK="$HERE/../mpc/.sdk"

@@ -25,3 +25,7 @@ The desktop app for Linux and Windows (desktop/) is built with JUCE (https://juc
 GNU Affero General Public License version 3. That folder, and the programs built from it, are distributed
 under the AGPLv3 (desktop/LICENSE). The rest of this repository stays under the MIT license (LICENSE).
 It also builds LAME 3.100 (Sources/LAME, GNU LGPL 2, see above) for its MP3 exports.
+Its stem separation loads ONNX Runtime 1.24.2 (MIT, Microsoft), fetched at build time from Microsoft's own
+packages (the library from Maven Central, com.microsoft.onnxruntime:onnxruntime; the C header from
+download.onnxruntime.ai) and placed beside the program with its third-party notices. The model is the one
+described above: downloaded on request, never bundled.

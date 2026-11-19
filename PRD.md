@@ -671,6 +671,25 @@ Jalons (ordre de travail, ajustable) :
   - **Les plugins d'un projet ne passent pas d'une app à l'autre** : ceux de l'app Mac (Audio Units) et ceux de cette app sont écrits à deux endroits distincts du projet, et chaque app laisse intact ce que l'autre a écrit.
 - Vérifié : auto-test et test d'écran avec un petit plugin propre aux tests (emplacement, macros dans les deux sens, projet, plugin absent, menus) ; sur le Mac de Yoan, `--check-plugins TAL` trouve 29 effets (dont Dub Filter, Vinyl, TAL Reverb 4) et charge TAL Reverb 4 en Audio Unit et en VST3 avec le son qui le traverse. Non vérifié : la fenêtre d'un vrai plugin, le son à l'oreille, LV2 et VST3 sous Linux avec de vrais plugins. En attente de l'essai de Yoan.
 
+**L6 essayé par Yoan le 19/11/2026** : « tout est ok ». Les trois écarts lui avaient été présentés (5 macros par bus, plugins dans l'app, plugins non partagés entre les deux apps) ; il n'en a relevé aucun et a demandé la suite.
+
+**L7 codé le 19/11/2026** : la séparation de stems (§ 12), portée de `Sources/StemSplit`.
+- **SPLIT A SONG** dans la barre latérale (déposer un morceau, ou cliquer) : batterie, basse, instruments, voix sur les tranches 1 à 4 d'une nouvelle session, l'original dans les stems à placer, titre = nom du morceau, tempo détecté. Avertissement si un morceau joue, confirmation si la session n'a jamais été enregistrée. Progression (stem, pourcentage, temps restant) et CANCEL dans la barre latérale.
+- **PREPARE SONGS** : l'écran de préparation prend la place de la console (§ 12.6). Morceaux ou dossier déposés, séparés l'un après l'autre, un projet prêt à côté des stems ; temps restant pour toute la file (vitesse mémorisée pour cet ordinateur), retirer ou déplacer un morceau en attente, CANCEL ALL, START, BACK TO CONSOLE ; un fichier illisible est marqué FAILED et la file continue ; quitter avec des morceaux en attente demande confirmation.
+- **Mêmes fichiers que l'app Mac** : mêmes modèles (même révision, mêmes empreintes), même dossier `Stems/<nom du fichier> [empreinte]/`, même manifeste. Un morceau séparé par une app n'est pas recalculé par l'autre. Sur un Mac, les modèles sont ceux de l'app Mac (même dossier).
+- **Modèles jamais embarqués** : question avant tout téléchargement (taille, provenance, statut de licence), reprise après coupure, taille et SHA-256 vérifiés.
+- **ONNX Runtime 1.24.2** (la version de l'app Mac) : sa bibliothèque est posée à côté du programme et chargée quand on sépare un morceau. Elle vient du paquet Maven Central de Microsoft, son en-tête de l'archive qu'utilise le paquet Swift de l'app Mac : le dépôt GitHub `microsoft/onnxruntime` répondait « introuvable » ce jour-là. Sous Linux, le téléchargement des modèles demande libcurl.
+- **Écarts avec le Mac**, à confirmer par Yoan :
+  - Pas de fenêtre de réglages ici : l'état des modèles (télécharger, supprimer) et le dossier des stems sont **sur l'écran PREPARE SONGS**.
+  - **Cliquer PREPARE SONGS ouvre l'écran**, même sans morceau (sur le Mac, le sélecteur de fichiers d'abord). Le sélecteur ne prend que des fichiers ; un dossier se dépose.
+  - Les morceaux en attente se réordonnent **au clic droit** (Move up / Move down), pas en les glissant.
+  - **Pas de notification système** à la fin de la file.
+  - Pas de menu « Split a Song… » (l'app n'a pas de barre de menus).
+  - L'annulation prend effet à la fin du bloc de 7,8 s en cours (comme sur le Mac) ; l'écran affiche « CANCELLING… » entre-temps.
+- Vérifié sans les modèles (auto-test et test d'écran, aussi en CI) : blocs et recouvrement, décodage (mono 22,05 kHz, stéréo 48 kHz, calé dans le temps), fichiers et manifeste, pas de recalcul, annulation qui ne laisse rien, téléchargement depuis un dossier local (reprise, empreinte, fichier faux jeté), file de préparation, étapes de l'app (question avant téléchargement, séparation, mode préparation, projets). 
+- Vérifié avec les vrais modèles sur le Mac de Yoan (`--split`, § 12.5), sur des morceaux que l'app Mac avait déjà séparés, écrits dans un dossier à part : Σ stems vs mix à 25,8 dB et 26,6 dB (≥ 25 attendu) ; un MP3 en 44,1 kHz donne des stems **identiques à ceux de l'app Mac** (écart à −120 dB), en ×1,16 la durée du morceau ; un WAV en 48 kHz s'en écarte de 30 à 40 dB sous le signal, la conversion vers 44,1 kHz n'étant pas faite par le même code. Le vrai téléchargement des quatre fichiers (`--fetch-models`, dans un dossier à part) passe, coupure et reprise comprises, et redonne les fichiers de l'app Mac.
+- Non vérifié : la séparation et le téléchargement sous Linux (la CI ne télécharge pas les modèles), le son à l'oreille, les dialogues système. En attente de l'essai de Yoan.
+
 ### 17.4 Points ouverts
 
 - **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 

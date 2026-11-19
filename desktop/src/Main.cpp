@@ -4,6 +4,8 @@
 //   dubstemmix-desktop --selftest                    no sound card: makes test songs, plays them, checks
 //   dubstemmix-desktop --screentest [folder]         no window: plays the console's screen like a user (clicks,
 //                                                    drags, drops, menus), checks, and saves pictures in folder
+//   dubstemmix-desktop --split song [folder] [reference]  splits a song with the real models and checks the stems
+//   dubstemmix-desktop --fetch-models folder         downloads the separation model's files there, checked
 //   dubstemmix-desktop --check-plugins [name]        looks for the plugins installed, lists them, tries those named
 //   dubstemmix-desktop --snapshot out.png [mix|fx|master|inserts] [song.dubstem | set.dubset]
 //                                                    draws the console to a picture, no window, no sound card
@@ -15,6 +17,7 @@
 
 #include "Workshop.h"
 #include "Sessions.h"
+#include "Preparation.h"
 
 #include <cstdio>
 #include <thread>
@@ -55,7 +58,7 @@ void wait(double seconds) { std::this_thread::sleep_for(std::chrono::duration<do
 class MainComponent : public juce::Component, private juce::Timer
 {
 public:
-    explicit MainComponent(dsm::AppModel& app) : app_(app), board_(app), workshop_(app), sessions_(app)
+    explicit MainComponent(dsm::AppModel& app) : app_(app), board_(app), workshop_(app), sessions_(app), preparation_(app)
     {
         juce::AudioDeviceManager::AudioDeviceSetup setup;
         setup.sampleRate = dsm::kRate;
@@ -104,6 +107,34 @@ public:
                                   });
         };
         addChildComponent(sessions_);
+
+        // Stem separation (PRD § 12): its questions are dialogs; its screen follows app_.preparing.
+        app_.ask = [this](const juce::String& title, const juce::String& question, const juce::String& yes, std::function<void()> then)
+        {
+            juce::AlertWindow::showOkCancelBox(juce::MessageBoxIconType::QuestionIcon, title, question, yes, "Cancel", this,
+                                               juce::ModalCallbackFunction::create([then = std::move(then)](int ok) { if (ok == 1) then(); }));
+        };
+        board_.onSplit = [this]
+        {
+            chooser_ = std::make_unique<juce::FileChooser>("A full song to split into drums, bass, instruments and vocals", songsFolder(), kAudioFiles);
+            chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                                  [this](const juce::FileChooser& c) { if (c.getResult() != juce::File()) app_.splitSong(c.getResult()); });
+        };
+        board_.onPrepare = [this] { app_.prepareSongs({}); };
+        preparation_.onAddSongs = [this]
+        {
+            chooser_ = std::make_unique<juce::FileChooser>("Songs to prepare (each one gets its stems and a ready project)", songsFolder(), kAudioFiles);
+            chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::canSelectMultipleItems,
+                                  [this](const juce::FileChooser& c) { if (c.getResults().size() > 0) app_.prepareSongs(c.getResults()); });
+        };
+        preparation_.onFolder = [this]
+        {
+            chooser_ = std::make_unique<juce::FileChooser>("Folder where separated stems are written", app_.stemsFolder());
+            chooser_->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                                  [this](const juce::FileChooser& c) { if (c.getResult().isDirectory()) app_.settings.setStemsFolder(c.getResult()); });
+        };
+        preparation_.onConfirm = [this](const juce::String& question, std::function<void()> yes) { confirm("Stem separation", question, std::move(yes)); };
+        addChildComponent(preparation_);
         setWantsKeyboardFocus(true);
         setSize(dsm::Board::kWidth, dsm::Board::kHeight);
         startTimerHz(30);
@@ -129,12 +160,14 @@ public:
         board_.setTransform(fit);
         workshop_.setTransform(fit);
         sessions_.setTransform(fit);
+        preparation_.setTransform(fit);
     }
 
     bool keyPressed(const juce::KeyPress& key) override
     {
-        // The workshop is not for playing: only its own keys answer there.
+        // The workshop is not for playing: only its own keys answer there. While songs are prepared, nothing plays.
         if (workshop_.isVisible()) return workshop_.keyPressed(key);
+        if (preparation_.isVisible()) return false;
         Engine& engine = Engine::get();
         const juce::juce_wchar c = juce::CharacterFunctions::toLowerCase((juce::juce_wchar)key.getKeyCode());
         if (key.getModifiers().isCommandDown())
@@ -161,7 +194,7 @@ public:
     // DROP and HOLD last as long as their key is down.
     bool keyStateChanged(bool) override
     {
-        if (workshop_.isVisible() || sessions_.isVisible()) return false;
+        if (workshop_.isVisible() || sessions_.isVisible() || preparation_.isVisible()) return false;
         held(dropDown_, 'D', dsm::kDropNote);
         held(holdDown_, 'H', dsm::muteNote(6));
         return false;
@@ -180,6 +213,15 @@ private:
     {
         if (++ticks_ % 30 == 1) { console_.poll(); app_.tick(); }
         app_.followRecording();
+        app_.followSplit();
+        // The preparation screen takes the console's place for as long as the mode lasts (PRD § 12.6).
+        if (app_.preparing != preparation_.isVisible())
+        {
+            if (app_.preparing) { workshop_.setVisible(false); sessions_.setVisible(false); }
+            preparation_.setVisible(app_.preparing);
+            board_.setVisible(!app_.preparing);
+            grabKeyboardFocus();
+        }
         app_.plugins.sync();
         console_.lightLeds();
 
@@ -197,7 +239,8 @@ private:
             status.soundError = {};
         }
         else status.soundError = soundError_.isEmpty() ? juce::String("no sound card") : soundError_;
-        if (workshop_.isVisible()) workshop_.repaint(); else if (sessions_.isVisible()) sessions_.repaint(); else board_.repaint();
+        if (preparation_.isVisible()) preparation_.repaint();
+        else if (workshop_.isVisible()) workshop_.repaint(); else if (sessions_.isVisible()) sessions_.repaint(); else board_.repaint();
     }
 
     // ---- Recording (PRD § 5.9) ----
@@ -211,7 +254,7 @@ private:
     // The recorded sessions take the console's place; the music and a recording under way go on.
     void showSessions(bool show)
     {
-        if (workshop_.isVisible()) return;
+        if (workshop_.isVisible() || preparation_.isVisible()) return;
         if (show) sessions_.open();
         sessions_.setVisible(show);
         board_.setVisible(!show);
@@ -341,6 +384,8 @@ private:
     dsm::Board board_;
     dsm::Workshop workshop_;
     dsm::Sessions sessions_;
+    dsm::Preparation preparation_;
+    static constexpr const char* kAudioFiles = "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.m4a";
     std::unique_ptr<juce::FileChooser> chooser_;
     int ticks_ = 0;
     bool dropDown_ = false, holdDown_ = false;
@@ -450,6 +495,145 @@ juce::File writeClicks(const juce::File& folder, const char* name, double bpm, d
         out.writeShort(sample);
     }
     return file;
+}
+
+// The tests' separator: each "network" gives back a fixed share of the mix, through the real chunks and
+// overlap-add, so the four stems add up to the song.
+class FakeSeparator : public dsm::split::Separator
+{
+public:
+    static inline std::atomic<int> calls{0}, delayMs{0};
+    static float share(int stem)
+    {
+        const float shares[dsm::split::StemCount] = {0.5f, 0.25f, 0.125f, 0.125f};
+        return shares[stem];
+    }
+
+    bool separate(int stem, const dsm::split::Stereo& mix, dsm::split::Stereo& out, const std::function<void(int, int)>& progress,
+                  const std::function<bool()>& cancelled, juce::String& error) override
+    {
+        using namespace dsm::split;
+        ++calls;
+        const int count = chunkCount(mix.size());
+        Accumulator accumulator(mix.size());
+        std::vector<float> left((size_t)kChunk), right((size_t)kChunk);
+        for (int chunk = 0; chunk < count; ++chunk)
+        {
+            if (cancelled()) { error = "cancelled"; return false; }
+            const long long start = (long long)chunk * kStride;
+            const int length = (int)juce::jmin((long long)kChunk, mix.size() - start);
+            for (int i = 0; i < length; ++i)
+            {
+                left[(size_t)i] = mix.left[(size_t)(start + i)] * share(stem);
+                right[(size_t)i] = mix.right[(size_t)(start + i)] * share(stem);
+            }
+            accumulator.add(left.data(), right.data(), start, length);
+            if (delayMs.load() > 0) wait(delayMs.load() * 0.001);
+            progress(chunk + 1, count);
+        }
+        out = accumulator.finish();
+        return true;
+    }
+};
+
+// A short pulse at `at` seconds, 16-bit, any rate, mono or stereo: where it lands after decoding tells the timing.
+juce::File writePulse(const juce::File& folder, const char* name, int rate, int channels, double seconds, double at)
+{
+    folder.createDirectory();
+    const juce::File file = folder.getChildFile(name);
+    file.deleteFile();
+    juce::FileOutputStream out(file);
+    const uint32_t frames = (uint32_t)(seconds * rate), data = frames * 2 * (uint32_t)channels;
+    out.write("RIFF", 4); out.writeInt((int)(36 + data)); out.write("WAVEfmt ", 8);
+    out.writeInt(16); out.writeShort(1); out.writeShort((short)channels); out.writeInt(rate); out.writeInt(rate * 2 * channels);
+    out.writeShort((short)(2 * channels)); out.writeShort(16);
+    out.write("data", 4); out.writeInt((int)data);
+    for (uint32_t i = 0; i < frames; ++i)
+    {
+        const double t = ((double)i / rate - at) / 0.001;
+        const short sample = (short)(24000.0 * std::exp(-0.5 * t * t));
+        for (int c = 0; c < channels; ++c) out.writeShort(sample);
+    }
+    return file;
+}
+
+// Polls the app as its timer would, until the separation's background work is over.
+void waitForSplit(dsm::AppModel& app, double atMost = 30.0)
+{
+    for (double waited = 0.0; waited < atMost; waited += 0.02)
+    {
+        app.followSplit();
+        if (!app.splitBusy()) return;
+        wait(0.02);
+    }
+}
+
+// `--split song [folder] [reference folder]`: splits a song with the real models (never run by the automatic
+// tests: they are not downloaded there) and says how well the four stems add up to the song (PRD § 12.5).
+// With a reference folder holding the same four files (the Mac app's, say), says how far each stem is from it.
+int runSplitCheck(const juce::File& source, const juce::File& root, const juce::File& reference)
+{
+    using namespace dsm::split;
+    const ModelStore models(dsm::Settings::folderFor(false).getChildFile("Models").getChildFile(Catalog::htdemucs().name).getChildFile(Catalog::htdemucs().shortRevision()),
+                            Catalog::htdemucs());
+    if (!models.isReady()) { std::fprintf(stderr, "the models are not in %s\n", models.directory().getFullPathName().toRawUTF8()); return 1; }
+    const double started = juce::Time::getMillisecondCounterHiRes();
+    int lastStem = -1;
+    const Result result = run(source, root, models.catalog().id(), [&models] { return std::unique_ptr<Separator>(new OnnxSeparator(models)); },
+                              [&lastStem](const Progress& p) { if (p.stem != lastStem) { lastStem = p.stem; std::printf("%s...\n", stemName(p.stem)); std::fflush(stdout); } },
+                              [] { return false; });
+    if (!result.ok) { std::fprintf(stderr, "split failed: %s\n", result.error.toRawUTF8()); return 1; }
+    const double seconds = audioSeconds(source), work = (juce::Time::getMillisecondCounterHiRes() - started) * 0.001;
+    std::printf("%s in %s\n", result.reused ? "already split" : "split", result.folder.getFullPathName().toRawUTF8());
+    if (!result.reused) std::printf("%.0f s of work for %.0f s of song (x%.2f)\n", work, seconds, work / juce::jmax(1.0, seconds));
+
+    Stereo mix, stems[StemCount];
+    juce::String error;
+    if (!loadAudio(source, mix, error)) return 1;
+    auto energy = [](const Stereo& a) { double e = 0.0; for (size_t i = 0; i < a.left.size(); ++i) e += (double)a.left[i] * a.left[i] + (double)a.right[i] * a.right[i]; return e; };
+    auto decibels = [](double ratio) { return 10.0 * std::log10(juce::jmax(1.0e-12, ratio)); };
+    Stereo rest = mix;
+    // Two files may differ by a sample or two when their rate was converted by two different programs.
+    auto sameLength = [](const Stereo& a, const Stereo& b) { return std::llabs(a.size() - b.size()) <= 2; };
+    for (int s = 0; s < StemCount; ++s)
+    {
+        if (!loadAudio(result.stems[s], stems[s], error) || !sameLength(stems[s], mix)) { std::fprintf(stderr, "%s: wrong length\n", stemName(s)); return 1; }
+        for (size_t i = 0; i < juce::jmin(rest.left.size(), stems[s].left.size()); ++i) { rest.left[i] -= stems[s].left[i]; rest.right[i] -= stems[s].right[i]; }
+        std::printf("%-12s %6.1f dB under the song\n", stemName(s), -decibels(energy(stems[s]) / energy(mix)));
+    }
+    const double match = -decibels(energy(rest) / energy(mix));
+    std::printf("the stems add up to the song within %.1f dB (25 dB or more expected)\n", match);
+    bool ok = match >= 25.0;
+    if (reference.isDirectory())
+        for (int s = 0; s < StemCount; ++s)
+        {
+            Stereo other;
+            if (!loadAudio(reference.getChildFile(stemFile(s)), other, error) || !sameLength(other, stems[s])) { std::printf("%-12s no reference of the same length\n", stemName(s)); ok = false; continue; }
+            Stereo difference = stems[s];
+            for (size_t i = 0; i < juce::jmin(difference.left.size(), other.left.size()); ++i) { difference.left[i] -= other.left[i]; difference.right[i] -= other.right[i]; }
+            std::printf("%-12s differs from the reference by %.1f dB under the stem\n", stemName(s), -decibels(energy(difference) / juce::jmax(1.0e-12, energy(other))));
+        }
+    return ok ? 0 : 1;
+}
+
+// `--fetch-models folder`: downloads the separation model's files into a folder, as the app does once the
+// user has agreed (resumed if cut, size and SHA-256 checked). For checking the download on a new system.
+int runFetchModels(const juce::File& folder)
+{
+    using namespace dsm::split;
+    const ModelStore models(folder, Catalog::htdemucs());
+    std::printf("%d of %d files already in %s\n", models.readyCount(), (int)models.catalog().files.size(), folder.getFullPathName().toRawUTF8());
+    juce::String error;
+    juce::int64 shown = -1;
+    const bool ok = models.download([&shown](juce::int64 received, juce::int64 total)
+                                    {
+                                        if (received / 50000000 == shown) return;
+                                        shown = received / 50000000;
+                                        std::printf("%lld / %lld MB\n", (long long)(received / 1000000), (long long)(total / 1000000));
+                                        std::fflush(stdout);
+                                    }, [] { return false; }, error);
+    std::printf("%s\n", ok ? "the four files are there and match their checksums" : ("download failed: " + error).toRawUTF8());
+    return ok ? 0 : 1;
 }
 
 int runSelfTest()
@@ -766,6 +950,207 @@ int runSelfTest()
         expect("LOCATE finds the stem in the folder given", (float)app.locate(root.getChildFile("moved")), 1.0f);
         expect("...nothing is missing any more", (float)app.session.missingCount(), 0.0f);
         expect("...and the project points to it", app.session.strips[1][0].file == moved ? 1.0f : 0.0f, 1.0f);
+    }
+    // ---- Stem separation (PRD § 12), without the models: chunks, decoding, files, the list, the app's steps ----
+    {
+        using namespace dsm::split;
+        expect("a song shorter than one chunk is one chunk", (float)chunkCount(1), 1.0f);
+        expect("...a chunk's stride too", (float)chunkCount(kStride), 1.0f);
+        expect("...one sample more makes two", (float)chunkCount(kStride + 1), 2.0f);
+        expect("a 3 minute song is 31 chunks", (float)chunkCount(7938000), 31.0f);
+        const std::vector<float> w = window();
+        expect("the window starts just above zero", w[0], 1.0f / (float)kOverlap, 1.0e-7f);
+        expect("...is 1 past the overlap", w[(size_t)kOverlap], 1.0f, 0.0f);
+        expect("...and ends as it starts", w[(size_t)kChunk - 1], 1.0f / (float)kOverlap, 1.0e-7f);
+
+        const juce::File songs = root.getChildFile("split");
+        const juce::File abc = songs.getChildFile("abc.txt");
+        songs.createDirectory();
+        abc.replaceWithText("abc");
+        yes("SHA-256 is the standard one", sha256(abc) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+
+        // Decoding: any rate, mono or stereo, lands at 44.1 kHz stereo, in time.
+        auto peakAt = [](const Stereo& a) { size_t best = 0; for (size_t i = 0; i < a.left.size(); ++i) if (std::fabs(a.left[i]) > std::fabs(a.left[best])) best = i; return (float)best; };
+        Stereo decoded;
+        juce::String error;
+        yes("a mono file at 22.05 kHz is read", loadAudio(writePulse(songs, "mono.wav", 22050, 1, 2.0, 1.0), decoded, error));
+        expect("...as 2 s at 44.1 kHz", (float)decoded.size(), 88200.0f, 2.0f);
+        expect("...its pulse still at 1 s", peakAt(decoded), 44100.0f, 2.0f);
+        yes("...on both sides", decoded.size() > 44100 && decoded.right[44100] == decoded.left[44100] && decoded.left[44100] > 0.5f);
+        yes("a stereo file at 48 kHz is read", loadAudio(writePulse(songs, "stereo48.wav", 48000, 2, 2.0, 1.0), decoded, error));
+        expect("...as 2 s at 44.1 kHz", (float)decoded.size(), 88200.0f, 2.0f);
+        expect("...its pulse still at 1 s", peakAt(decoded), 44100.0f, 2.0f);
+        const juce::File broken = songs.getChildFile("Broken.wav");
+        broken.replaceWithText("this is not sound");
+        yes("a file that is not sound is refused", !loadAudio(broken, decoded, error) && error.isNotEmpty());
+
+        // One song through the job, with the tests' separator.
+        const juce::File song = writeClicks(songs, "(Jah Clicks - Riddim).wav", 120.0, 20.0);
+        const juce::File stemsRoot = root.getChildFile("stems out");
+        const juce::String modelId = Catalog::htdemucs().id();
+        yes("the model is named as in the Mac app's manifests", modelId == "htdemucs_ft@8616370e");
+        auto fake = [] { return std::unique_ptr<Separator>(new FakeSeparator()); };
+        std::atomic<bool> stop{false};
+        FakeSeparator::calls = 0;
+        Result result = run(song, stemsRoot, modelId, fake, [&stop](const Progress& p) { if (p.stem == 1) stop.store(true); }, [&stop] { return stop.load(); });
+        yes("a cancelled split says so", !result.ok && result.cancelled);
+        yes("...and leaves nothing behind", stemsRoot.findChildFiles(juce::File::findFilesAndDirectories, false).isEmpty());
+        float lastFraction = 0.0f;
+        result = run(song, stemsRoot, modelId, fake, [&lastFraction](const Progress& p) { lastFraction = (float)p.fraction(); }, [] { return false; });
+        yes("a song is split", result.ok && !result.reused);
+        expect("...its progress ends at 100 %", lastFraction, 1.0f, 0.0f);
+        const juce::String fingerprint = sha256(song);
+        yes("...into a folder named after the file and its fingerprint", result.folder == stemsRoot.getChildFile("(Jah Clicks - Riddim) [" + fingerprint.substring(0, 8) + "]"));
+        Stereo mix, sum;
+        loadAudio(song, mix, error);
+        sum.resize(mix.size());
+        bool format = true, lengths = true;
+        for (int st = 0; st < StemCount; ++st)
+        {
+            std::unique_ptr<juce::AudioFormatReader> reader(audioFormats().createReaderFor(result.stems[st]));
+            format = format && reader != nullptr && reader->usesFloatingPointData && reader->bitsPerSample == 32 && reader->numChannels == 2 && reader->sampleRate == 44100.0;
+            Stereo one;
+            lengths = loadAudio(result.stems[st], one, error) && one.size() == mix.size() && lengths;
+            if (one.size() == mix.size()) for (size_t i = 0; i < one.left.size(); ++i) { sum.left[i] += one.left[i]; sum.right[i] += one.right[i]; }
+        }
+        yes("drums.wav, bass.wav, instruments.wav and vocals.wav are there", result.folder.getChildFile("drums.wav").existsAsFile() && result.folder.getChildFile("bass.wav").existsAsFile()
+                                                                              && result.folder.getChildFile("instruments.wav").existsAsFile() && result.folder.getChildFile("vocals.wav").existsAsFile());
+        yes("...32-bit float stereo files at 44.1 kHz", format);
+        yes("...as long as the song", lengths);
+        float worst = 0.0f;
+        for (size_t i = 0; i < mix.left.size(); ++i) worst = juce::jmax(worst, std::fabs(sum.left[i] - mix.left[i]), std::fabs(sum.right[i] - mix.right[i]));
+        expect("the chunks are put back together without a seam", worst, 0.0f, 1.0e-4f);
+        const juce::var manifest = juce::JSON::parse(result.folder.getChildFile("stems.json").loadFileAsString());
+        yes("the manifest names the file's fingerprint and the model", manifest["fingerprint"].toString() == fingerprint && manifest["model"].toString() == modelId
+                                                                         && manifest["source"].toString() == song.getFullPathName() && (double)manifest["created"] > 7.0e8);
+        const int callsBefore = FakeSeparator::calls.load();
+        result = run(song, stemsRoot, modelId, fake, [](const Progress&) {}, [] { return false; });
+        yes("the same song again is not computed again", result.ok && result.reused && FakeSeparator::calls.load() == callsBefore);
+        result = run(song, stemsRoot, "another@model", fake, [](const Progress&) {}, [] { return false; });
+        yes("...unless the model changed", result.ok && !result.reused);
+
+        // The model files: asked for, checked, never half there. Served here from a folder, not from the network.
+        const juce::File served = root.getChildFile("served");
+        served.createDirectory();
+        Catalog catalog;
+        catalog.name = "testmodel";
+        catalog.revision = "0123456789abcdef";
+        catalog.repository = "tests/only";
+        for (int st = 0; st < StemCount; ++st)
+        {
+            const juce::File file = served.getChildFile(juce::String(modelName(st)) + ".onnx");
+            file.replaceWithText(juce::String::repeatedString(juce::String(modelName(st)) + " weights ", 4000 + st));
+            catalog.files.push_back({st, file.getFileName(), file.getSize(), sha256(file), juce::URL(file).toString(false)});
+        }
+        ModelStore store(root.getChildFile("models"), catalog);
+        yes("no model file at first", store.status() == ModelStore::Missing && !store.isReady());
+        juce::int64 lastReceived = 0;
+        // A download cut short earlier: what is there is kept or started over, never trusted blindly.
+        store.directory().createDirectory();
+        store.directory().getChildFile(catalog.files[0].name + ".part").replaceWithText("half a file");
+        yes("the download brings the four files", store.download([&lastReceived](juce::int64 received, juce::int64) { lastReceived = received; }, [] { return false; }, error));
+        yes("...all of them, checked", store.isReady() && lastReceived == catalog.totalBytes() && sha256(store.file(Vocals)) == catalog.files[Vocals].sha256);
+        yes("...with no leftover", store.directory().findChildFiles(juce::File::findFiles, false, "*.part").isEmpty());
+        store.file(Bass).deleteFile();
+        yes("a file gone: the engine is partly there", store.status() == ModelStore::Partial && store.readyCount() == 3);
+        Catalog wrong = catalog;
+        wrong.files[Bass].sha256 = "00";
+        const ModelStore wrongStore(store.directory(), wrong);
+        yes("a file that does not match its checksum is refused", !wrongStore.download([](juce::int64, juce::int64) {}, [] { return false; }, error) && error.contains("checksum"));
+        yes("...and thrown away", !store.file(Bass).existsAsFile() && store.directory().findChildFiles(juce::File::findFiles, false, "*.part").isEmpty());
+        yes("deleting the engine removes its files", store.remove() && store.status() == ModelStore::Missing);
+
+        // The preparation list.
+        Queue queue;
+        const juce::File a = songs.getChildFile("a.wav"), b = songs.getChildFile("b.wav"), c = songs.getChildFile("c.wav");
+        expect("songs join the list", (float)(queue.add(a, 100.0) + queue.add(b, 200.0) + queue.add(c, -1.0)), 3.0f);
+        expect("...never twice while they wait", (float)queue.add(a, 100.0), 0.0f);
+        queue.move(queue.items()[2].id, -1);
+        yes("a waiting song moves up", queue.items()[1].source == c);
+        const Queue::Item* first = queue.startNext();
+        yes("the first waiting song starts", first != nullptr && first->source == a && queue.running() != nullptr && queue.startNext() == nullptr);
+        queue.remove(queue.items()[0].id);
+        expect("the song under way cannot be removed", (float)queue.items().size(), 3.0f);
+        expect("time left: the song under way, then the waiting ones at the measured speed", (float)queue.timeLeft(0.5, 20.0), 120.0f, 0.01f);
+        expect("...unknown until a speed is known", (float)queue.timeLeft(0.0, 20.0), -1.0f);
+        queue.finish(queue.items()[0].id, a.withFileExtension("dubstem"), false);
+        queue.cancelAll();
+        yes("cancelling empties the list but keeps what is done", queue.items().size() == 1 && queue.items()[0].status == Queue::Done && !queue.hasWork());
+
+        // The app's steps, with the tests' separator and the served model files.
+        yes("a project's file is named like the Mac app names it", capitalised("JAH CLICKS - DON'T RIDDIM") == "Jah Clicks - Don't Riddim");
+        app.models = ModelStore(root.getChildFile("app models"), catalog);
+        app.makeSeparator = fake;
+        juce::String asked;
+        bool answer = false;
+        app.ask = [&asked, &answer](const juce::String& title, const juce::String&, const juce::String& button, std::function<void()> then)
+        {
+            asked = title + " / " + button;
+            if (answer) then();
+        };
+        app.newSession();
+        app.splitSong(song);
+        yes("without the engine, splitting asks before any download", asked.startsWith("Download the separation engine?") && asked.contains("MB") && !app.splitBusy());
+        yes("...and a no downloads nothing", app.models.status() == ModelStore::Missing);
+        answer = true;
+        app.splitSong(song);
+        yes("a yes starts the download", app.splitBusy() && app.splitStatus().kind == dsm::AppModel::SplitStatus::Downloading);
+        waitForSplit(app);   // the download, which hands over to the split
+        waitForSplit(app);
+        yes("...then the song is split", app.models.isReady() && !app.splitBusy() && app.message.isEmpty());
+        yes("its stems are on strips 1 to 4, in order", app.session.strips[0].size() == 1 && app.session.strips[0][0].file.getFileName() == "drums.wav"
+                                                          && app.session.strips[1][0].file.getFileName() == "bass.wav" && app.session.strips[2][0].file.getFileName() == "instruments.wav"
+                                                          && app.session.strips[3][0].file.getFileName() == "vocals.wav" && app.session.strips[4].empty());
+        yes("...named DRUMS, BASS, INSTRUMENTS, VOCALS", app.session.stripName(0) == "DRUMS" && app.session.stripName(1) == "BASS"
+                                                           && app.session.stripName(2) == "INSTRUMENTS" && app.session.stripName(3) == "VOCALS");
+        yes("...the original in the stems to place", app.session.pool.size() == 1 && app.session.pool[0].file == song);
+        yes("...in a new session named after the song, not saved, stopped", app.session.title == "JAH CLICKS - RIDDIM" && !app.hasDocument() && !engine.isPlaying());
+        yes("...written in the Stems folder of the DubStemMix folder", app.session.strips[0][0].file.getParentDirectory().getParentDirectory() == app.home.getChildFile("Stems"));
+        asked = {};
+        engine.togglePlay();
+        answer = false;
+        app.splitSong(song);
+        yes("splitting while a song plays warns first", asked.startsWith("Split while playing?") && !app.splitBusy());
+        engine.togglePlay();
+
+        // Preparation mode: several songs, a project each.
+        const juce::File second = writeClicks(songs, "Second Tune.wav", 100.0, 12.0);
+        answer = true;
+        app.prepareSongs({song, second, broken, abc});
+        yes("PREPARE SONGS enters the mode with the audio files given", app.preparing && app.prepQueue.items().size() == 3);
+        for (int i = 0; i < 1500 && app.prepQueue.hasWork(); ++i) { app.followSplit(); wait(0.02); }
+        expect("two songs are prepared", (float)app.prepQueue.count(Queue::Done), 2.0f);
+        expect("...the file that is not sound has failed, and the list went on", (float)app.prepQueue.count(Queue::Failed), 1.0f);
+        const juce::File prepared = app.prepQueue.items()[1].project;
+        yes("a project is written beside the stems", prepared.getFileName() == "Second Tune.dubstem" && prepared.getSiblingFile("vocals.wav").existsAsFile());
+        dsm::Session reread;
+        yes("...which opens", dsm::Session::load(prepared, reread, error));
+        yes("...with its four stems named, the original aside, its title", reread.strips[3].size() == 1 && !reread.strips[3][0].missing && reread.stripName(3) == "VOCALS"
+                                                                             && reread.pool.size() == 1 && reread.pool[0].file == second && reread.title == "SECOND TUNE");
+        expect("...and its tempo", (float)reread.bpm, 100.0f, 1.5f);
+        yes("the speed measured is kept for the next time", app.settings.splitSpeed() > 0.0);
+        yes("the session open before is still there", app.session.title == "JAH CLICKS - RIDDIM");
+        yes("the mode is left once the list is done", app.leavePreparation() && !app.preparing && app.prepQueue.items().empty());
+        app.prepareSongs({second});
+        for (int i = 0; i < 500 && app.prepQueue.hasWork(); ++i) { app.followSplit(); wait(0.02); }
+        yes("a song already prepared is not prepared again", app.prepQueue.items().size() == 1 && app.prepQueue.items()[0].status == Queue::Done && app.prepQueue.items()[0].reused);
+        app.leavePreparation();
+
+        // Cancel all: the song under way stops, nothing of it stays.
+        const juce::File third = writeClicks(songs, "Third Tune.wav", 90.0, 12.0);
+        FakeSeparator::delayMs = 300;
+        app.prepareSongs({third, writeClicks(songs, "Fourth Tune.wav", 90.0, 6.0)});
+        wait(0.2);
+        yes("the mode cannot be left while a song is split", app.splitBusy() && !app.leavePreparation());
+        app.cancelPreparation();
+        yes("CANCEL ALL empties the list at once", app.prepQueue.items().empty());
+        waitForSplit(app);
+        FakeSeparator::delayMs = 0;
+        yes("...stops the song under way", !app.splitBusy());
+        yes("...and leaves nothing of it", !folderFor(third, sha256(third), app.stemsFolder()).exists()
+                                             && app.stemsFolder().findChildFiles(juce::File::findDirectories, false, "*.tmp").isEmpty());
+        app.leavePreparation();
+        app.ask = nullptr;
     }
     std::printf("disk dropouts: %s\n", engine.text(engine.underruns).toRawUTF8());
     root.deleteRecursively();
@@ -1175,6 +1560,69 @@ int runScreenTest(const juce::File& pictures)
         user.picture(pictures.getChildFile("screen-console-setlist.png"));
         dsm::Setlist::load(app.setlist.document, reread, error);
         yes("...and the setlist's file follows", reread.songs.size() == 4 && reread.songs[0].title == "Dread Time");
+
+        // ---- Stem separation (PRD § 12), with the tests' separator in place of the models ----
+        {
+            using namespace dsm::split;
+            app.makeSeparator = [] { return std::unique_ptr<Separator>(new FakeSeparator()); };
+            app.engineReady = [] { return true; };
+            dsm::transport().playing.store(false);
+            int splitAsked = 0, addAsked = 0;
+            board.onSplit = [&splitAsked] { ++splitAsked; };
+            board.onPrepare = [&app] { app.prepareSongs({}); };
+            user.click(65.0f, 750.0f);
+            yes("SPLIT A SONG asks for a song", splitAsked == 1);
+            const juce::File toSplit = root.getChildFile("to split");
+            toSplit.createDirectory();
+            const juce::File tune = writeClicks(toSplit, "Roots Tune.wav", 110.0, 10.0);
+            FakeSeparator::delayMs = 200;
+            user.drop({tune}, 65.0f, 750.0f);
+            yes("a song dropped on SPLIT A SONG is being split", app.splitBusy() && app.splitStatus().kind == dsm::AppModel::SplitStatus::Splitting);
+            wait(0.3);
+            user.picture(pictures.getChildFile("screen-splitting.png"));
+            FakeSeparator::delayMs = 0;
+            waitForSplit(app);
+            user.look();
+            yes("...its four stems land on strips 1 to 4 with their names", app.session.strips[3].size() == 1 && app.session.stripName(0) == "DRUMS"
+                                                                             && app.session.stripName(3) == "VOCALS" && app.session.title == "ROOTS TUNE");
+            yes("...and the song itself waits in the stems to place", app.session.pool.size() == 1 && app.session.pool[0].file == tune);
+            user.picture(pictures.getChildFile("screen-split.png"));
+
+            user.click(166.0f, 750.0f);
+            yes("PREPARE SONGS opens the preparation mode", app.preparing);
+            dsm::Preparation preparation(app);
+            ScreenUser preparer(preparation);
+            juce::String confirmAsked;
+            preparation.onAddSongs = [&addAsked] { ++addAsked; };
+            preparation.onConfirm = [&confirmAsked](const juce::String& q, std::function<void()>) { confirmAsked = q; };
+            preparer.click(1125.0f, 42.0f);
+            yes("ADD SONGS asks for songs", addAsked == 1);
+            const juce::File notSound = toSplit.getChildFile("Noise.wav");
+            notSound.replaceWithText("not sound at all");
+            FakeSeparator::delayMs = 150;
+            preparer.drop({writeClicks(toSplit, "First Dub.wav", 100.0, 8.0), notSound, writeClicks(toSplit, "Second Dub.wav", 120.0, 8.0),
+                           writeClicks(toSplit, "Third Dub.wav", 90.0, 8.0)}, 700.0f, 400.0f);
+            expect("songs dropped on the screen join the list", (float)app.prepQueue.items().size(), 4.0f);
+            yes("...and the first one starts", app.splitBusy() && app.prepQueue.items()[0].status == Queue::Running);
+            wait(0.4);
+            app.followSplit();
+            preparer.picture(pictures.getChildFile("screen-preparing.png"));
+            preparer.click(1396.0f, 112.0f + 3.0f * 52.0f + 24.0f);
+            yes("the cross removes a waiting song", app.prepQueue.items().size() == 3 && app.prepQueue.items()[2].source.getFileName() == "Second Dub.wav");
+            yes("the mode cannot be left while songs are prepared", !app.leavePreparation() && app.preparing);
+            FakeSeparator::delayMs = 0;
+            for (int i = 0; i < 1500 && app.prepQueue.hasWork(); ++i) { app.followSplit(); wait(0.02); }
+            preparer.look();
+            yes("the songs end READY, the file that is not sound FAILED", app.prepQueue.count(Queue::Done) == 2 && app.prepQueue.count(Queue::Failed) == 1);
+            yes("...each with its project beside its stems", app.prepQueue.items()[0].project.getFileName() == "First Dub.dubstem" && app.prepQueue.items()[0].project.existsAsFile());
+            yes("the screen sums it up", preparation.summary() == dsm::look::u("2 / 3 PREPARED · 1 FAILED · ALL DONE"));
+            preparer.picture(pictures.getChildFile("screen-prepared.png"));
+            preparer.click(900.0f, 785.0f);
+            yes("DELETE asks before removing the engine's files", app.models.status() == ModelStore::Missing || confirmAsked.contains("Delete"));
+            preparer.click(1322.0f, 42.0f);
+            yes("BACK TO CONSOLE leaves the mode", !app.preparing);
+            yes("...where the session is still the one left", app.session.title == "ROOTS TUNE");
+        }
     }
     root.deleteRecursively();
     std::printf("Result: %s\n", failures == 0 ? "all passed" : "FAILED");
@@ -1274,6 +1722,24 @@ public:
                                                          [this](int code) { finish(code); });
             return;
         }
+        const int splitCheck = arguments.indexOf("--split");
+        if (splitCheck >= 0)
+        {
+            const juce::File here = juce::File::getCurrentWorkingDirectory();
+            if (splitCheck + 1 >= arguments.size()) { std::fprintf(stderr, "--split needs a song\n"); finish(1); return; }
+            finish(runSplitCheck(here.getChildFile(arguments[splitCheck + 1]),
+                                 splitCheck + 2 < arguments.size() ? here.getChildFile(arguments[splitCheck + 2])
+                                                                   : juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("dubstemmix-split"),
+                                 splitCheck + 3 < arguments.size() ? here.getChildFile(arguments[splitCheck + 3]) : juce::File()));
+            return;
+        }
+        const int fetchModels = arguments.indexOf("--fetch-models");
+        if (fetchModels >= 0)
+        {
+            if (fetchModels + 1 >= arguments.size()) { std::fprintf(stderr, "--fetch-models needs a folder\n"); finish(1); return; }
+            finish(runFetchModels(juce::File::getCurrentWorkingDirectory().getChildFile(arguments[fetchModels + 1])));
+            return;
+        }
         const int screenTest = arguments.indexOf("--screentest");
         if (screenTest >= 0)
         {
@@ -1322,7 +1788,16 @@ public:
         window_.reset();
         app_.reset();
     }
-    void systemRequestedQuit() override { quit(); }
+    // Quitting with songs still to prepare asks first: they would be lost, the prepared ones stay (PRD § 12.6).
+    void systemRequestedQuit() override
+    {
+        if (app_ == nullptr || window_ == nullptr || !app_->prepQueue.hasWork()) { quit(); return; }
+        const int left = app_->prepQueue.count(dsm::split::Queue::Waiting) + app_->prepQueue.count(dsm::split::Queue::Running);
+        juce::AlertWindow::showOkCancelBox(juce::MessageBoxIconType::QuestionIcon, "Songs are being prepared",
+                                           "Quitting drops the " + juce::String(left) + (left == 1 ? " song" : " songs")
+                                           + " not prepared yet. Songs already prepared stay on disk.", "Quit", "Keep Preparing", window_.get(),
+                                           juce::ModalCallbackFunction::create([](int ok) { if (ok == 1) juce::JUCEApplication::quit(); }));
+    }
 
 private:
     void finish(int code)

@@ -49,6 +49,7 @@ inline juce::Font mono(float size) { return juce::Font(juce::FontOptions(face(2)
 
 class Board : public juce::Component, public juce::FileDragAndDropTarget
 {
+    friend class Preparation;
     friend class Workshop;   // the setlist workshop and the recorded sessions draw with the same bricks
     friend class Sessions;
 
@@ -65,7 +66,7 @@ public:
     };
     Status status;
     // What needs a dialog is done by the board's owner.
-    std::function<void()> onSoundCard, onOpen, onSave, onNew, onAddStems, onLocate, onWorkshop, onRecord, onSessions;
+    std::function<void()> onSoundCard, onOpen, onSave, onNew, onAddStems, onLocate, onWorkshop, onRecord, onSessions, onSplit, onPrepare;
     std::function<void(const juce::File&)> onOpenFile;
     // Shows a menu and gives back the item picked (0: none). Replaced by the screen test, which picks by itself.
     std::function<void(juce::PopupMenu&, std::function<void(int)>)> showMenu = [](juce::PopupMenu& menu, std::function<void(int)> picked)
@@ -90,7 +91,18 @@ public:
         for (const juce::String& path : paths) files.add(juce::File(path));
         for (const juce::File& f : files)
             if (f.hasFileExtension("dubstem;dubset")) { if (onOpenFile) onOpenFile(f); return; }
-        app_.addFiles(files, stripAt({(float)x, (float)y}));
+        // A full song on "SPLIT A SONG", songs or a folder on "PREPARE SONGS" (PRD § 12); anywhere else a file
+        // is a stem: the app guesses nothing.
+        const juce::Point<float> at((float)x, (float)y);
+        if (!app_.splitBusy() && kSplitZone.contains(at))
+        {
+            if (files.size() == 1 && !files[0].isDirectory()) app_.splitSong(files[0]);
+            else app_.message = "drop one audio file (WAV, MP3, AIFF, FLAC...)";
+            repaint();
+            return;
+        }
+        if (!app_.splitBusy() && kPrepareZone.contains(at)) { app_.prepareSongs(files); repaint(); return; }
+        app_.addFiles(files, stripAt(at));
         repaint();
     }
 
@@ -564,6 +576,56 @@ private:
         return s;
     }
 
+    // Stem separation's two entries in the sidebar (PRD § 12.1, § 12.6), also where files are dropped.
+    static inline const juce::Rectangle<float> kSplitZone{18.0f, 732.0f, 95.0f, 36.0f}, kPrepareZone{119.0f, 732.0f, 95.0f, 36.0f};
+
+    void drawSplit(juce::Graphics& g)
+    {
+        const AppModel::SplitStatus status = app_.splitStatus();
+        if (status.kind == AppModel::SplitStatus::Idle && !app_.splitBusy())
+        {
+            const std::pair<juce::Rectangle<float>, const char*> entries[2] = {{kSplitZone, "SPLIT A SONG"}, {kPrepareZone, "PREPARE SONGS"}};
+            for (const auto& entry : entries)
+            {
+                const float dashes[2] = {3.0f, 3.0f};
+                juce::Path outline, dashed;
+                outline.addRoundedRectangle(entry.first, 4.0f);
+                juce::PathStrokeType(1.0f).createDashedStroke(dashed, outline, dashes, 2);
+                g.setColour(look::border.brighter(0.2f));
+                g.fillPath(dashed);
+                write(g, entry.second, entry.first.withHeight(22.0f).translated(0.0f, 2.0f), look::label(8.0f), look::text, juce::Justification::centred);
+                write(g, "drop or click", entry.first.withTop(entry.first.getY() + 19.0f), look::mono(7.5f), look::dim, juce::Justification::centred);
+            }
+            call(kSplitZone, [this] { if (onSplit) onSplit(); });
+            call(kPrepareZone, [this] { if (onPrepare) onPrepare(); });
+            return;
+        }
+        // Under way: what it is doing, how far, how long still; a click cancels.
+        const juce::Rectangle<float> box = kSplitZone.getUnion(kPrepareZone);
+        card(g, box, look::surface, look::delay, 4.0f);
+        juce::String what, detail;
+        double fraction = status.fraction;
+        if (status.kind == AppModel::SplitStatus::Downloading)
+        {
+            what = "ENGINE " + juce::String(status.received / 1000000) + " / " + juce::String(status.total / 1000000) + " MB";
+            fraction = status.total > 0 ? (double)status.received / (double)status.total : 0.0;
+        }
+        else
+        {
+            what = split::stemLabel(status.stem) + look::u("… ") + juce::String((int)(status.fraction * 100.0)) + " %";
+            if (status.secondsLeft >= 0) detail = clock(status.secondsLeft) + " left";
+        }
+        write(g, what, {box.getX() + 8.0f, box.getY() + 3.0f, box.getWidth() - 16.0f, 14.0f}, look::mono(8.5f), look::delay);
+        detail = status.cancelling ? look::u("cancelling…") : (detail.isEmpty() ? juce::String() : detail + look::u(" · ")) + "CANCEL";
+        write(g, detail, {box.getX() + 8.0f, box.getY() + 17.0f, box.getWidth() - 16.0f, 12.0f}, look::mono(8.0f), look::dim);
+        const juce::Rectangle<float> bar(box.getX() + 8.0f, box.getBottom() - 6.0f, box.getWidth() - 16.0f, 2.0f);
+        g.setColour(look::border);
+        g.fillRect(bar);
+        g.setColour(look::delay);
+        g.fillRect(bar.withWidth(bar.getWidth() * (float)juce::jlimit(0.0, 1.0, fraction)));
+        if (!status.cancelling) call(box, [this] { app_.cancelSeparation(); });
+    }
+
     void drawSidebar(juce::Graphics& g)
     {
         const Engine& engine = Engine::get();
@@ -669,7 +731,7 @@ private:
             write(g, juce::String((int)setlist.songs.size()) + look::u(" SONGS · ") + clock(total), {18.0f, y + 14.0f, 204.0f, 12.0f}, look::mono(8.0f), look::dim);
             y += 34.0f;
             // Keep the open song in view when the list is longer than the room.
-            const int room = juce::jmax(1, (int)((766.0f - y) / 42.0f));
+            const int room = juce::jmax(1, (int)((724.0f - y) / 42.0f));
             const int first = juce::jlimit(0, juce::jmax(0, (int)setlist.songs.size() - room), app_.setlistIndex - room / 2);
             for (int i = first; i < (int)setlist.songs.size() && i < first + room; ++i)
             {
@@ -716,6 +778,8 @@ private:
             call(edit, [this] { if (onWorkshop) onWorkshop(); });
             write(g, "Build a set, or open a .dubset", {18.0f, y + 16.0f, 204.0f, 12.0f}, look::mono(8.0f), look::dim);
         }
+
+        drawSplit(g);
 
         // Recorded sessions: the list, and the one just made.
         const juce::Rectangle<float> sessions(18.0f, 778.0f, 110.0f, 15.0f);
