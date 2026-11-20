@@ -1,4 +1,4 @@
-// StripSource.h - what the app's engine (DubEngine.cpp) and the rest of the app share: where a strip's audio
+// StripSource.h - what the engine (mpc/DubStemMix/src/DubStemMix.cpp, built with DSM_DESKTOP) and the rest of the app share: where a strip's audio
 // comes from, and the transport. No JUCE here: the engine stays plain C++.
 //
 // A song is given to the engine as lists of files, one list per stem strip (several stems on a strip are

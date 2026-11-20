@@ -25,7 +25,7 @@ Milestones L1 (the JUCE base), L3 (the console's look) and L2 (the app's own eng
 - **Keyboard**: Space play / pause, N / P next / previous song, T tap, D drop (held), H hold (held), C crash, R rewind, Esc panic; Ctrl/Cmd + O, S, Shift + S, N.
 - Click the AUDIO line of the sidebar to pick the sound card and the buffer size. The engine runs at 44.1 kHz; a sound card at another rate is resampled to.
 
-The engine (`src/DubEngine.cpp`) is a fork of the MPC plugin's, with the Mac's way of handling songs; the effects are `Sources/DubDSP`, shared with the Mac app and the MPC plugin.
+The engine is **the MPC plugin's own source**, `mpc/DubStemMix/src/DubStemMix.cpp`, built here with `DSM_DESKTOP` defined: one code for the console, the gestures and the mix; what the desktop adds (songs given by the app with the Mac's way of handling them, its transport, pre-fader sends, hosted plugins, meters) sits between `#ifdef DSM_DESKTOP` and `#endif`. The effects are `Sources/DubDSP`, shared with the Mac app and the MPC plugin.
 
 Not there yet: Windows.
 

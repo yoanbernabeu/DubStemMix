@@ -37,6 +37,8 @@ mpc/package.sh 1.2.3 dist   # release: dist/mpc/<plugin, no songs> + dist/MPC-Du
 
 `python3 mpc/DubStemMix/preview_skin.py web/src/assets/screenshots/mpc` redraws the screen pictures of the docs from the screen files.
 
+**One engine for two apps.** `DubStemMix/src/DubStemMix.cpp` is also the engine of the Linux app (`desktop/`), which builds it with `DSM_DESKTOP` defined. Everything between `#ifdef DSM_DESKTOP` and `#endif` is the desktop's and is not in the plugin; the rest is shared, so a change to the console, the gestures or the mix reaches both. Before changing that file for the desktop only, note the checksum of `build/YoanDev - VST - DubStemMix/VST/dubstemmix-arm64.so`: builds are reproducible, and a desktop-only change must leave it the same. `mpc/test.sh` runs in CI.
+
 The SDK is fetched (pinned) into `mpc/.sdk` on first run; it needs Python 3.9+ and downloads the Zig compiler once. `build.sh` writes the screen (`DubStemMix/make_skin.py` → `DubStemMix/skins/`) from the parameter list. Run `mpc/build.sh` after `mpc/test.sh`: the test build waits for the disk and must not go on the MPC.
 
 ## Install on the MPC
