@@ -14,8 +14,9 @@ export const site = {
   installCommand:
     "curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/DubStemMix/main/install.sh | sh",
   author: { name: "YoanDev", url: "https://yoandev.co" },
-  requirements: "A macOS app · or a plugin for the Akai MPC · free and open source",
+  requirements: "A macOS app · a plugin for the Akai MPC · Linux in alpha · free and open source",
   macRequirements: "macOS 15 or later · Apple Silicon · Akai MIDImix optional",
+  linuxRequirements: "64-bit PC, Linux from 2022 on (Ubuntu 22.04+) · Akai MIDImix optional",
   mpcRequirements: "Akai MPC with MPC OS 3.10.1 or later · Akai MIDImix",
   // <title>: under 60 characters. Description: under 160, for search snippets and link previews.
   title: "DubStemMix · Live dub mixing for the Akai MIDImix",
