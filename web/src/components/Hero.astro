@@ -23,6 +23,14 @@ const ways = [
     needs: site.mpcRequirements,
     links: [{ label: "Download", href: site.mpcDownload }, { label: "How it works", href: "#mpc" }],
   },
+  {
+    kicker: "03 · the app · alpha",
+    title: "On Linux",
+    color: "bus3",
+    text: "The Mac app's console and studio on a Linux PC, with the same projects. A first version is out: its tests pass, but nobody has played it on a real PC yet.",
+    needs: site.linuxRequirements,
+    links: [{ label: "Try the alpha", href: "#linux" }, { label: "Docs", href: `${base}/docs/linux/` }],
+  },
 ];
 ---
 <header id="top" class="relative overflow-hidden">
@@ -55,17 +63,17 @@ const ways = [
       </div>
     </div>
 
-    <!-- One console, two ways to play it: the macOS app or the Akai MPC plugin. -->
-    <div class="animate-rise mt-12 grid gap-px overflow-hidden rounded border-[1.5px] border-border bg-border md:grid-cols-2" style="animation-delay:.7s">
+    <!-- One console, three ways to play it: the macOS app, the Akai MPC plugin, the Linux app (alpha). -->
+    <div class="animate-rise mt-12 grid gap-px overflow-hidden rounded border-[1.5px] border-border bg-border lg:grid-cols-3" style="animation-delay:.7s">
       {ways.map((w) => (
         <div class="flex flex-col gap-4 bg-bg p-6 sm:p-7">
           <p class="mono text-[11px] text-dim">{w.kicker}</p>
-          <h2 class="label-wide flex items-center gap-3 text-xl sm:text-2xl" style={`color:var(--color-${w.color})`}><Led color={w.color} /> {w.title}</h2>
+          <h2 class="label-wide flex items-center gap-3 text-xl sm:text-2xl lg:text-xl" style={`color:var(--color-${w.color})`}><Led color={w.color} /> {w.title}</h2>
           <p class="text-sm leading-relaxed text-cream/85">{w.text}</p>
           <p class="mono text-[11px] text-dim">{w.needs}</p>
           <div class="mt-auto flex flex-wrap gap-3 pt-2">
             {w.links.map((l, i) => (
-              <a href={l.href} class:list={["label-wide inline-flex h-11 items-center rounded px-5 text-[13px] transition-colors", i === 0 ? "bg-cream text-bg hover:bg-delay" : "border-[1.5px] border-border hover:border-cream"]}>{l.label}</a>
+              <a href={l.href} class:list={["label-wide inline-flex h-11 items-center rounded px-5 text-[13px] transition-colors lg:px-4", i === 0 ? "bg-cream text-bg hover:bg-delay" : "border-[1.5px] border-border hover:border-cream"]}>{l.label}</a>
             ))}
           </div>
         </div>

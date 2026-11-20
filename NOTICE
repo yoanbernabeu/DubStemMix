@@ -2,7 +2,9 @@ DubStemMix — third-party notices
 
 Code
   DubStemMix is released under the MIT License (see LICENSE).
-  ONNX Runtime and its Swift package (microsoft/onnxruntime-swift-package-manager): MIT, Microsoft.
+  ONNX Runtime 1.24.2: MIT, Microsoft. The library is downloaded at build time from Microsoft
+    (download.onnxruntime.ai); its Objective-C bindings in Sources/OnnxRuntimeBindings are an unmodified
+    copy of Microsoft's Swift package (microsoft/onnxruntime-swift-package-manager), license beside them.
   Fonts: Archivo and JetBrains Mono, SIL Open Font License 1.1.
   LAME 3.100 (libmp3lame), the MP3 encoder of session exports: GNU LGPL 2, The LAME Project.
     Unmodified sources in Sources/LAME (license in Sources/LAME/COPYING), from https://lame.sourceforge.io.
@@ -18,3 +20,14 @@ Stem separation model (downloaded on request, never bundled)
   DubStemMix does not redistribute these weights: this repository, its releases and the app bundle
   contain no .onnx file. The app downloads them from Hugging Face only after the user agrees, and
   makes no claim to relicense them.
+
+Desktop app (desktop/)
+----------------------
+The desktop app for Linux and Windows (desktop/) is built with JUCE (https://juce.com), used under the
+GNU Affero General Public License version 3. That folder, and the programs built from it, are distributed
+under the AGPLv3 (desktop/LICENSE). The rest of this repository stays under the MIT license (LICENSE).
+It also builds LAME 3.100 (Sources/LAME, GNU LGPL 2, see above) for its MP3 exports.
+Its stem separation loads ONNX Runtime 1.24.2 (MIT, Microsoft), fetched at build time from Microsoft's own
+packages (the library from Maven Central, com.microsoft.onnxruntime:onnxruntime; the C header from
+download.onnxruntime.ai) and placed beside the program with its third-party notices. The model is the one
+described above: downloaded on request, never bundled.

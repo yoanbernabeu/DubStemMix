@@ -4,10 +4,6 @@ import PackageDescription
 let package = Package(
     name: "DubStemMix",
     platforms: [.macOS(.v15)],
-    dependencies: [
-        // Stem separation (PRD § 12): ONNX Runtime, Microsoft's official SwiftPM package (MIT).
-        .package(url: "https://github.com/microsoft/onnxruntime-swift-package-manager", from: "1.19.2"),
-    ],
     targets: [
         // Noyaux DSP temps réel des effets intégrés (C : ni allocation ni verrou sur le thread audio).
         .target(name: "DubDSP"),
@@ -25,9 +21,20 @@ let package = Package(
         .target(name: "DubStemMixCore", dependencies: ["DubDSP", "LAME"]),
         .testTarget(name: "DubStemMixCoreTests", dependencies: ["DubStemMixCore"]),
         // Stem separation with htdemucs_ft (PRD § 12): decoding, overlap-add, ONNX inference, model download.
+        .target(name: "StemSplit", dependencies: ["OnnxRuntimeBindings"]),
+        // ONNX Runtime 1.24.2 (MIT, Microsoft). Its Objective-C bindings are a copy of Microsoft's Swift package,
+        // kept in the repository since that package left GitHub (see Sources/OnnxRuntimeBindings/README.md); the
+        // library itself is Microsoft's own archive, the one that package pointed to.
         .target(
-            name: "StemSplit",
-            dependencies: [.product(name: "onnxruntime", package: "onnxruntime-swift-package-manager")]
+            name: "OnnxRuntimeBindings",
+            dependencies: ["onnxruntime"],
+            exclude: ["LICENSE", "README.md"],
+            cxxSettings: [.define("SPM_BUILD"), .unsafeFlags(["-w"])] // third-party code, left as is
+        ),
+        .binaryTarget(
+            name: "onnxruntime",
+            url: "https://download.onnxruntime.ai/pod-archive-onnxruntime-c-1.24.2.zip",
+            checksum: "f7100a992d2a8135168c8afd831e6a58b465349101982aa58b3e11d36e600b54"
         ),
         .testTarget(name: "StemSplitTests", dependencies: ["StemSplit"]),
         // L'app SwiftUI.
@@ -36,5 +43,6 @@ let package = Package(
             dependencies: ["DubStemMixCore", "StemSplit"],
             resources: [.process("Resources")]
         ),
-    ]
+    ],
+    cxxLanguageStandard: .cxx17
 )

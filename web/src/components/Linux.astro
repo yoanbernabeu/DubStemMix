@@ -1,0 +1,43 @@
+---
+// DubStemMix on Linux (PRD § 17): out as an alpha, said as such. The archive, what is in it, the docs page.
+import { Image } from "astro:assets";
+import Section from "./Section.astro";
+import Led from "./Led.astro";
+import { site } from "../site";
+import consoleScreen from "../assets/screenshots/linux/linux-console.png";
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const points = [
+  { color: "delay", title: "The same console", text: "The four pages, the effects, the gestures, the siren and the Syndrum, with the MIDImix or the mouse. Projects and setlists are the Mac app's own files: they open on both." },
+  { color: "reverb", title: "The whole studio", text: "Split a full song into drums, bass, instruments and vocals, prepare a whole set, build your setlists, record your versions, load your VST3 and LV2 plugins." },
+  { color: "bus3", title: "An alpha, honestly", text: "Its automatic tests pass and it splits a song into the same stems as the Mac app. But nobody has played it on a real Linux PC yet: sound, the MIDImix and its LEDs still need ears and hands." },
+];
+---
+<Section id="linux" index="05" title="On Linux" kicker="alpha: one archive to unpack and run, not yet tried on a real PC">
+  <div class="grid gap-10 lg:grid-cols-[3fr_2fr] lg:gap-14">
+    <div class="overflow-hidden rounded border-[1.5px] border-border self-start">
+      <Image src={consoleScreen} alt="DubStemMix on Linux: a song just split, drums, bass, instruments and vocals on strips 1 to 4, the setlist in the sidebar" widths={[720, 1100, 1440]} sizes="(min-width: 1152px) 680px, 100vw" format="webp" loading="lazy" class="w-full" />
+    </div>
+    <div>
+      <ul class="grid gap-7">
+        {points.map((p) => (
+          <li>
+            <h3 class="label flex items-center gap-2 text-sm" style={`color:var(--color-${p.color})`}><Led color={p.color} /> {p.title}</h3>
+            <p class="mt-2 text-sm leading-relaxed text-dim">{p.text}</p>
+          </li>
+        ))}
+      </ul>
+      <p class="mono mt-8 text-[11px] leading-relaxed text-dim">
+        {site.linuxRequirements}. Free and open source; the Linux app is under the AGPLv3. Try it at home before you take it
+        anywhere near a stage.
+      </p>
+      <div class="mt-6 flex flex-wrap gap-3">
+        <a href={`${base}/docs/linux/`} class="label inline-block rounded border-[1.5px] border-delay px-4 py-2 text-[11px] text-delay transition-colors hover:bg-delay hover:text-bg">Install it on Linux →</a>
+        <a href={site.linuxDownload} class="label inline-block rounded border-[1.5px] border-cream px-4 py-2 text-[11px] text-cream transition-colors hover:bg-cream hover:text-bg">Download the alpha (.tar.gz)</a>
+      </div>
+      <p class="mono mt-3 text-[11px] leading-relaxed text-dim">
+        Tried it? <a href={`${site.repo}/issues`} rel="noopener" class="text-cream underline decoration-border underline-offset-4 hover:decoration-cream">Tell us how it went</a>: what played, what did not.
+      </p>
+    </div>
+  </div>
+</Section>

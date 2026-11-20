@@ -2,6 +2,7 @@
 
 > Version 1.2 · 22 septembre 2026 · issu de l'interview de cadrage du 21 septembre 2026 et de l'interview « effets dub » du 22 septembre 2026
 > Statut : validé — jalons M0 à M4 livrés, § 3 du TODO livré ; v2 (§ 11, jalons M6 à M8) livrée et validée ; séparation de stems (§ 12, jalon M9) cadrée le 22 septembre 2026. Ce document reste la référence produit et se tient à jour à chaque jalon
+> Où chaque fonctionnalité existe (Mac, MPC, Linux / Windows) : `FEATURES.md`, tenu à jour avec ce document
 
 ## 1. Vision
 
@@ -556,3 +557,158 @@ Export validé sur la One+ le 16/11/2026 avec une grosse setlist (« c'est parfa
 
 - **Maquette validée sur la One+ le 15/11/2026** (`mpc/`, plugin « YoanDev - VST - DubStemMix ») : la MIDImix arrive au plugin par l'entrée MIDI de la piste (faders et MUTE) ; 4 stems lus depuis la carte SD sans décrochage (0 underrun) pour **0,3 %** de CPU ; l'écran suit les valeurs changées par le plugin ; PLAY reprend, PLAY START passe au suivant, à l'arrêt comme en lecture (la MPC ne s'arrête pas : sa position revient au début, distinguée du bouclage de la séquence qui revient sur une barre de mesure) ; l'enchaînement en fin de morceau fonctionne. Le plugin ne lit la liste des morceaux qu'à son chargement. Reste à vérifier : le rendu des vu-mètres (« peu testés » d'après le SDK).
 - **Place sur la carte** : environ 300 Mo par morceau de 6 stems, donc environ 6 Go pour 21 titres.
+
+## 17. DubStemMix sur Linux et Windows (maquette validée le 16 novembre 2026)
+
+Cadré en discussion le 16 novembre 2026. Objectif : jouer un set sur un PC, avec la MIDImix, le son et les gestes de DubStemMix.
+
+### 17.1 Principe (décisions du 16/11/2026)
+
+- **Une troisième app**, à côté de l'app Mac et du plugin MPC. L'app Mac n'est pas touchée. Les trois partagent le produit (ce document) et les effets intégrés (`Sources/DubDSP`), pas le reste du code : c'est assumé.
+- **Elle part du code du plugin MPC** (`mpc/DubStemMix/src`), qui contient déjà toute la console sans rien d'Apple et se compile déjà sur un ordinateur pour ses tests.
+- **Linux d'abord.** Windows viendra du même code, plus tard, quand quelqu'un pourra l'essayer sur une vraie machine.
+- **Garde-fous contre la dérive** : ce PRD unique, le tableau `FEATURES.md`, la skill `feature` (une évolution = une PR pour toutes les apps concernées) et des tests « même geste, même résultat ».
+- **Outils et licence** : la maquette utilise de petites briques libres compatibles MIT (son, MIDI, fenêtre). Le choix définitif (ces briques, ou JUCE qui apporte les plugins VST3 mais impose l'AGPL) se fera après la maquette.
+
+### 17.2 Maquette (cadrage validé le 16/11/2026)
+
+But : lever les risques avant de cadrer le vrai portage, comme pour la MPC (§ 16.4). Elle ne sera pas publiée.
+
+- **Ce qu'elle joue** : un dossier d'export MPC déjà présent sur le Mac (un WAV 44,1 kHz par tranche, `song.json`). Pas d'import, pas de projet `.dubstem`.
+- **Console** : la MIDImix avec le mapping d'usine. Comme la maquette reprend le moteur du plugin MPC, les pages, les effets et les gestes de la console suivent sans travail en plus ; seuls sont jugés à ce stade les faders, les MUTE, les envois et le delay.
+- **Clavier** : Espace = lecture / pause, N = morceau suivant. Rien d'autre.
+- **Fenêtre simple**, sans le look du Mac : 8 tranches (nom, fader, MUTE, vu-mètre), titre du morceau et temps restant, choix de la carte son et de la taille de buffer, MIDImix connectée ou non, charge et compteur de décrochages.
+- **LEDs de la MIDImix** : on vérifie qu'elles s'allument (possible sur un ordinateur, pas sur la MPC).
+- **Rangement** : dossier `desktop/` du dépôt.
+
+Hors maquette : identité visuelle, projets et setlists, atelier, séparation, enregistrement, plugins tiers, installation en un clic, Windows.
+
+### 17.3 Ce qu'on vérifie
+
+| Essai | Où | Ce qu'il prouve |
+|---|---|---|
+| Le son, les gestes, la latence ressentie | Sur le Mac, l'app compilée telle quelle, vraie carte son | Le moteur et la console tiennent hors de la MPC |
+| Installation, fenêtre, MIDImix en USB, LEDs | Linux dans une machine virtuelle sur le Mac (UTM, Ubuntu) | L'app tourne sous Linux |
+| Compilation et tests sur PC classique | Pipeline GitHub (Linux x86) | Le code se construit ailleurs que sur ARM |
+
+**Limite connue** : le son dans une machine virtuelle n'est pas représentatif (latence, craquements). « Ça tient un set sous Linux » ne pourra être affirmé qu'après un essai sur un vrai PC.
+
+### 17.5 Le vrai portage (décisions du 16/11/2026)
+
+Décidé en interview le 16 novembre 2026, après la maquette. Yoan a demandé de coder directement, jalon par jalon, chacun essayé sur son Mac avant le suivant ; ce chapitre se remplit au fil de l'eau.
+
+- **Une seule PR** pour tout le portage (#19), fusionnée à la fin.
+- **Morceaux : des projets, comme sur le Mac.** On glisse des stems, on les pose sur les tranches, on enregistre en `.dubstem` ; setlists `.dubset`. Les mêmes fichiers s'ouvrent sur Mac et sur Linux.
+- **Enchaînement : comme sur le Mac.** Chaque morceau a ses réglages ; le suivant est chargé à l'arrêt et lancé par l'utilisateur, les queues d'effets du précédent continuent.
+- **Première version = tout** : console complète, enregistrement du master et sessions, séparation de stems, atelier de setlist, plugins tiers (formats Linux à la place des Audio Units).
+- **Outils : JUCE, sous licence AGPL** (le plus simple à maintenir : cartes son, MIDI, fichiers audio, fenêtres et plugins tiers déjà faits et éprouvés, alors que personne ne peut essayer sur un vrai PC Linux). **Seul le dossier `desktop/` passe en AGPL** ; l'app Mac, le plugin MPC et les effets (`Sources/DubDSP`) restent en MIT.
+- **Conséquence** : pour suivre l'app Mac (plusieurs stems par tranche, réglages par morceau, plugins dans le trajet du son), l'app Linux aura son propre moteur, parti de celui de la MPC puis étendu. Le plugin MPC n'est pas modifié.
+
+Jalons (ordre de travail, ajustable) :
+
+| Jalon | Contenu |
+|---|---|
+| **L1 — Socle JUCE** | La maquette refaite avec JUCE : carte son, MIDImix et LEDs, fenêtre simple, auto-test, pipeline Linux |
+| **L2 — Projets** | Moteur propre à l'app ; ouvrir un `.dubstem` du Mac, stems de tout format, plusieurs par tranche, réserve, enregistrer |
+| **L3 — Console** | Miroir de la console au look du Mac (§ 5.11), toutes les pages, transport, forme d'onde, tempo |
+| **L4 — Setlist** | Setlist de jeu, atelier de setlist, fichiers récents |
+| **L5 — Enregistrement** | REC, sessions, export MP3 |
+| **L6 — Plugins tiers** | Slots de bus et d'insert, macros |
+| **L7 — Séparation** | Un morceau → 4 stems, mode préparation |
+| **L8 — Publication** | Paquet d'installation Linux, docs, puis Windows |
+
+**L1 codé le 16/11/2026** : la maquette est refaite avec JUCE dans `desktop/` (carte son et buffer par le panneau « Sound card… », MIDImix et LEDs, même fenêtre simple, même auto-test). Une carte son qui ne tourne pas à 44,1 kHz est gérée (le son du moteur est converti). Vérifié : compilation et auto-test sur le Mac et sous Linux (conteneur, sans écran), fenêtre sous Linux par capture. **L1 validé par Yoan sur le Mac le 16/11/2026** (« tout est ok »). À sa demande, **le design passe avant le moteur** : L3 (console au look du Mac, branchée sur le moteur actuel et les morceaux d'un export MPC) se fait avant L2 ; ce qui dépend des projets (réserve, dépôt de stems, forme d'onde) viendra avec L2.
+
+**L3 codé le 16/11/2026** (avant L2, sur le moteur actuel) : la console au look du Mac dans `desktop/` — barre latérale (setlist cliquable, état), transport, cartes des trois bus, tranches 1-6 (stems, sirène, Syndrum), tranches d'effets 7-8, colonne master, les quatre pages. **Tout est jouable à la souris** comme sur le Mac (potards, faders, MUTE, THROW, KEEP, SOLO, pages, gestes, choix d'insert, modèles de reverb et de bus 3, SYNC, cible du throw, renvois de bus). Clavier du § 11.6 : Espace, N, D, H, C, R, Esc. Choix faits en codant, à confirmer par Yoan : SOLO se fait par le bouton SOLO de la colonne master puis MUTE ; l'insert d'une tranche, le modèle de reverb / bus 3, la cible du throw et la destination d'un renvoi se changent en cliquant dessus (ils défilent), là où le Mac ouvre un menu. Pas encore, faute de moteur propre (L2) : forme d'onde (une barre d'avancement la remplace), tempo du morceau, vu-mètre et indicateur du limiteur master, câbles entre les cartes de bus, réserve et dépôt de stems. Vérifié : auto-test (gestes de la console, puis ceux de l'écran) sur Mac et Linux, captures des quatre pages sur Mac, de la page FX sous Linux (rendu identique). En attente de l'essai de Yoan.
+
+**Retour de Yoan le 16/11/2026** : il veut la forme d'onde et les câbles sans attendre L2. Ajoutés : la forme d'onde du morceau avec sa tête de lecture (l'écran lit lui-même les stems ; 30 dernières secondes en ocre) et les câbles entre les cartes de bus (pointillés tant que le potard de renvoi est à zéro). Restent pour L2 : se déplacer en cliquant dans la forme d'onde (le moteur actuel ne sait pas sauter dans un morceau) et le signal qui circule dans les câbles.
+
+**L2 codé le 16/11/2026** (design validé par Yoan : « tout est ok ») : l'app a son propre moteur (`desktop/src/DubEngine.cpp`, copie du moteur MPC adaptée ; le plugin MPC n'est pas touché) et les projets du Mac.
+- **Projets `.dubstem`** : ouverts et enregistrés dans les deux sens ; ce que l'app ne gère pas encore (slots et inserts Audio Unit) est conservé tel quel à l'enregistrement. Stems de tout format lu par JUCE (WAV, AIFF, FLAC, MP3, OGG ; M4A sur macOS) et de toute fréquence, plusieurs par tranche, longueurs différentes. Réserve « Stems to place », glisser sur une tranche ou clic droit (placer, déplacer, renvoyer, retirer). OPEN… / SAVE / NEW, puis enregistrement automatique une fois le fichier choisi ; une session jamais enregistrée demande confirmation avant NEW.
+- **Réglages par morceau** chargés avec lui (effets, modèles, renvois, KEEP, inserts, tempo, boucle) ; morceau chargé à l'arrêt, au début, queues d'effets gardées. Changer les stems d'une tranche en lecture ne ramène pas au début.
+- **Setlists `.dubset`** dans la barre latérale (clic, N / P, couleurs, tags, durée totale, ✓ « déjà joué » après 30 s) : la partie « jeu » de L4 ; l'atelier reste à faire.
+- **Transport** : boucle, clic dans la forme d'onde pour se déplacer, position exacte. **Tempo** : glisser, TAP, ÷2, ×2, SYNC.
+- Pas encore : détection du tempo, renommer un morceau ou une tranche, « Locate missing stems », fichiers récents, vu-mètre et indicateur du limiteur master, envois pré-fader, boucle calée à l'échantillon (quelques millisecondes de silence au point de boucle pour l'instant).
+- Vérifié : auto-test (37 contrôles) sur Mac et Linux ; un vrai projet du Mac ouvert en capture, fichier non modifié. En attente de l'essai de Yoan.
+
+**L2 validé par Yoan le 16/11/2026** (« tout est ok »), puis **complété** à sa demande :
+- **Tempo détecté** quand on pose des stems (jamais si un tempo est connu), bouton AUTO ; même méthode et mêmes réglages que le Mac (`TempoDetector.swift`), plage 58–125 BPM.
+- **Renommer** le morceau ou une tranche par double-clic. **Stems introuvables** : « LOCATE… » dans la barre latérale, recherche par nom dans un dossier choisi. **Fichiers récents** : OPEN… propose les 10 derniers projets et setlists, Clear Menu ; un morceau ouvert depuis la setlist n'y entre pas.
+- **Master** : vu-mètre de sortie, LIMITER ON / OFF au clic, indicateur GR (tenu 1,5 s) et max (remis à zéro au clic), CLIP quand le limiteur est coupé. **Barre PRE** à côté du vu-mètre de chaque tranche. **POST / PRE par bus** sur les cartes. Limiteur et pré / post sont mémorisés pour cet ordinateur, pas dans le projet.
+- **Boucle calée à l'échantillon** : plus de silence au point de boucle.
+- Vérifié : auto-test (51 contrôles) sur le Mac ; capture d'un vrai projet. Non couvert par l'auto-test : le son des envois pré-fader (à juger à l'oreille). En attente de l'essai de Yoan.
+
+**Test d'écran (16/11/2026, demandé par Yoan : « t'as pas moyen de t'auto-tester en lançant l'app ? »)** : `--screentest` construit la vraie console et la joue comme un utilisateur, sans fenêtre : fichiers déposés, stems portés à la souris, menus du clic droit, boutons du transport, clic dans la forme d'onde, faders et potards glissés, MUTE, THROW tenu, KEEP, SOLO, pages, cartes des bus, tempo, doubles-clics pour renommer, limiteur, setlist (46 contrôles, plus des captures). Il tourne aussi dans la pipeline Linux. Il ne peut ni ouvrir les fenêtres du système (choix d'un fichier), ni juger le son. Premier défaut trouvé et corrigé : un MUTE cliqué à l'écran coupait la tranche sans allumer son voyant ni la LED de la console.
+
+**L4 codé le 16/11/2026** : l'atelier de setlist (§ 13), écran à part ouvert par EDIT dans la barre latérale.
+- **Mes setlists** (dossier `Setlists` de `~/Music/DubStemMix`) : nouvelle, dupliquer, renommer, supprimer (avec confirmation ; les morceaux restent).
+- **Bibliothèque** : tous les `.dubstem` du dossier DubStemMix, plus ceux glissés depuis le gestionnaire de fichiers (mémorisés), recherche par titre, BPM et durée par ligne.
+- **La setlist** : glisser depuis la bibliothèque à l'endroit voulu, glisser pour réordonner, pas de doublon (la ligne existante clignote), couleur (pastille ou clic droit, palette de 8) et tag par ligne, retirer avec ⌫ ou au clic droit, morceau introuvable en rouge avec Locate…, renommer par double-clic. **Chaque changement est écrit tout de suite** (« SAVED · 18:42 »), bouton SAVE, **LOAD IN THE CONSOLE**.
+- **Pré-écoute** du mix brut (sans effets) par la marque ▶ d'une ligne, forme d'onde cliquable, un seul morceau à la fois, sur la carte son de la console.
+- **Barre latérale de la console** : clic droit pour monter / descendre un morceau, « + » pour ajouter un morceau de la bibliothèque juste après celui ouvert (sans doublon). Entrer dans l'atelier pendant la lecture demande confirmation puis arrête le morceau.
+- Écarts avec le Mac, à confirmer par Yoan : le « + » ouvre une liste sans champ de recherche ; « Edit setlists » s'appelle EDIT ; pas de menu Fichier « Setlists… » (l'app n'a pas de barre de menus).
+- Vérifié : test d'écran (71 contrôles, dont 25 pour l'atelier et la barre latérale) et auto-test sur le Mac. Non vérifié : le son de la pré-écoute (le test n'a pas de carte son). En attente de l'essai de Yoan.
+
+**L4 validé par Yoan le 16/11/2026** (« tout est OK »), écarts avec le Mac compris (« + » sans recherche, bouton EDIT, pas de menu « Setlists… »).
+
+**L5 codé le 16/11/2026** : l'enregistrement (§ 5.9), avec les mêmes dossiers et fichiers que le Mac.
+- **REC** en haut à droite (Ctrl/Cmd + R) : master stéréo après limiteur, WAV 32 bits flottant à la fréquence du moteur, écrit hors du fil audio ; chrono dans le bouton ; à l'arrêt, « recorded · SHOW » dans la barre latérale ouvre le dossier.
+- **Un dossier par session** dans le dossier d'enregistrement (`~/Music/DubStemMix` par défaut, réglable par FOLDER…) : `session.wav`, `session.txt`, `session.json`. La fiche liste les morceaux joués avec leur heure ; celui qui joue au moment du REC est à 00:00 ; le limiteur basculé pendant la session est noté.
+- **Écran « Recorded Sessions »** (pastille dans la barre latérale, Maj + Ctrl/Cmd + R) : sessions de la plus récente à la plus ancienne, fiche de la session choisie, EXPORT MP3 (320 kb/s, −14 LUFS, pics à −1,5 dB au plus, en tâche de fond avec progression, encodeur LAME du dépôt), SHOW IN FILES, MOVE TO TRASH (avec confirmation).
+- Ajout en passant : une session jamais nommée prend le nom commun de ses stems au lieu de « Untitled ».
+- Vérifié : auto-test (format du WAV, durée, tracklist, limiteur, dates lisibles par le Mac, export MP3) et test d'écran (bouton REC, écran des sessions, export, confirmation avant la corbeille). Non vérifié : une session du Mac relue ici et inversement (formats identiques sur le papier, pas essayé sur de vrais fichiers) ; le son du MP3 à l'oreille. En attente de l'essai de Yoan.
+
+**L5 essayé par Yoan le 16/11/2026** : une session d'1 min 15 enregistrée sur son Mac (WAV, fiche avec la setlist, la carte son et deux morceaux horodatés) ; il a demandé la suite sans rien signaler.
+
+**L6 codé le 16/11/2026** : les plugins tiers (§ 5.5, § 11.5).
+- **Formats** : VST3 et LV2, plus Audio Unit sur macOS (ce qui permet à Yoan d'essayer avec ses plugins). Recherche des plugins installés en tâche de fond (« Scan for plugins… »), liste gardée d'un lancement à l'autre, effets seulement ; un plugin qui fait planter la recherche est sauté la fois suivante.
+- **Emplacements** : un par bus (le nom de l'effet sur la carte est un menu : effet intégré, ou plugins rangés par éditeur, « Open plugin window ») et un par tranche (insert, sur la page INSERTS).
+- **Macros** : sur la page FX, les potards du bus deviennent des macros qu'on affecte aux paramètres du plugin (clic sur une macro vide, clic droit pour changer) ; trois macros par insert sur la page INSERTS. La MIDImix les pilote avec le rattrapage habituel ; un réglage fait dans la fenêtre du plugin revient sur le potard. Affectations mémorisées par plugin, reproposées dans tous les morceaux.
+- **Projet** : plugin, état complet et macros enregistrés ; plugin absent → effet intégré, message, et le plugin reste inscrit dans le projet. Même plugin dans le même emplacement au morceau suivant : il reste branché, seuls ses réglages changent.
+- **Écarts avec le Mac**, à confirmer par Yoan :
+  - **5 macros par bus au lieu de 6** : une macro est le réglage du moteur placé sous ce potard, et la page FX n'en a que cinq par bus.
+  - **Les plugins tournent dans l'app** (JUCE n'offre pas de processus séparé tout fait) : un plugin qui plante fait tomber l'app. Sur le Mac, il est isolé.
+  - **Les plugins d'un projet ne passent pas d'une app à l'autre** : ceux de l'app Mac (Audio Units) et ceux de cette app sont écrits à deux endroits distincts du projet, et chaque app laisse intact ce que l'autre a écrit.
+- Vérifié : auto-test et test d'écran avec un petit plugin propre aux tests (emplacement, macros dans les deux sens, projet, plugin absent, menus) ; sur le Mac de Yoan, `--check-plugins TAL` trouve 29 effets (dont Dub Filter, Vinyl, TAL Reverb 4) et charge TAL Reverb 4 en Audio Unit et en VST3 avec le son qui le traverse. Non vérifié : la fenêtre d'un vrai plugin, le son à l'oreille, LV2 et VST3 sous Linux avec de vrais plugins. En attente de l'essai de Yoan.
+
+**L6 essayé par Yoan le 19/11/2026** : « tout est ok ». Les trois écarts lui avaient été présentés (5 macros par bus, plugins dans l'app, plugins non partagés entre les deux apps) ; il n'en a relevé aucun et a demandé la suite.
+
+**L7 codé le 19/11/2026** : la séparation de stems (§ 12), portée de `Sources/StemSplit`.
+- **SPLIT A SONG** dans la barre latérale (déposer un morceau, ou cliquer) : batterie, basse, instruments, voix sur les tranches 1 à 4 d'une nouvelle session, l'original dans les stems à placer, titre = nom du morceau, tempo détecté. Avertissement si un morceau joue, confirmation si la session n'a jamais été enregistrée. Progression (stem, pourcentage, temps restant) et CANCEL dans la barre latérale.
+- **PREPARE SONGS** : l'écran de préparation prend la place de la console (§ 12.6). Morceaux ou dossier déposés, séparés l'un après l'autre, un projet prêt à côté des stems ; temps restant pour toute la file (vitesse mémorisée pour cet ordinateur), retirer ou déplacer un morceau en attente, CANCEL ALL, START, BACK TO CONSOLE ; un fichier illisible est marqué FAILED et la file continue ; quitter avec des morceaux en attente demande confirmation.
+- **Mêmes fichiers que l'app Mac** : mêmes modèles (même révision, mêmes empreintes), même dossier `Stems/<nom du fichier> [empreinte]/`, même manifeste. Un morceau séparé par une app n'est pas recalculé par l'autre. Sur un Mac, les modèles sont ceux de l'app Mac (même dossier).
+- **Modèles jamais embarqués** : question avant tout téléchargement (taille, provenance, statut de licence), reprise après coupure, taille et SHA-256 vérifiés.
+- **ONNX Runtime 1.24.2** (la version de l'app Mac) : sa bibliothèque est posée à côté du programme et chargée quand on sépare un morceau. Elle vient du paquet Maven Central de Microsoft, son en-tête de l'archive qu'utilise le paquet Swift de l'app Mac : le dépôt GitHub `microsoft/onnxruntime` répondait « introuvable » ce jour-là. Sous Linux, le téléchargement des modèles demande libcurl.
+- **Écarts avec le Mac**, à confirmer par Yoan :
+  - Pas de fenêtre de réglages ici : l'état des modèles (télécharger, supprimer) et le dossier des stems sont **sur l'écran PREPARE SONGS**.
+  - **Cliquer PREPARE SONGS ouvre l'écran**, même sans morceau (sur le Mac, le sélecteur de fichiers d'abord). Le sélecteur ne prend que des fichiers ; un dossier se dépose.
+  - Les morceaux en attente se réordonnent **au clic droit** (Move up / Move down), pas en les glissant.
+  - **Pas de notification système** à la fin de la file.
+  - Pas de menu « Split a Song… » (l'app n'a pas de barre de menus).
+  - L'annulation prend effet à la fin du bloc de 7,8 s en cours (comme sur le Mac) ; l'écran affiche « CANCELLING… » entre-temps.
+- Vérifié sans les modèles (auto-test et test d'écran, aussi en CI) : blocs et recouvrement, décodage (mono 22,05 kHz, stéréo 48 kHz, calé dans le temps), fichiers et manifeste, pas de recalcul, annulation qui ne laisse rien, téléchargement depuis un dossier local (reprise, empreinte, fichier faux jeté), file de préparation, étapes de l'app (question avant téléchargement, séparation, mode préparation, projets). 
+- Vérifié avec les vrais modèles sur le Mac de Yoan (`--split`, § 12.5), sur des morceaux que l'app Mac avait déjà séparés, écrits dans un dossier à part : Σ stems vs mix à 25,8 dB et 26,6 dB (≥ 25 attendu) ; un MP3 en 44,1 kHz donne des stems **identiques à ceux de l'app Mac** (écart à −120 dB), en ×1,16 la durée du morceau ; un WAV en 48 kHz s'en écarte de 30 à 40 dB sous le signal, la conversion vers 44,1 kHz n'étant pas faite par le même code. Le vrai téléchargement des quatre fichiers (`--fetch-models`, dans un dossier à part) passe, coupure et reprise comprises, et redonne les fichiers de l'app Mac.
+- Non vérifié à cette date : la séparation et le téléchargement sous Linux (faits le 20/11, voir L8), le son à l'oreille, les dialogues système.
+
+**L7 essayé par Yoan le 20/11/2026** : « tout est ok ». Les cinq écarts lui avaient été présentés ; il n'en a relevé aucun. Aucun nouveau dossier de stems n'a été écrit pendant ses deux essais : un morceau jamais séparé n'a donc pas été séparé depuis l'écran ce jour-là (les séparations réelles vérifiées sont celles de `--split`).
+
+**ONNX Runtime retiré de GitHub (constaté le 19/11/2026)** : `microsoft/onnxruntime` et ses dépôts compagnons, dont le paquet Swift dont dépendait l'app Mac, répondent « introuvable » depuis le 18/11, sans explication de Microsoft. L'app Mac ne se compilait plus à partir de zéro (pipeline, release). Réglé le 20/11 : l'enveloppe Objective-C de ce paquet (MIT, version 1.24.2, inchangée) est copiée dans `Sources/OnnxRuntimeBindings`, la bibliothèque reste téléchargée chez Microsoft (`download.onnxruntime.ai`, même version, même empreinte). Aucun changement de comportement. Si ce serveur disparaît aussi, il faudra héberger l'archive nous-mêmes.
+
+**L8 commencé le 20/11/2026** : la publication.
+- **Archive Linux** : `desktop/package.sh <version>` → `Linux-DubStemMix-<version>-linux-x86_64.tar.gz` (programme, bibliothèque de séparation à côté, licences, notice, `install.sh` qui ajoute l'app au menu des applications de l'utilisateur, sans sudo). Construite sous Ubuntu 22.04 pour tourner sur les Linux de 2022 et après. La pipeline la construit, la déballe ailleurs et lance son auto-test ; une release publiée la reçoit en pièce jointe (job `linux` de `release.yml`). Jamais de modèle dedans.
+- **Version** : celle du tag de la release, comme l'app Mac.
+- **`FEATURES.md`** : colonne Linux / Windows remplie ; sept écarts jamais décidés y sont marqués ❔ et listés en fin de fichier.
+- **Vérifié sous Linux le 20/11/2026** (Ubuntu 22.04 en conteneur, ARM) : l'archive se construit, se déballe dans un Ubuntu vierge et passe son auto-test ; `install.sh` pose et retire l'entrée de menu ; le téléchargement des modèles passe, coupure et reprise comprises, et redonne les fichiers de l'app Mac ; un vrai morceau (WAV 44,1 kHz) y est séparé avec des stems **identiques à ceux de l'app Mac** (écart à −120 dB, Σ stems vs mix à 25,9 dB).
+- Défaut corrigé au passage : sous Linux les réglages allaient dans `~/DubStemMix` ; ils vont dans `~/.config/DubStemMix`.
+- **Site préparé le 20/11/2026, Linux annoncé en alpha** (demande de Yoan) : page « On Linux (alpha) » dans les docs (installer, ce qu'il y a dedans, les différences avec le Mac, ce que personne n'a encore essayé), sur l'accueil une troisième carte « On Linux » (alpha) à côté du Mac et de la MPC, une section « On Linux » avec une capture, le lien du menu, la réponse de la FAQ, `llms.txt`, le README. Le lien de téléchargement vise un nom fixe, `Linux-DubStemMix-x86_64.tar.gz`, que la release attache en plus du nom daté. Rien n'est en ligne tant que la PR n'est pas fusionnée ; le lien ne marche qu'une fois la première release sortie.
+- Reste : l'essai sur un vrai PC Linux (son, MIDImix, LEDs, fenêtre et dialogues), la fusion de la PR #19, la première release qui porte l'archive, puis Windows.
+
+### 17.4 Points ouverts
+
+- **Maquette codée le 16/11/2026** (`desktop/`, notice dans `desktop/README.md`) : le moteur du plugin MPC est repris sans modification. Elle se compile et passe son auto-test (mêmes gestes et mêmes niveaux attendus que le test du plugin MPC) sur le Mac et sous Linux (Ubuntu). Constat : les effets (`Sources/DubDSP`) doivent être compilés en C sous Linux, pas en C++ comme pour la MPC ; réglé dans la maquette, sans toucher au plugin. 
+- **Essai sur le Mac validé par Yoan le 16/11/2026** (« tout est ok ») : lecture et morceau suivant au clavier, faders et MUTE de la MIDImix, LEDs allumées, latence, compteurs de décrochages à 0. Restent les essais sous Linux (§ 17.3).
+- **Fenêtre vérifiée sous Linux le 16/11/2026**, sans machine virtuelle (Ubuntu en conteneur, écran virtuel, capture) : elle s'ouvre et affiche le morceau, les 8 tranches nommées, les faders et le master. Sans carte son ni MIDI dans le conteneur, elle l'annonce (« No sound », « MIDI unavailable ») et continue de tourner.
+- **Essai en machine virtuelle (UTM) laissé de côté** (décision de Yoan, 16/11/2026). Restent donc non vérifiés sous Linux : la MIDImix et ses LEDs, et le son. À faire sur un vrai PC Linux (celui de Yoan ou d'un volontaire) avant de dire que l'app tient un set.
+
+- Un vrai PC Linux, ou un volontaire, pour l'essai du son.
+- Quelles fonctionnalités de l'app Mac suivent, et dans quel ordre : colonne Linux / Windows de `FEATURES.md`, à remplir au cadrage du vrai portage.
