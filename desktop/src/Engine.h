@@ -1,6 +1,6 @@
 // Engine.h - the sound side of DubStemMix for the desktop: the engine, the sound card, the MIDImix.
 //
-// The engine (DubEngine.cpp) still presents itself as the MPC framework's plugin: MIDI in, audio out at
+// The engine (the MPC plugin's source, mpc/DubStemMix/src/DubStemMix.cpp, built with DSM_DESKTOP) presents itself as the MPC framework's plugin: MIDI in, audio out at
 // 44.1 kHz, and parameters found by name, which are what the screen shows and sets. Songs and the transport
 // go through dsm::transport() (StripSource.h).
 //
@@ -22,7 +22,7 @@
 #include <map>
 #include <string>
 
-// The engine's entry point (DubEngine.cpp).
+// The engine's entry point (mpc/DubStemMix/src/DubStemMix.cpp).
 extern "C" AEffect* VSTPluginMain(audioMasterCallback host);
 
 namespace dsm {

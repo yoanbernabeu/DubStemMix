@@ -1,5 +1,17 @@
-// DubStemMix.cpp - DubStemMix for MPC (PRD § 16): the Mac app's dub console, played with an Akai MIDImix
-// plugged into the MPC, on stems read from the plugin's Content/Songs folder.
+// DubStemMix.cpp - the engine of DubStemMix, shared by two apps:
+//   - the MPC plugin (PRD § 16): the Mac app's dub console, played with an Akai MIDImix plugged into the MPC,
+//     on stems read from the plugin's Content/Songs folder;
+//   - the desktop app for Linux (PRD § 17), built with DSM_DESKTOP defined (desktop/CMakeLists.txt).
+// The console logic, the MIDImix mapping, the pages, the gestures, the effects and the gain structure are one
+// code for both. What differs is how songs come and go, and sits between #ifdef DSM_DESKTOP ... #endif:
+//   - MPC: songs are folders of the card, scanned at start; two decks chain them with no gap; the MPC's own
+//     transport drives them (STOP pauses, PLAY resumes, PLAY START jumps to the next song).
+//   - Desktop: one song at a time, given by the app as lists of files per strip (StripSource.h: any format and
+//     rate, several stems per strip); the app's transport (dsm::transport()) plays, pauses, jumps and loops.
+//     A loaded song becomes current stopped at its start, the effects' tails ring on. The desktop also has
+//     pre-fader sends, hosted plugins in place of an effect, and meters read by the screen.
+// Without DSM_DESKTOP this file is, to the token, the plugin as it was before the two were joined
+// (20 November 2026): the MPC build must stay byte for byte the same when desktop-only code changes.
 //
 // SPDX-License-Identifier: MIT
 //
@@ -26,23 +38,24 @@
 // Pads of the track (PRD § 16.2 ter), from the "Pad 1 note" setting: 9 DROP (held), 10 CRASH, 11 REWIND,
 //   13 PREV, 14 NEXT (move the next song), 15 GO (play the next song now), 16 RESTART (current song from the top).
 //   Notes 1-27 always belong to the MIDImix.
-//
-// Songs: two decks. The current song plays from one while the next one waits, opened, in the other: songs
-// chain with no gap. MPC transport: STOP pauses, PLAY resumes, PLAY START jumps to the next song (stopped or
-// playing). Effects and instruments keep sounding while stopped.
 
 #include "mpc_plugin.h"
 
 #include "DubDSP.h"
 #include "FX.h"
 #include "Stems.h"
+#ifdef DSM_DESKTOP
+#include "StripSource.h"
+#endif  // DSM_DESKTOP
 
 #include <chrono>
 #include <thread>
 
 using stems::StemRing;
 using stems::Song;
+#ifndef DSM_DESKTOP
 using stems::WavReader;
+#endif  // DSM_DESKTOP
 using stems::kChunkFrames;
 using stems::kRingFrames;
 
@@ -111,6 +124,11 @@ struct Deck
     StemRing rings[kStemStrips];
     std::atomic<int> wantSong{-1}, wantGen{0}, readyGen{-1};
     std::atomic<long long> frames{0};
+#ifdef DSM_DESKTOP
+    std::atomic<long long> wantStart{0};   // where to open the song (a jump, a loop)
+    std::atomic<bool> wantLoad{false};     // take the app's pending song first
+    dsm::SongFiles files;                  // disk thread only
+#endif  // DSM_DESKTOP
 };
 
 } // namespace
@@ -170,7 +188,14 @@ public:
 
     DubStemMix() : mpc::Plugin(makeInfo())
     {
+#ifndef DSM_DESKTOP
         scanSongs();
+#else   // DSM_DESKTOP
+        // One song at a time, given by the app: the list below only keeps the framework's song choices alive.
+        songs_.emplace_back();
+        songs_[0].stems.assign(kStemStrips, "");
+        songs_[0].labels.assign(kStemStrips, "");
+#endif  // DSM_DESKTOP
         std::vector<std::string> names;
         for (const Song& s : songs_) names.push_back(s.name);
         if (names.empty()) names.push_back("(no songs)");
@@ -367,9 +392,15 @@ public:
 
         followScreen();
         handleMidi(ctx);
+#ifndef DSM_DESKTOP
         handleTransport(ctx.transport, ctx.numFrames);
+#else   // DSM_DESKTOP
+        followApp();
+#endif  // DSM_DESKTOP
         stepPullUp(ctx.numFrames);
+#ifndef DSM_DESKTOP
         preloadNext();
+#endif  // DSM_DESKTOP
         updateSong();
         applyEffects();
 
@@ -495,6 +526,9 @@ private:
     // a touched song becomes the next one, a new insert starts from its defaults.
     void followScreen()
     {
+#ifdef DSM_DESKTOP
+        bool lampsStale = false;
+#endif  // DSM_DESKTOP
         for (int i = 0; i < kNumParams; ++i)
         {
             const float v = get(i);
@@ -522,7 +556,14 @@ private:
                 if (faderTarget(s) == i) release(faders_[s], v);
             }
             if (i == kMaster) release(master_, v);
+#ifdef DSM_DESKTOP
+            // A MUTE set on the screen lights its lamp, and so the console's LED, like one pressed on the console.
+            if (i >= kStripBase && i < kFxBase && (i - kStripBase) % 5 == 1) lampsStale = true;
+#endif  // DSM_DESKTOP
         }
+#ifdef DSM_DESKTOP
+        if (lampsStale) refreshLamps();
+#endif  // DSM_DESKTOP
     }
 
     void handleMidi(const mpc::ProcessContext& ctx)
@@ -765,8 +806,16 @@ private:
                 const double position = instrument(s) ? get(fxParam(fx::kInstrumentSends[s - kFirstInstrumentStrip][b]))
                                                       : get(send(s, b));
                 const bool thrown = throwing_[s] && (b == fx::Delay ? throwTarget != 1 : b == fx::Reverb && throwTarget != 0);
+#ifndef DSM_DESKTOP
                 post_[s][b].target = g * (float)(position * position);
                 pre_[s][b].target = thrown ? kHeadroom : 0.0f;
+#else   // DSM_DESKTOP
+                // A pre-fader bus takes the send before the fader and MUTE (as the throw does, at full send).
+                const bool preFader = dsm::transport().preFader[b].load(std::memory_order_relaxed);
+                const float sendGain = (float)(position * position);
+                post_[s][b].target = preFader ? 0.0f : g * sendGain;
+                pre_[s][b].target = std::fmax(thrown ? kHeadroom : 0.0f, preFader ? kHeadroom * sendGain : 0.0f);
+#endif  // DSM_DESKTOP
             }
         }
         const int returns[3] = {fx::DelayReturn, fx::ReverbReturn, fx::PhaserReturn};
@@ -792,7 +841,11 @@ private:
         const int end = songEndWithin(n);
         if (end < 0) { renderPart(outL, outR, n); return; }
         if (end > 0) renderPart(outL, outR, end);
+#ifndef DSM_DESKTOP
         advance();
+#else   // DSM_DESKTOP
+        songEnded();
+#endif  // DSM_DESKTOP
         if (end < n) renderPart(outL + end, outR + end, n - end);
     }
 
@@ -863,7 +916,12 @@ private:
                 if (take < (size_t)n && !ring.finished.load(std::memory_order_acquire)) underruns_++;
             }
             if (instrument(s)) dub_effect_process(s == kFirstInstrumentStrip ? siren_ : syndrum_, sL, sR, sL, sR, n);
+#ifndef DSM_DESKTOP
             dub_effect_process(inserts_[s], sL, sR, sL, sR, n);
+#else   // DSM_DESKTOP
+            if (dsm::Processor* plugin = dsm::hooks().insert[s].load(std::memory_order_acquire)) plugin->process(sL, sR, n);
+            else dub_effect_process(inserts_[s], sL, sR, sL, sR, n);
+#endif  // DSM_DESKTOP
 
             float stripPeak = 0;
             for (int i = 0; i < n; ++i)
@@ -881,6 +939,10 @@ private:
                 stripPeak = std::fmax(stripPeak, std::fmax(std::fabs(l), std::fabs(r)));
             }
             peak[s] = stripPeak * stripGain_[s] / kHeadroom;   // after the fader, full scale = 1
+#ifdef DSM_DESKTOP
+            std::atomic<float>& pre = dsm::transport().prePeak[s];
+            if (stripPeak > pre.load(std::memory_order_relaxed)) pre.store(stripPeak, std::memory_order_relaxed);
+#endif  // DSM_DESKTOP
         }
 
         // Bus-to-bus sends, one chunk late, then the effects (100 % wet) and their returns.
@@ -897,7 +959,12 @@ private:
         DubEffect* buses[3] = {delay_, reverb_, bus3_};
         for (int b = 0; b < 3; ++b)
         {
+#ifndef DSM_DESKTOP
             dub_effect_process(buses[b], busL_[b], busR_[b], busL_[b], busR_[b], n);
+#else   // DSM_DESKTOP
+            if (dsm::Processor* plugin = dsm::hooks().bus[b].load(std::memory_order_acquire)) plugin->process(busL_[b], busR_[b], n);
+            else dub_effect_process(buses[b], busL_[b], busR_[b], busL_[b], busR_[b], n);
+#endif  // DSM_DESKTOP
             for (int i = 0; i < n; ++i)
             {
                 lastRetL_[b][i] = busL_[b][i];
@@ -923,12 +990,27 @@ private:
         dub_effect_process(masterFx_, outL, outR, outL, outR, n);
         dub_effect_process(brake_, outL, outR, outL, outR, n);
         for (int i = 0; i < n; ++i) { outL[i] *= kMakeup; outR[i] *= kMakeup; }
+#ifdef DSM_DESKTOP
+        dsm::Transport& t = dsm::transport();
+        dub_effect_set(limiter_, DUB_LIMITER_BYPASS, t.limiterOn.load(std::memory_order_relaxed) ? 0.0f : 1.0f);
+        if (t.clearReduction.exchange(false, std::memory_order_relaxed)) dub_effect_set(limiter_, DUB_LIMITER_REDUCTION, 0.0f);
+#endif  // DSM_DESKTOP
         dub_effect_process(limiter_, outL, outR, outL, outR, n);
+#ifdef DSM_DESKTOP
+        t.reduction.store(dub_effect_get(limiter_, DUB_LIMITER_REDUCTION), std::memory_order_relaxed);
+        float outPeak = 0.0f;
+        for (int i = 0; i < n; ++i) outPeak = std::fmax(outPeak, std::fmax(std::fabs(outL[i]), std::fabs(outR[i])));
+        if (outPeak > t.masterPeak.load(std::memory_order_relaxed)) t.masterPeak.store(outPeak, std::memory_order_relaxed);
+#endif  // DSM_DESKTOP
 
         for (int s = 0; s < kSurfaceStrips; ++s) meterPeak_[s] = std::fmax(meterPeak_[s], peak[s]);
         if (running)
         {
             framesPlayed_ += n;
+#ifdef DSM_DESKTOP
+            const long long length = decks_[active_].frames.load(std::memory_order_relaxed);
+            if (looping_ && length > 0 && framesPlayed_ >= length) framesPlayed_ -= length;
+#endif  // DSM_DESKTOP
             if (!songs_.empty() && framesPlayed_ >= (long long)(kPlayedSeconds * sampleRate_)) played_[(size_t)current_] = true;
         }
     }
@@ -990,35 +1072,96 @@ private:
     // Transport, songs and decks
     // ------------------------------------------------------------------------------------------------
 
+#ifndef DSM_DESKTOP
     void handleTransport(const mpc::Transport& t, int frames)
+#else   // DSM_DESKTOP
+    // The app's transport (dsm::transport()): a new song, a jump, play / pause; and what it reads back.
+    void followApp()
+#endif  // DSM_DESKTOP
     {
+#ifndef DSM_DESKTOP
         if (!t.valid) return;
         if (t.playing && !playing_)
+#else   // DSM_DESKTOP
+        dsm::Transport& t = dsm::transport();
+        const int gen = t.loadGen.load(std::memory_order_acquire);
+        if (gen != seenLoadGen_)
+#endif  // DSM_DESKTOP
         {
+#ifndef DSM_DESKTOP
             // PLAY START puts the MPC's position back to the start; PLAY resumes from where it was.
             const bool fromStart = t.ppqValid && t.ppqPos < 0.01;
             setDisplay(kStart, (float)(fromStart ? kStartPlayStart : kStartPlay));
             setDisplay(kStartPos, t.ppqValid ? (float)t.ppqPos : 0.0f);
             // The first start of a song only plays it; PLAY START moves on once it has been heard.
             if ((fromStart && framesPlayed_ > 0) || ended_) advance();
+#else   // DSM_DESKTOP
+            // The new song opens on the other deck while this one, stopped, stays as it is.
+            seenLoadGen_ = gen;
+            Deck& other = decks_[1 - active_];
+            other.wantLoad.store(true, std::memory_order_relaxed);
+            other.wantStart.store(0, std::memory_order_relaxed);
+            request(1 - active_, 0);
+            switching_ = true;
+#endif  // DSM_DESKTOP
         }
+#ifndef DSM_DESKTOP
         else if (t.playing && playing_ && t.ppqValid && lastPpqValid_ && jumpedToStart(t))
+#else   // DSM_DESKTOP
+        if (switching_ && ready(1 - active_))
+#endif  // DSM_DESKTOP
         {
+#ifndef DSM_DESKTOP
             // PLAY START pressed while playing: the MPC never stops, its position just jumps back.
             setDisplay(kStart, (float)kStartPlayStart);
             setDisplay(kStartPos, (float)t.ppqPos);
             advance();
+#else   // DSM_DESKTOP
+            request(active_, -1);   // the deck left behind closes its files
+            active_ = 1 - active_;
+            framesPlayed_ = 0;
+            ended_ = false;
+            switching_ = false;
+            played_[0] = false;
+            t.songGen.fetch_add(1, std::memory_order_release);
+#endif  // DSM_DESKTOP
         }
+#ifndef DSM_DESKTOP
         playing_ = t.playing;
         lastPpqValid_ = t.playing && t.ppqValid;
         lastPpq_ = t.ppqPos;
         lastBlockBeats_ = (double)frames / sampleRate_ * (t.tempoValid ? t.bpm : 120.0) / 60.0;
+#else   // DSM_DESKTOP
+        const long long jump = t.seekTo.exchange(-1, std::memory_order_acq_rel);
+        if (jump >= 0 && !switching_) seekTo(jump);
+        // Loop on or off: what the disk has read ahead no longer holds, the song reopens where it is.
+        const bool loop = t.loop.load(std::memory_order_relaxed);
+        if (loop != looping_)
+        {
+            looping_ = loop;
+            if (!switching_ && jump < 0 && decks_[active_].frames.load(std::memory_order_relaxed) > 0) seekTo(ended_ ? 0 : framesPlayed_);
+        }
+
+        playing_ = t.playing.load(std::memory_order_relaxed) && !ended_;
+        const double bpm = t.bpm.load(std::memory_order_relaxed);
+        songs_[0].bpm = bpm;
+        t.position.store(framesPlayed_, std::memory_order_relaxed);
+        t.length.store(decks_[active_].frames.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        t.ready.store(ready(active_), std::memory_order_relaxed);
+        t.ended.store(ended_, std::memory_order_relaxed);
+#endif  // DSM_DESKTOP
     }
 
+#ifndef DSM_DESKTOP
     // True when the position jumped back, unless it is the MPC's sequence looping:
     // a loop goes back exactly at its end, which is on a bar line, while PLAY START comes anywhere.
     bool jumpedToStart(const mpc::Transport& t) const
+#else   // DSM_DESKTOP
+    // Reopens the current song at a frame: the stems go silent for the few milliseconds the disk needs.
+    void seekTo(long long frame)
+#endif  // DSM_DESKTOP
     {
+#ifndef DSM_DESKTOP
         if (t.ppqPos > lastPpq_ - 0.001) return false;   // the position only moves forward otherwise
         const double expected = lastPpq_ + lastBlockBeats_;
         const double slack = lastBlockBeats_ + 0.001;
@@ -1028,8 +1171,24 @@ private:
         const double toBarLine = std::ceil(expected / bar - 1e-9) * bar - expected;
         const double fromBarLine = expected - std::floor(expected / bar + 1e-9) * bar;
         return toBarLine > slack && fromBarLine > slack;
+#else   // DSM_DESKTOP
+        const long long last = std::max(0LL, decks_[active_].frames.load(std::memory_order_relaxed) - 1);
+        frame = std::min(std::max(frame, 0LL), last);
+        decks_[active_].wantStart.store(frame, std::memory_order_relaxed);
+        request(active_, 0);
+        framesPlayed_ = frame;
+        ended_ = false;
+#endif  // DSM_DESKTOP
     }
 
+#ifdef DSM_DESKTOP
+    // The song has played to its end (a looping song never does: its strips wrap by themselves, to the sample).
+    void songEnded()
+    {
+        ended_ = true;
+    }
+
+#endif  // DSM_DESKTOP
     bool ready(int d) const
     {
         return decks_[d].readyGen.load(std::memory_order_acquire) == decks_[d].wantGen.load(std::memory_order_relaxed);
@@ -1086,10 +1245,14 @@ private:
     // RESTART: the current song from the top, at once; the next one stays as it is.
     void restart()
     {
+#ifndef DSM_DESKTOP
         if (songs_.empty()) return;
         request(active_, current_);
         ended_ = false;
         framesPlayed_ = 0;
+#else   // DSM_DESKTOP
+        seekTo(0);
+#endif  // DSM_DESKTOP
     }
 
     // PREV / NEXT pads: move the song that plays next along the list.
@@ -1136,6 +1299,7 @@ private:
         return "-";
     }
 
+#ifndef DSM_DESKTOP
     void scanSongs()
     {
         const std::string root = mpc::contentPath("Songs");
@@ -1149,10 +1313,15 @@ private:
         mpc::log("DubStemMix: %d song(s) in %s", (int)songs_.size(), root.c_str());
     }
 
+#endif  // DSM_DESKTOP
     // The disk thread: opens what each deck asks for, then keeps every ring topped up.
     void diskLoop()
     {
+#ifndef DSM_DESKTOP
         WavReader readers[2][kStemStrips];
+#else   // DSM_DESKTOP
+        std::unique_ptr<dsm::StripSource> sources[2][kStemStrips];
+#endif  // DSM_DESKTOP
         std::vector<float> chunk(kChunkFrames * 2);
         int loaded[2] = {-1, -1};
         while (!quit_.load())
@@ -1167,13 +1336,24 @@ private:
                     // The audio thread does not read this deck until readyGen catches up with wantGen.
                     loaded[d] = gen;
                     const int index = deck.wantSong.load(std::memory_order_relaxed);
+#ifndef DSM_DESKTOP
                     size_t longest = 0;
+#else   // DSM_DESKTOP
+                    if (deck.wantLoad.exchange(false, std::memory_order_acq_rel))
+                    {
+                        const std::lock_guard<std::mutex> lock(dsm::transport().mutex);
+                        deck.files = dsm::transport().pending;
+                    }
+                    const long long start = deck.wantStart.load(std::memory_order_relaxed);
+                    long long longest = 0;
+#endif  // DSM_DESKTOP
                     for (int s = 0; s < kStemStrips; ++s)
                     {
                         StemRing& ring = deck.rings[s];
                         ring.read.store(0, std::memory_order_relaxed);
                         ring.written.store(0, std::memory_order_relaxed);
                         ring.finished.store(false, std::memory_order_relaxed);
+#ifndef DSM_DESKTOP
                         const bool ok = index >= 0 && index < (int)songs_.size() && !songs_[(size_t)index].stems[(size_t)s].empty()
                                      && readers[d][s].open(songs_[(size_t)index].stems[(size_t)s]);
                         if (!ok) readers[d][s].close();
@@ -1181,23 +1361,52 @@ private:
                             mpc::log("DubStemMix: %s is %u Hz, the MPC plays at 44100 Hz",
                                      songs_[(size_t)index].stems[(size_t)s].c_str(), readers[d][s].rate());
                         if (ok) longest = std::max(longest, readers[d][s].framesLeft());
-                        ring.present.store(ok, std::memory_order_relaxed);
-                        while (ok && fill(ring, readers[d][s], chunk)) {}
+#else   // DSM_DESKTOP
+                        long long frames = 0;
+                        sources[d][s] = index >= 0 ? dsm::openStrip(deck.files.strips[s], start, frames) : nullptr;
+                        longest = std::max(longest, frames);
                     }
+                    // Looping strips wrap at the song's length, the longest stem's, so they stay together.
+                    const bool loop = dsm::transport().loop.load(std::memory_order_relaxed);
+                    for (int s = 0; s < kStemStrips; ++s)
+                    {
+                        StemRing& ring = deck.rings[s];
+                        const bool ok = sources[d][s] != nullptr;
+                        if (ok) sources[d][s]->setLoopLength(loop ? longest : 0);
+#endif  // DSM_DESKTOP
+                        ring.present.store(ok, std::memory_order_relaxed);
+#ifndef DSM_DESKTOP
+                        while (ok && fill(ring, readers[d][s], chunk)) {}
+#else   // DSM_DESKTOP
+                        while (ok && fill(ring, *sources[d][s], chunk)) {}
+#endif  // DSM_DESKTOP
+                    }
+#ifndef DSM_DESKTOP
                     deck.frames.store((long long)longest, std::memory_order_relaxed);
+#else   // DSM_DESKTOP
+                    deck.frames.store(longest, std::memory_order_relaxed);
+#endif  // DSM_DESKTOP
                     deck.readyGen.store(gen, std::memory_order_release);
                     busy = true;
                     continue;
                 }
                 for (int s = 0; s < kStemStrips; ++s)
+#ifndef DSM_DESKTOP
                     if (deck.rings[s].present.load(std::memory_order_relaxed)) busy |= fill(deck.rings[s], readers[d][s], chunk);
+#else   // DSM_DESKTOP
+                    if (deck.rings[s].present.load(std::memory_order_relaxed) && sources[d][s] != nullptr) busy |= fill(deck.rings[s], *sources[d][s], chunk);
+#endif  // DSM_DESKTOP
             }
             if (!busy) std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
     }
 
     // Reads one chunk into the ring if there is room. Returns true when it read something.
+#ifndef DSM_DESKTOP
     static bool fill(StemRing& ring, WavReader& reader, std::vector<float>& chunk)
+#else   // DSM_DESKTOP
+    static bool fill(StemRing& ring, dsm::StripSource& reader, std::vector<float>& chunk)
+#endif  // DSM_DESKTOP
     {
         if (ring.finished.load(std::memory_order_relaxed)) return false;
         const size_t w = ring.written.load(std::memory_order_relaxed);
@@ -1256,6 +1465,11 @@ private:
     // Transport and displays.
     double sampleRate_ = 44100.0;
     bool playing_ = false, ended_ = false, lastPpqValid_ = false, nextCued_ = false;
+#ifdef DSM_DESKTOP
+    bool switching_ = false;   // a song given by the app is opening on the other deck
+    bool looping_ = false;     // the loop as the disk thread last opened the song with
+    int seenLoadGen_ = 0;
+#endif  // DSM_DESKTOP
     double lastPpq_ = 0.0, lastBlockBeats_ = 0.0;
     int current_ = 0;
     long long framesPlayed_ = 0;

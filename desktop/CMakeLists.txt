@@ -1,7 +1,7 @@
 # DubStemMix for Linux (then Windows), PRD § 17. A JUCE app; this folder is distributed under the AGPLv3
 # (see LICENSE), the rest of the repository under MIT.
 # Run desktop/build.sh rather than cmake directly: it fetches Akai's SDK headers the engine is written against
-# (the engine, src/DubEngine.cpp, is a fork of the MPC plugin and still uses its framework and its FX.h / Stems.h).
+# (the engine is the MPC plugin's own source, mpc/DubStemMix/src/DubStemMix.cpp, with its framework, FX.h and Stems.h).
 cmake_minimum_required(VERSION 3.22)
 # The version is the repository's, given by the packaging script (desktop/package.sh <version>).
 if(NOT DUBSTEMMIX_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
@@ -82,10 +82,13 @@ target_compile_options(dubstemmix-lame PRIVATE -w)   # third-party code, left as
 target_sources(dubstemmix-desktop PRIVATE
   src/Main.cpp
   src/Sources.cpp
-  src/DubEngine.cpp
+  "${PLUGIN}/DubStemMix.cpp"
   ${DUB_DSP})
+# The engine is the MPC plugin's own file (mpc/DubStemMix/src/DubStemMix.cpp), built here with what the desktop
+# adds to it: songs given by the app, its transport, pre-fader sends, hosted plugins, meters.
+set_source_files_properties("${PLUGIN}/DubStemMix.cpp" PROPERTIES COMPILE_DEFINITIONS DSM_DESKTOP=1)
 
-target_include_directories(dubstemmix-desktop PRIVATE "${SDK}" "${PLUGIN}" "${REPO}/Sources/DubDSP/include")
+target_include_directories(dubstemmix-desktop PRIVATE "${SDK}" "${PLUGIN}" "${REPO}/Sources/DubDSP/include" "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_include_directories(dubstemmix-desktop SYSTEM PRIVATE "${ORT_INCLUDE}")
 add_custom_command(TARGET dubstemmix-desktop POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ORT_LIBRARY}" "$<TARGET_FILE_DIR:dubstemmix-desktop>/"

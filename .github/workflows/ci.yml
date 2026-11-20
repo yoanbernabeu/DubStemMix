@@ -17,6 +17,10 @@ jobs:
         run: swift build
       - name: Tests
         run: swift test 2>&1 | tail -40
+      # The MPC plugin's engine is also the Linux app's (mpc/DubStemMix/src/DubStemMix.cpp): a change made for one
+      # must never break the other.
+      - name: MPC plugin (host simulator, transport and console test)
+        run: mpc/test.sh
 
   # The desktop app (PRD § 17) on an ordinary Linux PC: it must build and play its test songs.
   # Built on the oldest Ubuntu still served, so that the archive runs on Linux systems from 2022 on.
