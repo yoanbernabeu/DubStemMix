@@ -13,6 +13,7 @@ Answer the user in French. Nothing leaves the machine (commit, push, tag, releas
 - Written by hand, and forgotten without this skill:
   - `web/src/site.ts` → `version: "X.Y.Z"` (badge and download name on the landing page). The page is redeployed by `.github/workflows/pages.yml` on any push to main touching `web/`.
   - `README.md` → the example `tools/make-app.sh X.Y.Z dist` in "Build from source".
+- The same workflow has a `linux` job (once the Linux port is merged): it builds `desktop/` on Ubuntu 22.04, runs its self-test and screen test, and uploads `Linux-DubStemMix-X.Y.Z-linux-x86_64.tar.gz` to the release. The two jobs are independent: one can fail without the other.
 - The Homebrew cask (`yoanbernabeu/homebrew-tap`, `Casks/dubstemmix.rb`) is bumped by `release.yml` itself (deploy key `HOMEBREW_TAP_DEPLOY_KEY`): nothing to do by hand, just check the tap got a "DubStemMix X.Y.Z" commit.
 - Release title: `DubStemMix X.Y.Z`. Tag: `vX.Y.Z`, on main.
 
@@ -78,7 +79,7 @@ Wait for an explicit yes. Changes to the notes or the number → apply, show aga
 1. Commit `Release X.Y.Z` (only the bump files), with the attribution lines the session asks for; push to `origin main`.
 2. `gh release create vX.Y.Z --target main --title "DubStemMix X.Y.Z" --notes-file <notes file>` (this creates the tag and triggers the build).
 3. Follow the build: find the run with `gh run list --workflow Release --limit 1`, then `gh run watch <id> --exit-status`.
-4. Check: `gh release view vX.Y.Z --json assets -q '.assets[].name'` lists `DubStemMix-X.Y.Z.zip`, and the Pages run of the bump commit succeeded.
+4. Check: `gh release view vX.Y.Z --json assets -q '.assets[].name'` lists `DubStemMix-X.Y.Z.zip` and `Linux-DubStemMix-X.Y.Z-linux-x86_64.tar.gz`, and the Pages run of the bump commit succeeded.
 
 ### 7. Report
 

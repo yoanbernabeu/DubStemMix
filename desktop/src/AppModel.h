@@ -26,6 +26,9 @@ public:
         options.applicationName = forTest ? "DubStemMix-selftest" : "DubStemMix";
         options.filenameSuffix = ".settings";
         options.folderName = forTest ? "DubStemMix-selftest" : "DubStemMix";   // a test never sees the user's plugins or settings
+       #if JUCE_LINUX
+        options.folderName = ".config/" + options.folderName;   // ~/.config/DubStemMix, not a folder in the home's root
+       #endif
         options.osxLibrarySubFolder = "Application Support";
         return options;
     }

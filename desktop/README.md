@@ -27,7 +27,7 @@ Milestones L1 (the JUCE base), L3 (the console's look) and L2 (the app's own eng
 
 The engine (`src/DubEngine.cpp`) is a fork of the MPC plugin's, with the Mac's way of handling songs; the effects are `Sources/DubDSP`, shared with the Mac app and the MPC plugin.
 
-Not there yet: a Linux package to install, Windows.
+Not there yet: Windows.
 
 ## Build and run
 
@@ -48,10 +48,19 @@ desktop/build/dubstemmix-desktop --snapshot out.png fx  # draws a page (mix, fx,
 
 The first build downloads JUCE, Akai's MPC Plugin SDK headers (the engine is written against them) and ONNX Runtime 1.24.2 (its library from Microsoft's Maven Central package, its C header from the archive the Mac app's Swift package uses), all pinned. It takes a few minutes. The ONNX Runtime library is copied beside the program and loaded when a song is split; it must travel with it.
 
+## The Linux archive
+
+```sh
+desktop/package.sh 0.16.0     # -> desktop/dist/Linux-DubStemMix-0.16.0-linux-x86_64.tar.gz
+```
+
+One archive to unpack and run: the program, `libonnxruntime.so` beside it, the licenses, a notice (`linux/README.txt`) and `install.sh`, which adds the app to the applications menu of the current user (no sudo; `--remove` undoes it). CI builds it on Ubuntu 22.04, so that it runs on Linux systems from 2022 on, unpacks it elsewhere and runs its self-test; a published release gets it attached (`.github/workflows/release.yml`). The version is the release's tag.
+
 ## Tested, not tested
 
 - `--selftest` makes test songs, then checks the stems (placing, several per strip, another sample rate), the console's gestures with the levels of the MPC plugin's own test, moving in the song, the loop and its seamless loop point, the end, saving and reopening a project, names, the recent files, tempo detection, a Mac-only setting surviving a save, a missing stem and locating it, a recording (the WAV, its sheet and tracklist) and its MP3 export, and plugins with a small plugin of the tests' own (a slot, macros both ways, the project, a plugin not installed). It runs in CI on Linux.
 - `--screentest` builds the real console and plays it like a user, with no window: files dropped, stems carried, right-click menus, the play, back and loop buttons, a click in the waveform, faders and knobs dragged, MUTE, THROW held, KEEP, SOLO, the pages, the bus cards, the tempo controls, double-clicks to rename, the limiter, a setlist, then the whole setlist workshop, the sidebar's live setlist gestures, REC and the recorded sessions screen. It checks the result of each gesture and saves pictures. It runs in CI on Linux too. It cannot reach the system's file dialogs, nor judge the sound.
 - Stem separation is checked without the models (they are not downloaded in CI): the chunks and their overlap, decoding (mono 22.05 kHz, stereo 48 kHz, in time), the job with a separator of the tests' own (files, manifest, no second computation, cancelling leaves nothing), the model files' download from a local folder (resume, checksum, a wrong file thrown away), the preparation list, and the app's steps (the question before any download, the split, the preparation mode and its projects). With the real models, `--split` says how well the four stems add up to the song.
-- Not tried on Linux yet: the MIDImix and its LEDs, and sound on a real PC.
+- On Linux (Ubuntu 22.04 in a container): the archive builds, unpacks on a bare system and passes its self-test; the model's files download (cut and resumed) and match the Mac app's; a real song is split into the same stems as the Mac app's, to the sample.
+- Not tried on Linux yet: the MIDImix and its LEDs, sound, and the window's own dialogs, on a real PC.
 - Windows: not built yet.

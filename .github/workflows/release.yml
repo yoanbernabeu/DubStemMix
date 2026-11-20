@@ -87,3 +87,35 @@ jobs:
           path: |
             dist/DubStemMix-*.zip
             dist/MPC-DubStemMix*.zip
+
+  # The Linux app (desktop/, PRD § 17): built on the oldest Ubuntu still served so that it runs on Linux systems
+  # from 2022 on, checked, packed and attached to the same release. Its name never starts with "DubStemMix-":
+  # Mac apps up to 0.15 take the first asset named DubStemMix-*.zip as their update.
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version from the tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          case "$TAG" in [0-9]*.[0-9]*.[0-9]*) ;; *) TAG=0.0.0 ;; esac
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+      - name: Build tools and headers
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq build-essential cmake git pkg-config libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev mesa-common-dev libcurl4-openssl-dev
+      - name: Build and pack
+        run: desktop/package.sh "${{ steps.version.outputs.version }}"
+      - name: Self-test and screen test
+        run: |
+          desktop/build/dubstemmix-desktop --selftest | tail -3
+          desktop/build/dubstemmix-desktop --screentest "$RUNNER_TEMP/screen" | tail -3
+      - name: Attach the archive to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" desktop/dist/Linux-DubStemMix-*.tar.gz --clobber
+      - name: Keep the archive as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Linux-DubStemMix-${{ steps.version.outputs.version }}
+          path: desktop/dist/Linux-DubStemMix-*.tar.gz

@@ -3,7 +3,11 @@
 # Run desktop/build.sh rather than cmake directly: it fetches Akai's SDK headers the engine is written against
 # (the engine, src/DubEngine.cpp, is a fork of the MPC plugin and still uses its framework and its FX.h / Stems.h).
 cmake_minimum_required(VERSION 3.22)
-project(DubStemMixDesktop VERSION 0.0.1 LANGUAGES C CXX)
+# The version is the repository's, given by the packaging script (desktop/package.sh <version>).
+if(NOT DUBSTEMMIX_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+  set(DUBSTEMMIX_VERSION 0.0.0)
+endif()
+project(DubStemMixDesktop VERSION ${DUBSTEMMIX_VERSION} LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

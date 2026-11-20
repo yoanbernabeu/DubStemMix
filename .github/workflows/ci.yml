@@ -19,18 +19,29 @@ jobs:
         run: swift test 2>&1 | tail -40
 
   # The desktop app (PRD § 17) on an ordinary Linux PC: it must build and play its test songs.
+  # Built on the oldest Ubuntu still served, so that the archive runs on Linux systems from 2022 on.
   desktop-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Build tools and headers
         run: sudo apt-get update -qq && sudo apt-get install -y -qq build-essential cmake git pkg-config libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev mesa-common-dev libcurl4-openssl-dev
-      - name: Build
-        run: desktop/build.sh
+      - name: Build and pack
+        run: desktop/package.sh 0.0.0
       - name: Self-test (no display, no sound card)
         run: desktop/build/dubstemmix-desktop --selftest
       - name: Screen test (the console played like a user, no display)
         run: desktop/build/dubstemmix-desktop --screentest "$RUNNER_TEMP/screen"
+      - name: The archive, unpacked elsewhere, runs its self-test
+        run: |
+          mkdir "$RUNNER_TEMP/unpacked" && tar -C "$RUNNER_TEMP/unpacked" -xzf desktop/dist/Linux-DubStemMix-0.0.0-linux-x86_64.tar.gz
+          ls -la "$RUNNER_TEMP/unpacked/DubStemMix-0.0.0-linux-x86_64"
+          "$RUNNER_TEMP/unpacked/DubStemMix-0.0.0-linux-x86_64/DubStemMix" --selftest | tail -3
+      - name: Keep the archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux-archive
+          path: desktop/dist/Linux-DubStemMix-*.tar.gz
       - name: Keep the screen test's pictures
         if: always()
         uses: actions/upload-artifact@v4

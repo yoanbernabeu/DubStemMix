@@ -17,7 +17,7 @@ git -C "$SDK" fetch -q origin "$SDK_COMMIT" 2>/dev/null || true
 git -C "$SDK" checkout -q "$SDK_COMMIT"
 
 BUILD="${DUBSTEMMIX_BUILD_DIR:-$HERE/build}"
-cmake -S "$HERE" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release -Wno-dev >/dev/null
+cmake -S "$HERE" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release -DDUBSTEMMIX_VERSION="${DUBSTEMMIX_VERSION:-0.0.0}" -Wno-dev >/dev/null
 cmake --build "$BUILD" --parallel
 
 # JUCE puts the program in an app bundle on macOS, a plain file on Linux: one launcher for both.

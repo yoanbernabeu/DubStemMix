@@ -688,7 +688,19 @@ Jalons (ordre de travail, ajustable) :
   - L'annulation prend effet à la fin du bloc de 7,8 s en cours (comme sur le Mac) ; l'écran affiche « CANCELLING… » entre-temps.
 - Vérifié sans les modèles (auto-test et test d'écran, aussi en CI) : blocs et recouvrement, décodage (mono 22,05 kHz, stéréo 48 kHz, calé dans le temps), fichiers et manifeste, pas de recalcul, annulation qui ne laisse rien, téléchargement depuis un dossier local (reprise, empreinte, fichier faux jeté), file de préparation, étapes de l'app (question avant téléchargement, séparation, mode préparation, projets). 
 - Vérifié avec les vrais modèles sur le Mac de Yoan (`--split`, § 12.5), sur des morceaux que l'app Mac avait déjà séparés, écrits dans un dossier à part : Σ stems vs mix à 25,8 dB et 26,6 dB (≥ 25 attendu) ; un MP3 en 44,1 kHz donne des stems **identiques à ceux de l'app Mac** (écart à −120 dB), en ×1,16 la durée du morceau ; un WAV en 48 kHz s'en écarte de 30 à 40 dB sous le signal, la conversion vers 44,1 kHz n'étant pas faite par le même code. Le vrai téléchargement des quatre fichiers (`--fetch-models`, dans un dossier à part) passe, coupure et reprise comprises, et redonne les fichiers de l'app Mac.
-- Non vérifié : la séparation et le téléchargement sous Linux (la CI ne télécharge pas les modèles), le son à l'oreille, les dialogues système. En attente de l'essai de Yoan.
+- Non vérifié à cette date : la séparation et le téléchargement sous Linux (faits le 20/11, voir L8), le son à l'oreille, les dialogues système.
+
+**L7 essayé par Yoan le 20/11/2026** : « tout est ok ». Les cinq écarts lui avaient été présentés ; il n'en a relevé aucun. Aucun nouveau dossier de stems n'a été écrit pendant ses deux essais : un morceau jamais séparé n'a donc pas été séparé depuis l'écran ce jour-là (les séparations réelles vérifiées sont celles de `--split`).
+
+**ONNX Runtime retiré de GitHub (constaté le 19/11/2026)** : `microsoft/onnxruntime` et ses dépôts compagnons, dont le paquet Swift dont dépendait l'app Mac, répondent « introuvable » depuis le 18/11, sans explication de Microsoft. L'app Mac ne se compilait plus à partir de zéro (pipeline, release). Réglé le 20/11 : l'enveloppe Objective-C de ce paquet (MIT, version 1.24.2, inchangée) est copiée dans `Sources/OnnxRuntimeBindings`, la bibliothèque reste téléchargée chez Microsoft (`download.onnxruntime.ai`, même version, même empreinte). Aucun changement de comportement. Si ce serveur disparaît aussi, il faudra héberger l'archive nous-mêmes.
+
+**L8 commencé le 20/11/2026** : la publication.
+- **Archive Linux** : `desktop/package.sh <version>` → `Linux-DubStemMix-<version>-linux-x86_64.tar.gz` (programme, bibliothèque de séparation à côté, licences, notice, `install.sh` qui ajoute l'app au menu des applications de l'utilisateur, sans sudo). Construite sous Ubuntu 22.04 pour tourner sur les Linux de 2022 et après. La pipeline la construit, la déballe ailleurs et lance son auto-test ; une release publiée la reçoit en pièce jointe (job `linux` de `release.yml`). Jamais de modèle dedans.
+- **Version** : celle du tag de la release, comme l'app Mac.
+- **`FEATURES.md`** : colonne Linux / Windows remplie ; sept écarts jamais décidés y sont marqués ❔ et listés en fin de fichier.
+- **Vérifié sous Linux le 20/11/2026** (Ubuntu 22.04 en conteneur, ARM) : l'archive se construit, se déballe dans un Ubuntu vierge et passe son auto-test ; `install.sh` pose et retire l'entrée de menu ; le téléchargement des modèles passe, coupure et reprise comprises, et redonne les fichiers de l'app Mac ; un vrai morceau (WAV 44,1 kHz) y est séparé avec des stems **identiques à ceux de l'app Mac** (écart à −120 dB, Σ stems vs mix à 25,9 dB).
+- Défaut corrigé au passage : sous Linux les réglages allaient dans `~/DubStemMix` ; ils vont dans `~/.config/DubStemMix`.
+- Reste : l'essai sur un vrai PC Linux (son, MIDImix, LEDs, fenêtre et dialogues), les pages du site, la fusion de la PR #19, la première release qui porte l'archive, puis Windows.
 
 ### 17.4 Points ouverts
 
