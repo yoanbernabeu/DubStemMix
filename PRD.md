@@ -700,7 +700,8 @@ Jalons (ordre de travail, ajustable) :
 - **`FEATURES.md`** : colonne Linux / Windows remplie ; sept écarts jamais décidés y sont marqués ❔ et listés en fin de fichier.
 - **Vérifié sous Linux le 20/11/2026** (Ubuntu 22.04 en conteneur, ARM) : l'archive se construit, se déballe dans un Ubuntu vierge et passe son auto-test ; `install.sh` pose et retire l'entrée de menu ; le téléchargement des modèles passe, coupure et reprise comprises, et redonne les fichiers de l'app Mac ; un vrai morceau (WAV 44,1 kHz) y est séparé avec des stems **identiques à ceux de l'app Mac** (écart à −120 dB, Σ stems vs mix à 25,9 dB).
 - Défaut corrigé au passage : sous Linux les réglages allaient dans `~/DubStemMix` ; ils vont dans `~/.config/DubStemMix`.
-- Reste : l'essai sur un vrai PC Linux (son, MIDImix, LEDs, fenêtre et dialogues), les pages du site, la fusion de la PR #19, la première release qui porte l'archive, puis Windows.
+- **Site préparé le 20/11/2026, Linux annoncé en alpha** (demande de Yoan) : page « On Linux (alpha) » dans les docs (installer, ce qu'il y a dedans, les différences avec le Mac, ce que personne n'a encore essayé), une ligne « Alpha » sous les deux cartes de l'accueil, la réponse de la FAQ, `llms.txt`, le README. Le lien de téléchargement vise un nom fixe, `Linux-DubStemMix-x86_64.tar.gz`, que la release attache en plus du nom daté. Rien n'est en ligne tant que la PR n'est pas fusionnée ; le lien ne marche qu'une fois la première release sortie.
+- Reste : l'essai sur un vrai PC Linux (son, MIDImix, LEDs, fenêtre et dialogues), la fusion de la PR #19, la première release qui porte l'archive, puis Windows.
 
 ### 17.4 Points ouverts
 

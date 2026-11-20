@@ -40,6 +40,14 @@ D (hold) drop: everything cut but the strips marked KEEP. H (hold) hold: the del
 - Strip inserts: sub-octave generator (dbx boom box idea), Mu-Tron III style auto-wah.
 - Any Audio Unit effect can replace a built-in effect on a bus or sit in an insert; plugins load out of process, a crash falls back to the built-in effect.
 
+## On Linux (alpha)
+
+- A Linux version of the app is out as an alpha: one archive (x86_64, Linux systems from 2022 on) to unpack and run. Its automatic tests pass; it has not been played on a real Linux PC yet (sound, the MIDImix and its LEDs are untried).
+- In it: the whole console and its four pages, projects and setlists shared with the Mac app (same files), the setlist workshop, recording and MP3 export, stem separation (same model, same results as the Mac app), VST3 and LV2 plugins.
+- Not in it yet: export to an Akai MPC, controllers other than the MIDImix, in-app updates. Windows is not available.
+- License: the Linux app (folder desktop/, built with JUCE) is under the GNU AGPL v3; the Mac app and the MPC plugin stay MIT.
+- Guide: https://yoanbernabeu.github.io/DubStemMix/docs/linux/
+
 ## On an Akai MPC (plugin)
 
 - The same console, effects and gestures as a plugin on the MPC, with the MIDImix plugged into the MPC's USB port. Built with Akai's MPC Plugin SDK on the app's own effects engine.
@@ -65,6 +73,7 @@ Plugin latency is not compensated. Loading or removing a plugin, or putting a st
   - Playing live: https://yoanbernabeu.github.io/DubStemMix/docs/live/
   - Settings, troubleshooting and FAQ: https://yoanbernabeu.github.io/DubStemMix/docs/settings/
   - On an Akai MPC, without the Mac: https://yoanbernabeu.github.io/DubStemMix/docs/mpc/
+  - On Linux (alpha): https://yoanbernabeu.github.io/DubStemMix/docs/linux/
 - Comparisons with other software (what each does best): https://yoanbernabeu.github.io/DubStemMix/compare/
   - DubStemMix vs Amp FreQQ: https://yoanbernabeu.github.io/DubStemMix/compare/amp-freqq/
   - DubStemMix vs Ableton Live: https://yoanbernabeu.github.io/DubStemMix/compare/ableton-live/
