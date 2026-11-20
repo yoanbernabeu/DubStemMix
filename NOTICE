@@ -2,7 +2,9 @@ DubStemMix — third-party notices
 
 Code
   DubStemMix is released under the MIT License (see LICENSE).
-  ONNX Runtime and its Swift package (microsoft/onnxruntime-swift-package-manager): MIT, Microsoft.
+  ONNX Runtime 1.24.2: MIT, Microsoft. The library is downloaded at build time from Microsoft
+    (download.onnxruntime.ai); its Objective-C bindings in Sources/OnnxRuntimeBindings are an unmodified
+    copy of Microsoft's Swift package (microsoft/onnxruntime-swift-package-manager), license beside them.
   Fonts: Archivo and JetBrains Mono, SIL Open Font License 1.1.
   LAME 3.100 (libmp3lame), the MP3 encoder of session exports: GNU LGPL 2, The LAME Project.
     Unmodified sources in Sources/LAME (license in Sources/LAME/COPYING), from https://lame.sourceforge.io.
